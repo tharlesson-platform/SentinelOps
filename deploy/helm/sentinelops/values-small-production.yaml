@@ -1,0 +1,5 @@
+api: { replicas: 2, autoscaling: { enabled: true, minReplicas: 2, maxReplicas: 5, targetCPUUtilizationPercentage: 70 } }
+worker: { replicas: 2 }
+web: { replicas: 2 }
+agent: { enabled: true, replicas: 1 }
+

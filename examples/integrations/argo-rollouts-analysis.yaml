@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata: { name: sentinelops-release-gate }
+spec:
+  args:
+    - { name: validation-id }
+    - { name: sentinel-url }
+    - { name: sentinel-token }
+  metrics:
+    - name: sentinelops-gate
+      interval: 10s
+      count: 90
+      successCondition: result.data.result == 'PASS' || result.data.result == 'WARN'
+      failureCondition: result.data.result == 'FAIL'
+      provider:
+        web:
+          url: "{{ args.sentinel-url }}/api/v1/validations/{{ args.validation-id }}"
+          headers:
+            - { key: Authorization, value: "Bearer {{ args.sentinel-token }}" }
+          jsonPath: "{$}"
+

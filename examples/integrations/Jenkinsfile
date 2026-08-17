@@ -1,0 +1,21 @@
+pipeline {
+  agent any
+  options { timeout(time: 20, unit: 'MINUTES'); disableConcurrentBuilds() }
+  environment { SENTINEL_TOKEN = credentials('sentinelops-production-token') }
+  stages {
+    stage('Production approval') { steps { input message: 'Validar release em produção?', submitter: 'sre-platform' } }
+    stage('SentinelOps gate') {
+      steps {
+        sh '''#!/bin/bash
+          set -euo pipefail
+          release=$(curl --fail-with-body --retry 3 --max-time 20 -sS -X POST "$SENTINEL_URL/api/v1/releases" -H "Authorization: Bearer $SENTINEL_TOKEN" -H "Idempotency-Key: $BUILD_TAG" -H 'Content-Type: application/json' --data "{\"service\":\"$JOB_BASE_NAME\",\"environment\":\"production\",\"version\":\"$GIT_COMMIT\",\"commitSha\":\"$GIT_COMMIT\",\"deployedAt\":\"$(date -u +%FT%TZ)\",\"pipelineUrl\":\"$BUILD_URL\"}" | jq -er .data.id)
+          validation=$(curl --fail-with-body --max-time 20 -sS -X POST "$SENTINEL_URL/api/v1/releases/$release/validate" -H "Authorization: Bearer $SENTINEL_TOKEN" -H 'Content-Type: application/json' --data '{"mode":"standard"}' | jq -er .data.id)
+          for i in $(seq 1 90); do curl --fail-with-body -sS "$SENTINEL_URL/api/v1/validations/$validation" -H "Authorization: Bearer $SENTINEL_TOKEN" > sentinelops-validation.json; [ "$(jq -r .data.status sentinelops-validation.json)" = COMPLETED ] && break; sleep 10; done
+          case "$(jq -r .data.result sentinelops-validation.json)" in PASS|WARN) exit 0;; FAIL) exit 2;; INCONCLUSIVE) exit 4;; *) exit 3;; esac
+        '''
+      }
+    }
+  }
+  post { always { archiveArtifacts artifacts: 'sentinelops-validation.json', allowEmptyArchive: true } }
+}
+

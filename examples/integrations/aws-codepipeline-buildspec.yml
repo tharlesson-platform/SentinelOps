@@ -1,0 +1,17 @@
+version: 0.2
+env:
+  secrets-manager:
+    SENTINEL_TOKEN: sentinelops/production/pipeline:token
+phases:
+  install:
+    runtime-versions: { golang: 1.24 }
+  build:
+    commands:
+      - set -euo pipefail
+      - RELEASE_ID=$(curl --fail-with-body --retry 3 --max-time 20 -sS -X POST "$SENTINEL_URL/api/v1/releases" -H "Authorization: Bearer $SENTINEL_TOKEN" -H "Idempotency-Key: $CODEBUILD_BUILD_ID" -H 'Content-Type: application/json' --data "{\"service\":\"$SERVICE_NAME\",\"environment\":\"$ENVIRONMENT\",\"version\":\"$CODEBUILD_RESOLVED_SOURCE_VERSION\",\"commitSha\":\"$CODEBUILD_RESOLVED_SOURCE_VERSION\",\"imageDigest\":\"$IMAGE_DIGEST\",\"deployedAt\":\"$(date -u +%FT%TZ)\"}" | jq -er .data.id)
+      - VALIDATION_ID=$(curl --fail-with-body -sS -X POST "$SENTINEL_URL/api/v1/releases/$RELEASE_ID/validate" -H "Authorization: Bearer $SENTINEL_TOKEN" -H 'Content-Type: application/json' --data '{"mode":"standard"}' | jq -er .data.id)
+      - for i in $(seq 1 90); do curl --fail-with-body -sS "$SENTINEL_URL/api/v1/validations/$VALIDATION_ID" -H "Authorization: Bearer $SENTINEL_TOKEN" > sentinelops-validation.json; [ "$(jq -r .data.status sentinelops-validation.json)" = COMPLETED ] && break; sleep 10; done
+      - case "$(jq -r .data.result sentinelops-validation.json)" in PASS|WARN) exit 0;; FAIL) exit 2;; INCONCLUSIVE) exit 4;; *) exit 3;; esac
+artifacts:
+  files: [sentinelops-validation.json]
+

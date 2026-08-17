@@ -1,0 +1,54 @@
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: tempo
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+      derivedFields:
+        - name: TraceID
+          matcherRegex: 'trace[_-]?id[=": ]+([0-9a-f]{32})'
+          datasourceUid: tempo
+          url: '$${__value.raw}'
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: -1m
+        spanEndTimeShift: 1m
+        tags: [{ key: service.name, value: service_name }]
+        filterByTraceID: true
+      tracesToMetrics:
+        datasourceUid: prometheus
+        tags: [{ key: service.name, value: service_name }]
+        queries:
+          - name: Request rate
+            query: 'sum(rate(traces_spanmetrics_calls_total{$$__tags}[5m]))'
+      tracesToProfiles:
+        datasourceUid: pyroscope
+        tags: [{ key: service.name, value: service_name }]
+        profileTypeId: process_cpu:cpu:nanoseconds:cpu:nanoseconds
+      serviceMap:
+        datasourceUid: prometheus
+      nodeGraph: { enabled: true }
+  - name: Pyroscope
+    uid: pyroscope
+    type: grafana-pyroscope-datasource
+    access: proxy
+    url: http://pyroscope:4040
+

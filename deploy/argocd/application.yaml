@@ -1,0 +1,16 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata: { name: sentinelops, namespace: argocd }
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/example/sentinelops.git
+    targetRevision: main
+    path: deploy/helm/sentinelops
+    helm: { valueFiles: [values-small-production.yaml] }
+  destination: { server: https://kubernetes.default.svc, namespace: sentinelops }
+  syncPolicy:
+    automated: { prune: false, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry: { limit: 5, backoff: { duration: 5s, factor: 2, maxDuration: 3m } }
+

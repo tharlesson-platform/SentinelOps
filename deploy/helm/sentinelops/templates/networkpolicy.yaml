@@ -1,0 +1,19 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "sentinelops.fullname" . }}-default-deny
+spec:
+  podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }} } }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.ingressNamespaceSelector | nindent 14 }}
+        - podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }} } }
+      ports: [{ protocol: TCP, port: 8080 }, { protocol: TCP, port: 3000 }]
+  egress:
+    - to: [{ namespaceSelector: {} }]
+      ports: [{ protocol: UDP, port: 53 }, { protocol: TCP, port: 53 }, { protocol: TCP, port: 443 }, { protocol: TCP, port: 5432 }, { protocol: TCP, port: 7233 }]
+{{- end }}

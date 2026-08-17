@@ -1,0 +1,4 @@
+SentinelOps foi renderizado sem criar secrets. Crie {{ .Values.global.existingSecret }}
+via External Secrets, SOPS ou o secret store da sua plataforma antes do deploy.
+AUTH_MODE=oidc é obrigatório neste chart.
+

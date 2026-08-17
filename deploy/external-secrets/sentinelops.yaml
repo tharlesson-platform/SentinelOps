@@ -1,0 +1,13 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata: { name: sentinelops-secrets, namespace: sentinelops }
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { name: platform-secret-store, kind: ClusterSecretStore }
+  target: { name: sentinelops-secrets, creationPolicy: Owner }
+  data:
+    - secretKey: database-url
+      remoteRef: { key: sentinelops/production/database-url }
+    - secretKey: jwt-secret
+      remoteRef: { key: sentinelops/production/jwt-secret }
+

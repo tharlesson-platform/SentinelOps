@@ -1,0 +1,10 @@
+apiVersion: v2
+name: sentinelops
+description: SentinelOps Control Plane and distributed agent
+type: application
+version: 0.1.0
+appVersion: 0.1.0
+kubeVersion: ">=1.30.0-0"
+annotations:
+  artifacthub.io/license: Apache-2.0
+

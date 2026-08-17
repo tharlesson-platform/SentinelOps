@@ -1,0 +1,20 @@
+groups:
+  - name: sentinelops-self-monitoring
+    rules:
+      - alert: SentinelAPIUnavailable
+        expr: up{job="sentinel-api"} == 0
+        for: 2m
+        labels: { severity: critical, team: platform, service: sentinel-api }
+        annotations:
+          summary: SentinelOps API indisponível
+          runbook_url: docs/runbooks/control-plane-unavailable.md
+      - alert: SyntheticProbeFailing
+        expr: probe_success{job="blackbox-demo"} == 0
+        for: 2m
+        labels: { severity: warning, team: platform, service: sentinel-demo-api }
+        annotations:
+          summary: Probe sintético falhando
+          runbook_url: docs/runbooks/synthetic-tests-failing.md
+      - record: service:http_requests:rate5m
+        expr: sum by (service_name) (rate(demo_http_requests_total[5m]))
+

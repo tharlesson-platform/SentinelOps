@@ -1,0 +1,13 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+{{- range $name := list "api" "worker" "web" }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "sentinelops.fullname" $ }}-{{ $name }}
+spec:
+  minAvailable: {{ $.Values.podDisruptionBudget.minAvailable }}
+  selector: { matchLabels: { app.kubernetes.io/instance: {{ $.Release.Name }}, app.kubernetes.io/component: {{ $name }} } }
+{{- end }}
+{{- end }}
+

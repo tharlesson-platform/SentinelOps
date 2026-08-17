@@ -1,0 +1,38 @@
+name: sentinelops-release-gate
+on: { workflow_dispatch: {} }
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    environment: production
+    permissions: { contents: read }
+    steps:
+      - name: Registrar release
+        id: release
+        env: { SENTINEL_URL: "${{ vars.SENTINEL_URL }}", SENTINEL_TOKEN: "${{ secrets.SENTINEL_TOKEN }}", IMAGE_DIGEST: "${{ inputs.image_digest }}" }
+        run: |
+          set -euo pipefail
+          response=$(curl --fail-with-body --retry 3 --max-time 20 -sS -X POST "$SENTINEL_URL/api/v1/releases" -H "Authorization: Bearer $SENTINEL_TOKEN" -H "Idempotency-Key: $GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" -H 'Content-Type: application/json' --data "{\"service\":\"my-service\",\"environment\":\"production\",\"version\":\"$GITHUB_SHA\",\"commitSha\":\"$GITHUB_SHA\",\"imageDigest\":\"$IMAGE_DIGEST\",\"deployedAt\":\"$(date -u +%FT%TZ)\",\"pipelineUrl\":\"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\"}")
+          echo "release_id=$(jq -er .data.id <<<"$response")" >> "$GITHUB_OUTPUT"
+      - name: Executar gate
+        env: { SENTINEL_URL: "${{ vars.SENTINEL_URL }}", SENTINEL_TOKEN: "${{ secrets.SENTINEL_TOKEN }}", RELEASE_ID: "${{ steps.release.outputs.release_id }}" }
+        run: |
+          set -euo pipefail
+          validation=$(curl --fail-with-body --max-time 20 -sS -X POST "$SENTINEL_URL/api/v1/releases/$RELEASE_ID/validate" -H "Authorization: Bearer $SENTINEL_TOKEN" -H 'Content-Type: application/json' --data '{"mode":"standard"}' | jq -er .data.id)
+          deadline=$((SECONDS+900))
+          while (( SECONDS < deadline )); do
+            result=$(curl --fail-with-body --max-time 20 -sS "$SENTINEL_URL/api/v1/validations/$validation" -H "Authorization: Bearer $SENTINEL_TOKEN")
+            status=$(jq -r .data.status <<<"$result")
+            if [[ "$status" == COMPLETED ]]; then
+              echo "$result" | jq .data | tee sentinelops-validation.json
+              gate=$(jq -r .data.result <<<"$result")
+              [[ "$gate" == PASS || "$gate" == WARN ]] && exit 0
+              [[ "$gate" == INCONCLUSIVE ]] && exit 4
+              exit 2
+            fi
+            sleep 10
+          done
+          exit 3
+      - uses: actions/upload-artifact@v6.0.0
+        if: always()
+        with: { name: sentinelops-validation, path: sentinelops-validation.json, if-no-files-found: warn }
+

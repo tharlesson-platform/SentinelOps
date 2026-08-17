@@ -1,0 +1,381 @@
+name: sentinelops
+
+x-app-env: &app-env
+  env_file:
+    - ../../.env
+  environment:
+    DATABASE_URL: postgres://sentinel:${POSTGRES_PASSWORD}@postgres:5432/sentinel?sslmode=disable
+    TEMPORAL_ADDRESS: temporal:7233
+    TEMPORAL_NAMESPACE: default
+    AUTH_MODE: local
+    SENTINEL_ENV: development
+    ALLOWED_ORIGIN: http://localhost:3000
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
+
+x-security: &security
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+services:
+  postgres:
+    image: public.ecr.aws/docker/library/postgres:18.3
+    environment:
+      POSTGRES_USER: sentinel
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: sentinel
+    volumes:
+      # PostgreSQL 18 stores clusters below a versioned directory so that
+      # pg_upgrade --link can operate without crossing a mount boundary.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel -d sentinel"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [control]
+    restart: unless-stopped
+
+  temporal:
+    image: mirror.gcr.io/temporalio/auto-setup:1.29.7
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: sentinel
+      POSTGRES_PWD: ${POSTGRES_PASSWORD}
+      POSTGRES_SEEDS: postgres
+      DBNAME: temporal
+      VISIBILITY_DBNAME: temporal_visibility
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "tctl --address temporal:7233 cluster health | grep -q SERVING"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+    networks: [control]
+    restart: unless-stopped
+
+  temporal-ui:
+    image: mirror.gcr.io/temporalio/ui:2.53.3
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:8088
+    depends_on:
+      temporal:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8088:8080"
+    networks: [control]
+    restart: unless-stopped
+
+  minio:
+    image: mirror.gcr.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio-data:/data
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks: [control]
+    restart: unless-stopped
+
+  minio-init:
+    image: mirror.gcr.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+    entrypoint: ["/bin/sh", "-ec"]
+    command: ["mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD && mc mb --ignore-existing local/sentinel-artifacts && mc anonymous set none local/sentinel-artifacts"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks: [control]
+    restart: "no"
+
+  api:
+    image: sentinelops-api:0.1.0-local
+    build:
+      context: ../..
+      dockerfile: Dockerfile.app
+      args: { APP: api }
+    <<: [*app-env, *security]
+    depends_on:
+      postgres: { condition: service_healthy }
+      temporal: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks: [control, telemetry]
+    read_only: true
+    tmpfs: [/tmp]
+    volumes:
+      - artifacts:/var/lib/sentinelops/artifacts
+    restart: unless-stopped
+
+  worker:
+    image: sentinelops-worker:0.1.0-local
+    build:
+      context: ../..
+      dockerfile: Dockerfile.app
+      args: { APP: worker }
+    <<: [*app-env, *security]
+    environment:
+      DATABASE_URL: postgres://sentinel:${POSTGRES_PASSWORD}@postgres:5432/sentinel?sslmode=disable
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_NAMESPACE: default
+      AUTH_MODE: local
+      SENTINEL_ENV: development
+      JWT_SECRET: ${JWT_SECRET}
+      LOCAL_ADMIN_PASSWORD_HASH: ${LOCAL_ADMIN_PASSWORD_HASH}
+      DEMO_BASE_URL: http://demo-api:8090
+      SYNTHETIC_ALLOWED_HOSTS: demo-api
+    depends_on:
+      api: { condition: service_healthy }
+      temporal: { condition: service_healthy }
+      demo-api: { condition: service_healthy }
+    networks: [control, telemetry]
+    read_only: true
+    tmpfs: [/tmp]
+    restart: unless-stopped
+
+  agent:
+    image: sentinelops-agent:0.1.0-local
+    build:
+      context: ../..
+      dockerfile: Dockerfile.app
+      args: { APP: agent }
+    <<: *security
+    environment:
+      SENTINEL_API_URL: http://api:8080
+      AGENT_BOOTSTRAP_TOKEN: ${AGENT_BOOTSTRAP_TOKEN}
+      AGENT_NAME: local-docker-agent
+      AGENT_REGION: local
+      AGENT_LOCATION: docker-desktop
+      AGENT_TEAM: platform
+      AGENT_ENVIRONMENT: development
+      AGENT_CAPABILITIES: http,dns,tcp,tls
+    depends_on:
+      api: { condition: service_healthy }
+    networks: [control, telemetry]
+    read_only: true
+    tmpfs: [/tmp]
+    restart: unless-stopped
+
+  web:
+    image: sentinelops-web:0.1.0-local
+    build:
+      context: ../../apps/web
+    <<: *security
+    depends_on:
+      api: { condition: service_healthy }
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks: [control]
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx:uid=101,gid=101,mode=0755
+      - /var/run:uid=101,gid=101,mode=0755
+    restart: unless-stopped
+
+  demo-api:
+    image: sentinelops-demo-api:0.1.0-local
+    build:
+      context: ../..
+      dockerfile: Dockerfile.demo
+    <<: *security
+    environment:
+      SERVICE_VERSION: 1.0.0
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
+    ports:
+      - "127.0.0.1:8090:8090"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8090/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks: [telemetry, control]
+    read_only: true
+    tmpfs: [/tmp]
+    restart: unless-stopped
+
+  prometheus:
+    image: mirror.gcr.io/prom/prometheus:v3.13.2
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus", "--storage.tsdb.retention.time=7d", "--web.enable-remote-write-receiver", "--enable-feature=exemplar-storage", "--enable-feature=native-histograms"]
+    volumes:
+      - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../prometheus/rules.yml:/etc/prometheus/rules.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks: [telemetry]
+    restart: unless-stopped
+
+  loki-init:
+    image: sentinelops-api:0.1.0-local
+    entrypoint: ["/bin/sh", "-ec"]
+    command: ["chown 10001:10001 /tmp/loki"]
+    user: "0:0"
+    cap_drop: [ALL]
+    cap_add: [CHOWN]
+    security_opt: [no-new-privileges:true]
+    network_mode: none
+    volumes:
+      - loki-data:/tmp/loki
+    restart: "no"
+
+  loki:
+    image: mirror.gcr.io/grafana/loki:3.7.6
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    volumes:
+      - ../loki/loki.yaml:/etc/loki/local-config.yaml:ro
+      - loki-data:/tmp/loki
+    ports:
+      - "127.0.0.1:3100:3100"
+    depends_on:
+      loki-init: { condition: service_completed_successfully }
+    networks: [telemetry]
+    restart: unless-stopped
+
+  tempo:
+    image: mirror.gcr.io/grafana/tempo:3.0.3
+    command: ["-target=all", "-config.file=/etc/tempo/tempo.yaml"]
+    volumes:
+      - ../tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "127.0.0.1:3200:3200"
+    networks: [telemetry]
+    restart: unless-stopped
+
+  pyroscope:
+    image: mirror.gcr.io/grafana/pyroscope:2.2.1
+    command: ["server"]
+    volumes:
+      - pyroscope-data:/data
+    ports:
+      - "127.0.0.1:4040:4040"
+    networks: [telemetry]
+    restart: unless-stopped
+
+  alloy:
+    image: mirror.gcr.io/grafana/alloy:v1.18.1
+    command: ["run", "/etc/alloy/config.alloy", "--storage.path=/var/lib/alloy/data", "--server.http.listen-addr=0.0.0.0:12345"]
+    volumes:
+      - ../alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - alloy-data:/var/lib/alloy/data
+    ports:
+      - "127.0.0.1:12345:12345"
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+    networks: [telemetry, control]
+    depends_on: [prometheus, loki, tempo, pyroscope]
+    restart: unless-stopped
+
+  blackbox:
+    image: mirror.gcr.io/prom/blackbox-exporter:v0.28.0
+    command: ["--config.file=/etc/blackbox/blackbox.yml"]
+    volumes:
+      - ../blackbox/blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    networks: [telemetry, control]
+    restart: unless-stopped
+
+  grafana:
+    image: mirror.gcr.io/grafana/grafana:13.1.3
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_FEATURE_TOGGLES_ENABLE: traceqlEditor metricsSummary
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ../grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../../dashboards/managed:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3001:3000"
+    depends_on: [prometheus, loki, tempo, pyroscope]
+    networks: [telemetry]
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.1
+    command: ["start-dev", "--http-port=8080", "--health-enabled=true"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+    ports:
+      - "127.0.0.1:8081:8080"
+    networks: [control]
+    restart: unless-stopped
+
+  mailpit:
+    image: ghcr.io/axllent/mailpit:v1.30.7
+    environment:
+      MP_MAX_MESSAGES: 500
+      MP_SMTP_AUTH_ACCEPT_ANY: "0"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "0"
+    ports:
+      - "127.0.0.1:8025:8025"
+    networks: [control]
+    restart: unless-stopped
+
+  playwright:
+    image: mcr.microsoft.com/playwright:v1.62.1-noble
+    working_dir: /tests
+    command: ["/bin/sh", "-ec", "npm install --ignore-scripts --no-audit --no-fund && npx playwright test"]
+    environment:
+      WEB_URL: http://web:3000
+      LOCAL_ADMIN_USER: ${LOCAL_ADMIN_USER}
+      LOCAL_ADMIN_PASSWORD: ${LOCAL_ADMIN_PASSWORD}
+    volumes:
+      - ../../tests/playwright:/tests
+      - ../../artifacts/playwright:/artifacts
+    depends_on:
+      web: { condition: service_started }
+    networks: [control]
+    <<: *security
+    restart: "no"
+
+  k6:
+    image: mirror.gcr.io/grafana/k6:2.2.0
+    command: ["run", "/tests/smoke.js"]
+    environment: { DEMO_URL: http://demo-api:8090 }
+    volumes:
+      - ../../tests/k6:/tests:ro
+      - ../../artifacts/k6:/artifacts
+    depends_on:
+      demo-api: { condition: service_healthy }
+    networks: [control, telemetry]
+    <<: *security
+    restart: "no"
+
+networks:
+  control: { internal: false }
+  telemetry: { internal: false }
+
+volumes:
+  postgres-data: {}
+  minio-data: {}
+  grafana-data: {}
+  prometheus-data: {}
+  loki-data: {}
+  tempo-data: {}
+  pyroscope-data: {}
+  alloy-data: {}
+  artifacts: {}

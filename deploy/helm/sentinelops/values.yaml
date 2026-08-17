@@ -1,0 +1,50 @@
+global:
+  imagePullSecrets: []
+  environment: production
+  timezone: America/Sao_Paulo
+  existingSecret: sentinelops-secrets
+  databaseURLKey: database-url
+  jwtSecretKey: jwt-secret
+  oidcIssuerURL: ""
+  oidcClientID: sentinelops
+  temporalAddress: temporal-frontend.temporal.svc:7233
+
+api:
+  replicas: 3
+  image: { repository: sentinelops-api, tag: 0.1.0, pullPolicy: IfNotPresent }
+  resources: { requests: { cpu: 200m, memory: 256Mi }, limits: { cpu: "1", memory: 1Gi } }
+  autoscaling: { enabled: true, minReplicas: 3, maxReplicas: 10, targetCPUUtilizationPercentage: 70 }
+  service: { port: 8080 }
+
+worker:
+  replicas: 2
+  image: { repository: sentinelops-worker, tag: 0.1.0, pullPolicy: IfNotPresent }
+  resources: { requests: { cpu: 200m, memory: 256Mi }, limits: { cpu: "1", memory: 1Gi } }
+
+web:
+  replicas: 2
+  image: { repository: sentinelops-web, tag: 0.1.0, pullPolicy: IfNotPresent }
+  resources: { requests: { cpu: 50m, memory: 64Mi }, limits: { cpu: 250m, memory: 256Mi } }
+  service: { port: 3000 }
+
+agent:
+  enabled: false
+  replicas: 1
+  image: { repository: sentinelops-agent, tag: 0.1.0, pullPolicy: IfNotPresent }
+  resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: 500m, memory: 512Mi } }
+
+ingress:
+  enabled: false
+  className: nginx
+  host: sentinelops.example.com
+  tlsSecretName: sentinelops-tls
+  annotations: {}
+
+networkPolicy:
+  enabled: true
+  ingressNamespaceSelector: { kubernetes.io/metadata.name: ingress-nginx }
+  telemetryNamespaceSelector: { kubernetes.io/metadata.name: observability }
+
+podDisruptionBudget: { enabled: true, minAvailable: 1 }
+serviceAccount: { create: true, name: "", annotations: {} }
+

@@ -1,0 +1,106 @@
+otelcol.receiver.otlp "default" {
+  grpc { endpoint = "0.0.0.0:4317" }
+  http { endpoint = "0.0.0.0:4318" }
+  output {
+    metrics = [otelcol.processor.batch.default.input]
+    logs    = [otelcol.processor.attributes.redact.input]
+    traces  = [otelcol.processor.tail_sampling.default.input]
+  }
+}
+
+otelcol.processor.attributes "redact" {
+  action {
+    key    = "http.request.header.authorization"
+    action = "delete"
+  }
+  action {
+    key    = "http.request.header.cookie"
+    action = "delete"
+  }
+  action {
+    key    = "user.email"
+    action = "delete"
+  }
+  output {
+    logs = [otelcol.processor.batch.logs.input]
+  }
+}
+
+otelcol.processor.tail_sampling "default" {
+  decision_wait = "5s"
+  num_traces    = 50000
+  policy {
+    name = "errors"
+    type = "status_code"
+    status_code {
+      status_codes = ["ERROR"]
+    }
+  }
+  policy {
+    name = "synthetic"
+    type = "string_attribute"
+    string_attribute {
+      key                    = "http.request.header.x_synthetic_test"
+      values                 = ["sentinelops"]
+      enabled_regex_matching = true
+    }
+  }
+  policy {
+    name = "baseline"
+    type = "probabilistic"
+    probabilistic {
+      sampling_percentage = 20
+    }
+  }
+  output {
+    traces = [otelcol.processor.batch.traces.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  output {
+    metrics = [otelcol.exporter.prometheus.default.input]
+  }
+}
+otelcol.processor.batch "logs" {
+  output {
+    logs = [otelcol.exporter.otlphttp.loki.input]
+  }
+}
+otelcol.processor.batch "traces" {
+  output {
+    traces = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+
+otelcol.exporter.prometheus "default" {
+  forward_to = [prometheus.remote_write.local.receiver]
+}
+prometheus.remote_write "local" {
+  endpoint {
+    url = "http://prometheus:9090/api/v1/write"
+  }
+}
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "tempo:4317"
+    tls {
+      insecure = true
+    }
+  }
+}
+otelcol.exporter.otlphttp "loki" {
+  client {
+    endpoint = "http://loki:3100/otlp"
+  }
+}
+
+pyroscope.scrape "demo" {
+  targets = [{ "__address__" = "demo-api:8090", "service_name" = "sentinel-demo-api" }]
+  forward_to = [pyroscope.write.local.receiver]
+}
+pyroscope.write "local" {
+  endpoint {
+    url = "http://pyroscope:4040"
+  }
+}

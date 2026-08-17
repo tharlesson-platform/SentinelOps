@@ -1,0 +1,21 @@
+trigger: none
+stages:
+  - stage: ValidateProduction
+    jobs:
+      - deployment: SentinelOpsGate
+        environment: production
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - bash: |
+                    set -euo pipefail
+                    release=$(curl --fail-with-body --retry 3 --max-time 20 -sS -X POST "$(SENTINEL_URL)/api/v1/releases" -H "Authorization: Bearer $(SENTINEL_TOKEN)" -H "Idempotency-Key: $(Build.BuildId)-$(System.JobAttempt)" -H 'Content-Type: application/json' --data "{\"service\":\"$(Build.Repository.Name)\",\"environment\":\"production\",\"version\":\"$(Build.SourceVersion)\",\"commitSha\":\"$(Build.SourceVersion)\",\"deployedAt\":\"$(date -u +%FT%TZ)\"}" | jq -er .data.id)
+                    validation=$(curl --fail-with-body -sS -X POST "$(SENTINEL_URL)/api/v1/releases/$release/validate" -H "Authorization: Bearer $(SENTINEL_TOKEN)" -H 'Content-Type: application/json' --data '{"mode":"standard"}' | jq -er .data.id)
+                    for i in $(seq 1 90); do curl --fail-with-body -sS "$(SENTINEL_URL)/api/v1/validations/$validation" -H "Authorization: Bearer $(SENTINEL_TOKEN)" > "$(Build.ArtifactStagingDirectory)/sentinelops-validation.json"; [ "$(jq -r .data.status "$(Build.ArtifactStagingDirectory)/sentinelops-validation.json")" = COMPLETED ] && break; sleep 10; done
+                    case "$(jq -r .data.result "$(Build.ArtifactStagingDirectory)/sentinelops-validation.json")" in PASS|WARN) exit 0;; FAIL) exit 2;; INCONCLUSIVE) exit 4;; *) exit 3;; esac
+                  displayName: SentinelOps release gate
+                - publish: $(Build.ArtifactStagingDirectory)/sentinelops-validation.json
+                  artifact: SentinelOpsValidation
+                  condition: always()
+
