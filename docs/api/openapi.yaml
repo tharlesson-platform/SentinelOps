@@ -1,0 +1,54 @@
+openapi: 3.1.0
+info:
+  title: SentinelOps API
+  version: 0.1.0
+  license: { name: Apache-2.0, identifier: Apache-2.0 }
+servers: [{ url: http://localhost:8080/api/v1 }]
+security: [{ bearerAuth: [] }]
+paths:
+  /auth/login:
+    post:
+      security: []
+      summary: Login local de desenvolvimento
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Login' } } } }
+      responses: { '200': { description: Token curto }, '401': { $ref: '#/components/responses/Error' } }
+  /services:
+    get: { summary: Lista serviços, responses: { '200': { description: Catálogo } } }
+    post: { summary: Cria ou atualiza serviço, responses: { '200': { description: Serviço salvo } } }
+  /services/{name}:
+    parameters: [{ in: path, name: name, required: true, schema: { type: string } }]
+    get: { summary: Obtém serviço, responses: { '200': { description: Serviço }, '404': { $ref: '#/components/responses/Error' } } }
+    put: { summary: Aplica serviço, responses: { '200': { description: Serviço salvo } } }
+    delete: { summary: Remove serviço logicamente, responses: { '204': { description: Removido } } }
+  /releases:
+    post:
+      summary: Registra release idempotente
+      parameters: [{ in: header, name: Idempotency-Key, required: true, schema: { type: string, maxLength: 128 } }]
+      responses: { '201': { description: Release } }
+  /releases/{releaseId}/validate:
+    post:
+      summary: Inicia gate determinístico
+      parameters: [{ in: path, name: releaseId, required: true, schema: { type: string, format: uuid } }]
+      responses: { '202': { description: Validação enfileirada } }
+  /validations/{validationId}:
+    get:
+      summary: Retorna resultado e evidências
+      parameters: [{ in: path, name: validationId, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Validação } }
+  /validations/{validationId}/cancel:
+    post:
+      summary: Cancela workflow
+      parameters: [{ in: path, name: validationId, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Cancelada }, '409': { $ref: '#/components/responses/Error' } }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  responses:
+    Error: { description: Erro com requestId, content: { application/json: { schema: { type: object } } } }
+  schemas:
+    Login:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties: { username: { type: string }, password: { type: string, format: password } }
+

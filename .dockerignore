@@ -1,0 +1,12 @@
+.git
+.env
+.cache
+.terraform
+**/.terraform
+**/node_modules
+**/dist
+artifacts
+coverage
+*.log
+*.tfstate*
+

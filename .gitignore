@@ -1,0 +1,16 @@
+.env
+.cache/
+bin/
+coverage/
+coverage*.out
+dist/
+node_modules/
+apps/web/node_modules/
+apps/web/dist/
+artifacts/
+*.log
+*.tsbuildinfo
+.DS_Store
+terraform.tfstate*
+.terraform/
+*.tfplan
