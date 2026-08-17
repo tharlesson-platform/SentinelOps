@@ -1,0 +1,26 @@
+repos:
+  - repo: local
+    hooks:
+      - id: actionlint
+        name: Validate GitHub Actions
+        entry: actionlint
+        language: system
+        files: ^\.github/workflows/.*\.ya?ml$
+      - id: terraform-fmt
+        name: Check Terraform formatting
+        entry: terraform fmt -check -recursive infra/terraform
+        language: system
+        pass_filenames: false
+        files: ^infra/terraform/.*\.tf$
+      - id: gofmt
+        name: Check Go formatting
+        entry: scripts/check-gofmt.sh
+        language: script
+        pass_filenames: false
+        files: \.go$
+      - id: compose-config
+        name: Validate Compose model
+        entry: docker compose --env-file .env.example -f deploy/compose/docker-compose.yml config --quiet
+        language: system
+        pass_filenames: false
+        files: ^(deploy/compose/docker-compose\.yml|\.env\.example)$
