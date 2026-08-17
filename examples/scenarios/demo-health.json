@@ -1,0 +1,14 @@
+{
+  "name": "demo-api-health",
+  "serviceRef": "sentinel-demo-api",
+  "environment": "development",
+  "type": "http",
+  "spec": {
+    "url": "http://demo-api:8090/health",
+    "method": "GET",
+    "timeout": "10s",
+    "headers": { "X-Synthetic-Test": "sentinelops" },
+    "assertions": [{ "field": "status", "operator": "lessThan", "value": 400 }]
+  }
+}
+
