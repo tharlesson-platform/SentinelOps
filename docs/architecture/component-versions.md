@@ -1,6 +1,6 @@
 # Versões dos componentes
 
-Verificadas em 2026-08-17 nas páginas oficiais de releases e registries. Todas
+Verificadas em 2026-08-20 nas páginas oficiais de releases e registries. Todas
 as imagens do Compose usam tags exatas; para produção, o pipeline deve promover
 por digest após scan e assinatura.
 
@@ -22,8 +22,8 @@ por digest após scan e assinatura.
 | Tempo | 3.0.3 | traces e metrics-generator; <https://grafana.com/docs/tempo/latest/release-notes/> |
 | Pyroscope | 2.2.1 | profiling; <https://github.com/grafana/pyroscope/releases> |
 | Blackbox exporter | 0.28.0 | probes; <https://github.com/prometheus/blackbox_exporter/releases> |
-| Node exporter | 1.12.1 | hosts Linux; <https://github.com/prometheus/node_exporter/releases> |
-| cAdvisor | 0.60.5 | containers; <https://github.com/google/cadvisor/releases> |
+| Node exporter | embutido no Alloy 1.18.1 | `prometheus.exporter.unix`; evita uma imagem adicional vulnerável; <https://grafana.com/docs/alloy/latest/reference/components/prometheus/prometheus.exporter.unix/> |
+| cAdvisor | embutido no Alloy 1.18.1 | `prometheus.exporter.cadvisor`, perfil privilegiado opt-in; <https://grafana.com/docs/alloy/latest/reference/components/prometheus/prometheus.exporter.cadvisor/> |
 | kube-state-metrics | 2.19.1 | objetos Kubernetes; <https://github.com/kubernetes/kube-state-metrics/releases> |
 | k6 | 2.2.0 | carga/API; <https://github.com/grafana/k6/releases> |
 | Playwright | 1.62.1 | browser E2E; <https://playwright.dev/docs/release-notes> |
@@ -36,3 +36,10 @@ cAdvisor são ativados apenas onde o host permite os mounts necessários.
 O Compose usa `mirror.gcr.io` e `public.ecr.aws/docker/library` como mirrors de
 distribuição para imagens Docker Hub, preservando nomes upstream e tags exatas.
 Isso reduz falhas por rate limit sem alterar a versão do componente.
+
+## Exceção de segurança atual
+
+Em 2026-08-20, Trivy encontrou 12 vulnerabilidades HIGH corrigíveis no binário
+da release oficial Alloy 1.18.1. Como não havia release upstream posterior, a
+versão permanece somente para laboratório/piloto. Produção exige release
+corrigida ou build interno reproduzível, escaneado, assinado e revisado.

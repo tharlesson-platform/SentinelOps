@@ -1,0 +1,135 @@
+prometheus.exporter.unix "linux_node" {
+  rootfs_path = "/host/root"
+  procfs_path = "/host/proc"
+  sysfs_path = "/host/sys"
+  enable_collectors = ["processes", "tcpstat"]
+  disable_collectors = ["ipvs", "btrfs", "infiniband", "xfs", "zfs"]
+}
+
+discovery.relabel "linux_node" {
+  targets = prometheus.exporter.unix.linux_node.targets
+  rule {
+    target_label = "job"
+    replacement = "linux-node"
+  }
+  rule {
+    target_label = "instance"
+    replacement = sys.env("SENTINEL_HOST_NAME")
+  }
+  rule {
+    target_label = "deployment_environment"
+    replacement = sys.env("SENTINEL_ENVIRONMENT")
+  }
+  rule {
+    target_label = "team"
+    replacement = sys.env("SENTINEL_TEAM")
+  }
+  rule {
+    target_label = "location"
+    replacement = sys.env("SENTINEL_LOCATION")
+  }
+}
+
+prometheus.scrape "linux_node" {
+  targets = discovery.relabel.linux_node.output
+  scrape_interval = "15s"
+  forward_to = [prometheus.remote_write.sentinel.receiver]
+}
+
+prometheus.remote_write "sentinel" {
+  endpoint {
+    url = sys.env("SENTINEL_METRICS_ENDPOINT")
+    send_native_histograms = true
+  }
+  wal {
+    truncate_frequency = "2h"
+    min_keepalive_time = "5m"
+    max_keepalive_time = "8h"
+  }
+}
+
+local.file_match "system_logs" {
+  path_targets = [{
+    "__path__" = "/host/var/log/*.log",
+    "job" = "linux-system",
+    "host_name" = sys.env("SENTINEL_HOST_NAME"),
+    "deployment_environment" = sys.env("SENTINEL_ENVIRONMENT"),
+    "team" = sys.env("SENTINEL_TEAM"),
+    "location" = sys.env("SENTINEL_LOCATION"),
+  }]
+}
+
+loki.source.file "system_logs" {
+  targets = local.file_match.system_logs.targets
+  forward_to = [loki.process.system_logs.receiver]
+}
+
+loki.process "system_logs" {
+  stage.drop {
+    expression = "(?i)(authorization|cookie|password|passwd|secret|token)="
+    drop_counter_reason = "possible_secret"
+  }
+  forward_to = [loki.write.sentinel.receiver]
+}
+
+loki.write "sentinel" {
+  endpoint {
+    url = sys.env("SENTINEL_LOGS_ENDPOINT")
+  }
+  external_labels = {
+    source = "sentinelops-linux-collector",
+  }
+}
+
+otelcol.receiver.otlp "applications" {
+  grpc { endpoint = "0.0.0.0:4317" }
+  http { endpoint = "0.0.0.0:4318" }
+  output {
+    metrics = [otelcol.processor.batch.applications.input]
+    logs = [otelcol.processor.attributes.redact.input]
+    traces = [otelcol.processor.batch.applications.input]
+  }
+}
+
+otelcol.processor.attributes "redact" {
+  action {
+    key = "http.request.header.authorization"
+    action = "delete"
+  }
+  action {
+    key = "http.request.header.cookie"
+    action = "delete"
+  }
+  action {
+    key = "user.email"
+    action = "delete"
+  }
+  output {
+    logs = [otelcol.processor.batch.applications.input]
+  }
+}
+
+otelcol.processor.batch "applications" {
+  output {
+    metrics = [otelcol.exporter.otlphttp.sentinel.input]
+    logs = [otelcol.exporter.otlphttp.sentinel.input]
+    traces = [otelcol.exporter.otlphttp.sentinel.input]
+  }
+}
+
+otelcol.exporter.otlphttp "sentinel" {
+  client {
+    endpoint = sys.env("SENTINEL_OTLP_ENDPOINT")
+  }
+  retry_on_failure {
+    enabled = true
+    initial_interval = "5s"
+    max_interval = "30s"
+    max_elapsed_time = "10m"
+  }
+  sending_queue {
+    enabled = true
+    queue_size = 2048
+    num_consumers = 4
+  }
+}

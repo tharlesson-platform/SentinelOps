@@ -18,3 +18,26 @@ groups:
       - record: service:http_requests:rate5m
         expr: sum by (service_name) (rate(demo_http_requests_total[5m]))
 
+  - name: sentinelops-linux-hosts
+    rules:
+      - alert: LinuxHostFilesystemLow
+        expr: (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) < 0.10 and on(instance,device,mountpoint) node_filesystem_readonly == 0
+        for: 15m
+        labels: { severity: warning, team: platform }
+        annotations:
+          summary: Filesystem Linux abaixo de 10% livre
+          runbook_url: docs/runbooks/operational-response.md
+      - alert: LinuxHostMemoryLow
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.10
+        for: 15m
+        labels: { severity: warning, team: platform }
+        annotations:
+          summary: Memória disponível abaixo de 10%
+          runbook_url: docs/runbooks/operational-response.md
+      - alert: LinuxHostClockSkew
+        expr: abs(node_timex_offset_seconds) > 0.1
+        for: 10m
+        labels: { severity: warning, team: platform }
+        annotations:
+          summary: Clock skew Linux acima de 100 ms
+          runbook_url: docs/runbooks/operational-response.md

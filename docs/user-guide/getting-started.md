@@ -11,7 +11,12 @@
 7. Rode `make test-synthetics` para gerar relatório HTML/JUnit/trace Playwright e
    sumário k6 em `artifacts/`.
 
+Para instalar em um host Linux, siga
+[instalação faseada](../installation/linux-server.md). Para monitorar outros
+servidores, use [host monitoring](../integrations/host-monitoring.md). Para
+instrumentar aplicações, gere um kit com
+[`bootstrap-apm.sh`](../integrations/apm-onboarding.md).
+
 Campos do Test Studio explicam descrição, exemplo/impacto e validação. Um teste
 browser deve usar conta sintética, header `X-Synthetic-Test`, limpeza e secrets
 por referência; nunca coloque senha no cenário.
-

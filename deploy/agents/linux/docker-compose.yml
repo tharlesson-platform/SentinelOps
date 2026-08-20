@@ -1,0 +1,82 @@
+name: sentinelops-linux-collector
+
+x-security: &security
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+services:
+  alloy-init:
+    image: mirror.gcr.io/grafana/alloy:v1.18.1
+    entrypoint: ["/bin/sh", "-ec"]
+    command: ["chown 473:473 /tmp/alloy"]
+    user: "0:0"
+    cap_drop: [ALL]
+    cap_add: [CHOWN]
+    security_opt: [no-new-privileges:true]
+    network_mode: none
+    volumes:
+      - alloy-data:/tmp/alloy
+    restart: "no"
+
+  alloy:
+    image: mirror.gcr.io/grafana/alloy:v1.18.1
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=0.0.0.0:12345
+    env_file: [.env]
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+      - /:/host/root:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /var/log:/host/var/log:ro
+      - alloy-data:/var/lib/alloy/data
+    ports:
+      - "127.0.0.1:${SENTINEL_COLLECTOR_ADMIN_PORT:-12345}:12345"
+      - "127.0.0.1:${SENTINEL_COLLECTOR_OTLP_GRPC_PORT:-4317}:4317"
+      - "127.0.0.1:${SENTINEL_COLLECTOR_OTLP_HTTP_PORT:-4318}:4318"
+    depends_on:
+      alloy-init: { condition: service_completed_successfully }
+    networks: [collector]
+    <<: *security
+    user: "473:473"
+    read_only: true
+    tmpfs: [/tmp]
+    restart: unless-stopped
+
+  container-metrics:
+    image: mirror.gcr.io/grafana/alloy:v1.18.1
+    profiles: [containers]
+    command:
+      - run
+      - /etc/alloy/config-cadvisor.alloy
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=0.0.0.0:12345
+    env_file: [.env]
+    privileged: true
+    volumes:
+      - ./config-cadvisor.alloy:/etc/alloy/config-cadvisor.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    networks: [collector]
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/lib/alloy/data
+    restart: unless-stopped
+
+networks:
+  collector: {}
+
+volumes:
+  alloy-data: {}

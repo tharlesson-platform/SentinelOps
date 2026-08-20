@@ -184,7 +184,7 @@ services:
     depends_on:
       api: { condition: service_healthy }
     ports:
-      - "127.0.0.1:3000:3000"
+      - "${SENTINEL_WEB_BIND_ADDRESS:-127.0.0.1}:${SENTINEL_WEB_PORT:-3000}:3000"
     networks: [control]
     read_only: true
     tmpfs:
@@ -221,7 +221,7 @@ services:
       - ../prometheus/rules.yml:/etc/prometheus/rules.yml:ro
       - prometheus-data:/prometheus
     ports:
-      - "127.0.0.1:9090:9090"
+      - "${SENTINEL_PROMETHEUS_BIND_ADDRESS:-127.0.0.1}:9090:9090"
     networks: [telemetry]
     restart: unless-stopped
 
@@ -245,7 +245,7 @@ services:
       - ../loki/loki.yaml:/etc/loki/local-config.yaml:ro
       - loki-data:/tmp/loki
     ports:
-      - "127.0.0.1:3100:3100"
+      - "${SENTINEL_LOKI_BIND_ADDRESS:-127.0.0.1}:3100:3100"
     depends_on:
       loki-init: { condition: service_completed_successfully }
     networks: [telemetry]
@@ -280,8 +280,8 @@ services:
       - alloy-data:/var/lib/alloy/data
     ports:
       - "127.0.0.1:12345:12345"
-      - "127.0.0.1:4317:4317"
-      - "127.0.0.1:4318:4318"
+      - "${SENTINEL_OTLP_BIND_ADDRESS:-127.0.0.1}:4317:4317"
+      - "${SENTINEL_OTLP_BIND_ADDRESS:-127.0.0.1}:4318:4318"
     networks: [telemetry, control]
     depends_on: [prometheus, loki, tempo, pyroscope]
     restart: unless-stopped

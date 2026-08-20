@@ -64,6 +64,46 @@ make credentials
 
 Não copie `.env` para CI, commits, tickets ou documentação.
 
+## Servidor Linux e onboarding
+
+Para um servidor Linux single-node, execute o bootstrap faseado em vez de
+copiar comandos isolados:
+
+```bash
+./scripts/install-linux-server.sh --phase preflight
+./scripts/install-linux-server.sh --phase runtime --install-runtime  # opcional
+./scripts/install-linux-server.sh --phase all --enable-service
+```
+
+O instalador suporta hosts com `apt`, `dnf`, `yum`, `zypper`, `apk` ou
+`pacman`, além de qualquer distribuição que já possua Docker Engine e Compose
+v2. Ele mantém Web e ingestão em loopback por padrão. Consulte:
+
+- [instalação Linux faseada](docs/installation/linux-server.md);
+- [entrega e ativação](docs/operations/delivery-runbook.md);
+- [onboarding de servidores](docs/integrations/host-monitoring.md);
+- [bootstrap APM](docs/integrations/apm-onboarding.md);
+- [estado real da documentação](docs/operations/documentation-status.md).
+- [evidência dos novos bootstraps](docs/validation/2026-08-20-linux-bootstrap-evidence.md).
+
+Exemplo de collector para um host Linux monitorado:
+
+```bash
+./scripts/install-linux-collector.sh --phase all \
+  --host-name srv-app-01 --environment PRD --team plataforma \
+  --location dc-sp-01 \
+  --metrics-endpoint https://ingest.example.net/prometheus/api/v1/write \
+  --logs-endpoint https://ingest.example.net/loki/loki/api/v1/push \
+  --otlp-endpoint https://ingest.example.net/otlp \
+  --enable-service
+```
+
+Exemplo de geração do kit de instrumentação:
+
+```bash
+make bootstrap-apm LANGUAGE=spring SERVICE=pedidos-api ENVIRONMENT=staging
+```
+
 ## URLs e portas locais
 
 | Serviço | URL | Exposição |
@@ -171,6 +211,8 @@ curl -H 'X-Demo-Fault: latency' http://localhost:8090/api/orders
 - Consulte [produção](docs/operations/production.md),
   [backup/restore/upgrade](docs/operations/lifecycle.md) e
   [runbooks](docs/runbooks/operational-response.md).
+- O bootstrap Linux é um perfil single-node para laboratório/piloto; não é o
+  perfil `small-production` nem comprova HA, DR, OIDC ou isolamento multi-tenant.
 
 ## Limitações reais
 

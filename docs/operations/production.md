@@ -1,5 +1,10 @@
 # Produção
 
+O caminho executável de servidor Linux está em
+[instalação Linux](../installation/linux-server.md). Ele é deliberadamente
+classificado como single-node/laboratório/piloto. Este documento define o gate
+adicional para produção Kubernetes/HA.
+
 ## Gate de entrada
 
 Não promova enquanto `AUTH_MODE=oidc` não estiver implementado/validado na API,
@@ -27,3 +32,19 @@ no ambiente-alvo. O chart é uma base hardened, não uma autorização de deploy
 - SLO e alertas do próprio SentinelOps;
 - plan/diff, aprovação humana e rollback manual ensaiado.
 
+## Evidência obrigatória
+
+Antes da promoção, anexe ao change/release:
+
+- digest e assinatura de todas as imagens;
+- render do Helm e diff GitOps no cluster/alvo exato;
+- teste negativo de tenant/RBAC;
+- teste SSRF e política de egress;
+- backup, restore e RTO/RPO observados;
+- upgrade e rollback/roll-forward ensaiados;
+- queries que comprovem métricas, logs, traces, profiles e SLO;
+- checks remotos terminais no SHA promovido;
+- owner, janela, comunicação e plano de interrupção.
+
+Sem essa evidência, o status permanece laboratório/piloto mesmo que todos os
+containers estejam `running`.

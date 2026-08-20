@@ -1,0 +1,46 @@
+prometheus.exporter.cadvisor "containers" {
+  docker_host = "unix:///var/run/docker.sock"
+  storage_duration = "5m"
+}
+
+discovery.relabel "containers" {
+  targets = prometheus.exporter.cadvisor.containers.targets
+  rule {
+    target_label = "job"
+    replacement = "cadvisor"
+  }
+  rule {
+    target_label = "instance"
+    replacement = sys.env("SENTINEL_HOST_NAME")
+  }
+  rule {
+    target_label = "deployment_environment"
+    replacement = sys.env("SENTINEL_ENVIRONMENT")
+  }
+  rule {
+    target_label = "team"
+    replacement = sys.env("SENTINEL_TEAM")
+  }
+  rule {
+    target_label = "location"
+    replacement = sys.env("SENTINEL_LOCATION")
+  }
+}
+
+prometheus.scrape "containers" {
+  targets = discovery.relabel.containers.output
+  scrape_interval = "30s"
+  forward_to = [prometheus.remote_write.sentinel.receiver]
+}
+
+prometheus.remote_write "sentinel" {
+  endpoint {
+    url = sys.env("SENTINEL_METRICS_ENDPOINT")
+    send_native_histograms = true
+  }
+  wal {
+    truncate_frequency = "2h"
+    min_keepalive_time = "5m"
+    max_keepalive_time = "8h"
+  }
+}
