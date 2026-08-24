@@ -16,7 +16,7 @@ printf '%s' "$runs" | jq -e --arg sha "$head_sha" '
   any(.[]; .headSha == $sha and .workflowName == "ci" and .status == "completed" and .conclusion == "success")
 ' >/dev/null || { echo "BLOCKED: CI remoto terminal e verde nao encontrado para $head_sha." >&2; exit 1; }
 
-default_branch=$(gh repo view --repo "$repository" --json defaultBranchRef --jq .defaultBranchRef.name)
+default_branch=$(gh api "repos/$repository" --jq .default_branch)
 protection=$(gh api "repos/$repository/branches/$default_branch/protection")
 printf '%s' "$protection" | jq -e '.required_pull_request_reviews != null and .required_status_checks != null' >/dev/null || {
   echo "BLOCKED: branch protection sem PR reviews ou checks obrigatorios." >&2
