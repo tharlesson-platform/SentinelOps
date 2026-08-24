@@ -151,8 +151,11 @@ jobs:
             terraform -chdir="infra/terraform/environments/$environment" init -backend=false -input=false
             terraform -chdir="infra/terraform/environments/$environment" validate
           done
-      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
-        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+      - name: Scan repository history for secrets
+        run: |
+          docker run --rm -v "$PWD:/repo:ro" \
+            ghcr.io/gitleaks/gitleaks:v8.30.0@sha256:691af3c7c5a48b16f187ce3446d5f194838f91238f27270ed36eef6359a574d9 \
+            git /repo --redact --no-banner
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with: { scan-type: fs, scan-ref: ., severity: CRITICAL,HIGH, exit-code: '1', ignore-unfixed: true }
 
