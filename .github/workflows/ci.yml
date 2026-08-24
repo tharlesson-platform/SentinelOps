@@ -188,6 +188,8 @@ jobs:
           load: true
           push: false
           tags: sentinelops-${{ matrix.name }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
           # Docker's local image exporter cannot load an attested manifest list.
           # Release builds publish provenance and SBOM to the registry.
           provenance: false
