@@ -48,7 +48,9 @@ rollback_images() {
   rollback_manifest=$1
   [ -s "$rollback_manifest" ] || die "manifest de rollback inválido"
   while IFS='|' read -r service image_ref image_id retained_ref; do
-    [ -n "$service" ] && [ -n "$image_ref" ] && [ -n "$image_id" ] && [ -n "$retained_ref" ] || die "linha inválida no manifest"
+    if [ -z "$service" ] || [ -z "$image_ref" ] || [ -z "$image_id" ] || [ -z "$retained_ref" ]; then
+      die "linha inválida no manifest"
+    fi
     case " $SERVICES " in *" $service "*) ;; *) die "serviço inesperado no manifest: $service" ;; esac
     docker image inspect "$retained_ref" >/dev/null 2>&1 || die "imagem de rollback indisponível: $retained_ref"
     retained_id=$(docker image inspect "$retained_ref" --format '{{.Id}}')

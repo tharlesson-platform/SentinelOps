@@ -52,7 +52,10 @@ printf '%s' "$DESTINATION_SERVER" | grep -Eq '^https://[A-Za-z0-9._:-]+(/[A-Za-z
 
 CHART="$ROOT/deploy/helm/sentinelops"
 VALUES_PATH="$CHART/$VALUES_FILE"
-[ -f "$VALUES_PATH" ] && [ ! -L "$VALUES_PATH" ] || { echo "values produtivo ausente ou symlink recusado: $VALUES_PATH" >&2; exit 1; }
+if [ ! -f "$VALUES_PATH" ] || [ -L "$VALUES_PATH" ]; then
+  echo "values produtivo ausente ou symlink recusado: $VALUES_PATH" >&2
+  exit 1
+fi
 VALUES_PARENT=$(CDPATH='' cd -- "$(dirname -- "$VALUES_PATH")" && pwd -P)
 VALUES_PATH="$VALUES_PARENT/$(basename -- "$VALUES_PATH")"
 case "$VALUES_PATH" in "$CHART"/*) ;; *) echo "values deve permanecer fisicamente dentro do chart" >&2; exit 1 ;; esac

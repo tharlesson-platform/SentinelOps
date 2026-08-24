@@ -43,7 +43,10 @@ while [ "$#" -gt 0 ]; do
 done
 
 command -v openssl >/dev/null 2>&1 || { echo "openssl é obrigatório" >&2; exit 1; }
-[ -n "$PASSPHRASE_FILE" ] && [ -s "$PASSPHRASE_FILE" ] || { echo "--passphrase-file válido é obrigatório" >&2; exit 2; }
+if [ -z "$PASSPHRASE_FILE" ] || [ ! -s "$PASSPHRASE_FILE" ]; then
+  echo "--passphrase-file válido é obrigatório" >&2
+  exit 2
+fi
 permissions=$(stat -c '%a' "$PASSPHRASE_FILE" 2>/dev/null || stat -f '%Lp' "$PASSPHRASE_FILE")
 [ "$permissions" = 600 ] || { echo "passphrase-file deve ter modo 0600" >&2; exit 2; }
 
@@ -80,7 +83,10 @@ case "$MODE" in
     chmod 644 "$OUTPUT_DIR/ca.crt"
     ;;
   issue-server)
-    [ -n "$CA_DIR" ] && [ -s "$CA_DIR/ca.key" ] && [ -s "$CA_DIR/ca.crt" ] || { echo "--ca-dir inválido" >&2; exit 2; }
+    if [ -z "$CA_DIR" ] || [ ! -s "$CA_DIR/ca.key" ] || [ ! -s "$CA_DIR/ca.crt" ]; then
+      echo "--ca-dir inválido" >&2
+      exit 2
+    fi
     validate_name "$NAME"
     [ -n "$DNS_NAME" ] || DNS_NAME=$NAME
     validate_name "$DNS_NAME"
@@ -97,7 +103,10 @@ case "$MODE" in
     chmod 644 "$OUTPUT_DIR/server.crt" "$OUTPUT_DIR/client-ca.crt"
     ;;
   issue-collector)
-    [ -n "$CA_DIR" ] && [ -s "$CA_DIR/ca.key" ] && [ -s "$CA_DIR/ca.crt" ] || { echo "--ca-dir inválido" >&2; exit 2; }
+    if [ -z "$CA_DIR" ] || [ ! -s "$CA_DIR/ca.key" ] || [ ! -s "$CA_DIR/ca.crt" ]; then
+      echo "--ca-dir inválido" >&2
+      exit 2
+    fi
     validate_name "$NAME"
     validate_name "$ORGANIZATION"
     make_key "$OUTPUT_DIR/client.key"

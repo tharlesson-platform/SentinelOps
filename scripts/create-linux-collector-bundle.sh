@@ -55,7 +55,9 @@ done
 
 for value in "$ORGANIZATION" "$COLLECTOR_NAME" "$TLS_SERVER_NAME" "$ENVIRONMENT" "$TEAM" "$LOCATION"; do validate_name "$value"; done
 printf '%s' "$GATEWAY_URL" | grep -Eq '^https://[A-Za-z0-9._-]+(:[0-9]{1,5})?$' || die "--gateway-url deve ser uma origem HTTPS sem path"
-[ -s "$CA_DIR/ca.key" ] && [ -s "$CA_DIR/ca.crt" ] || die "--ca-dir inválido"
+if [ ! -s "$CA_DIR/ca.key" ] || [ ! -s "$CA_DIR/ca.crt" ]; then
+  die "--ca-dir inválido"
+fi
 [ -s "$PASSPHRASE_FILE" ] || die "--passphrase-file inválido"
 mkdir -p "$OUTPUT_DIR"
 umask 077

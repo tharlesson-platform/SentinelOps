@@ -54,7 +54,10 @@ while [ "$worker_attempt" -lt 60 ]; do
   worker_attempt=$((worker_attempt + 1))
   sleep 2
 done
-[ "$worker_running" -eq 2 ] && [ "$worker_healthy" -eq 2 ] || { echo "As duas replicas de worker nao ficaram saudaveis." >&2; exit 1; }
+if [ "$worker_running" -ne 2 ] || [ "$worker_healthy" -ne 2 ]; then
+  echo "As duas replicas de worker nao ficaram saudaveis." >&2
+  exit 1
+fi
 curl --max-time 5 -fsS "$API_URL/readyz" >/dev/null
 
 for service in api worker web demo-api alloy api-edge; do

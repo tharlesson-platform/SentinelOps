@@ -121,7 +121,9 @@ if [ "$PHASE" = configure ] || [ "$PHASE" = all ]; then
 fi
 for port in "$ADMIN_PORT" "$OTLP_GRPC_PORT" "$OTLP_HTTP_PORT"; do
   printf '%s' "$port" | grep -Eq '^[0-9]{1,5}$' || die "Porta inválida: $port"
-  [ "$port" -ge 1 ] && [ "$port" -le 65535 ] || die "Porta fora da faixa: $port"
+  if [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
+    die "Porta fora da faixa: $port"
+  fi
 done
 
 phase_selected() { [ "$PHASE" = all ] || [ "$PHASE" = "$1" ]; }

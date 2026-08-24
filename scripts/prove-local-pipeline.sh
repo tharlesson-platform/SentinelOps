@@ -142,10 +142,10 @@ gate_output=$("$ROOT/scripts/prove-observational-gates.sh")
 standard_result=$(printf '%s\n' "$gate_output" | awk -F= '$1=="standard_pass_result" {print $2}')
 missing_policy_result=$(printf '%s\n' "$gate_output" | awk -F= '$1=="missing_policy_result" {print $2}')
 over_threshold_result=$(printf '%s\n' "$gate_output" | awk -F= '$1=="over_threshold_result" {print $2}')
-[ "$standard_result" = PASS ] && [ "$missing_policy_result" = INCONCLUSIVE ] && [ "$over_threshold_result" = FAIL ] || {
+if [ "$standard_result" != PASS ] || [ "$missing_policy_result" != INCONCLUSIVE ] || [ "$over_threshold_result" != FAIL ]; then
   echo "Quality gates não comprovaram PASS/INCONCLUSIVE/FAIL." >&2
   exit 1
-}
+fi
 
 evidence_dir="$ROOT/artifacts/local-e2e"
 mkdir -p "$evidence_dir"

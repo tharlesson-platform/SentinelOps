@@ -1,4 +1,6 @@
 #!/bin/sh
+# Dashboard query variables such as $service must remain literal in JSON.
+# shellcheck disable=SC2016
 set -eu
 
 ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)

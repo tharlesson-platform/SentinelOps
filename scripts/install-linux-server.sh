@@ -62,7 +62,7 @@ phase_selected() { [ "$PHASE" = all ] || [ "$PHASE" = "$1" ]; }
 
 phase_preflight() {
   log "Fase 00/60: preflight"
-  validate_linux_host
+  validate_linux_host 8 40
   if [ -r /etc/os-release ]; then
     # shellcheck disable=SC1091
     . /etc/os-release
