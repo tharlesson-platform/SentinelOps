@@ -48,6 +48,7 @@ jobs:
       - name: Validate Compose profiles
         run: |
           cp .env.example .env
+          cp deploy/agents/linux/.env.example deploy/agents/linux/.env
           docker compose --env-file .env -f deploy/compose/docker-compose.yml config --quiet
           docker compose --env-file .env -f deploy/compose/docker-compose.yml --profile secure-ingest config --quiet
           docker compose --env-file deploy/agents/linux/.env.example -f deploy/agents/linux/docker-compose.yml config --quiet
