@@ -157,7 +157,7 @@ jobs:
             ghcr.io/gitleaks/gitleaks:v8.30.0@sha256:691af3c7c5a48b16f187ce3446d5f194838f91238f27270ed36eef6359a574d9 \
             git /repo --redact --no-banner
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with: { scan-type: fs, scan-ref: ., severity: CRITICAL,HIGH, exit-code: '1', ignore-unfixed: true }
+        with: { scan-type: fs, scan-ref: ., severity: 'CRITICAL,HIGH', exit-code: '1', ignore-unfixed: true }
 
   images:
     runs-on: ubuntu-24.04
@@ -188,11 +188,13 @@ jobs:
           load: true
           push: false
           tags: sentinelops-${{ matrix.name }}:${{ github.sha }}
-          provenance: true
-          sbom: true
+          # Docker's local image exporter cannot load an attested manifest list.
+          # Release builds publish provenance and SBOM to the registry.
+          provenance: false
+          sbom: false
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: sentinelops-${{ matrix.name }}:${{ github.sha }}
-          severity: CRITICAL,HIGH
+          severity: 'CRITICAL,HIGH'
           exit-code: '1'
           ignore-unfixed: true

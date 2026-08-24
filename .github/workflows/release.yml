@@ -48,7 +48,7 @@ jobs:
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: sentinelops-release-candidate:${{ matrix.image }}-amd64
-          severity: CRITICAL,HIGH
+          severity: 'CRITICAL,HIGH'
           exit-code: '1'
           ignore-unfixed: true
       - name: Build arm64 candidate
@@ -67,7 +67,7 @@ jobs:
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: sentinelops-release-candidate:${{ matrix.image }}-arm64
-          severity: CRITICAL,HIGH
+          severity: 'CRITICAL,HIGH'
           exit-code: '1'
           ignore-unfixed: true
 
@@ -118,7 +118,7 @@ jobs:
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
-          severity: CRITICAL,HIGH
+          severity: 'CRITICAL,HIGH'
           exit-code: '1'
           ignore-unfixed: true
       - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
