@@ -66,6 +66,7 @@ type Validation struct {
 
 type ValidationCheck struct {
 	Name      string         `json:"name"`
+	Source    string         `json:"source"`
 	Status    string         `json:"status"`
 	Required  bool           `json:"required"`
 	Observed  any            `json:"observed,omitempty"`

@@ -34,12 +34,15 @@ stat -c '%a %n' .env
 
 O resultado esperado para `.env` é `600`. Compare chaves, não valores, entre a
 versão anterior e a nova. Nunca inclua secrets no log da mudança.
+Confirme também `.sentinelops/secrets/pki-ca-passphrase` em 0600, validade/SAN
+do certificado do gateway, presença de `MTLS_PROXY_SHARED_SECRET` e owners das
+rotações. Compare apenas presença/comprimento; nunca imprima o valor.
 
 ## 4. Deploy
 
 ```bash
 ./scripts/install-linux-server.sh --phase deploy
-docker compose --env-file .env -f deploy/compose/docker-compose.yml ps
+docker compose --env-file .env -f deploy/compose/docker-compose.yml --profile secure-ingest ps
 ```
 
 Interrompa se houver restart loop, migration incompatível, volume inesperado,
@@ -60,6 +63,7 @@ A segunda execução deve ser idempotente. Em ambiente sem demo, use
 ```bash
 ./scripts/install-linux-server.sh --phase verify
 ./scripts/prove-gates.sh
+./scripts/prove-observational-gates.sh
 ```
 
 Registre:
@@ -68,6 +72,9 @@ Registre:
 - release/commit/digest instalados;
 - autenticação e carregamento da UI;
 - uma release saudável `PASS` e uma falha controlada `FAIL`;
+- política observacional ausente `INCONCLUSIVE` e cinco checks `PASS` quando configurados;
+- mTLS sem certificado recusado, bootstrap one-time não reutilizável, headers
+  de proxy forjados recusados e tenant/nome/fingerprint vinculados;
 - queries de Prometheus, Loki, Tempo e Pyroscope;
 - logs sem secrets;
 - horário UTC e BRT.
@@ -85,6 +92,12 @@ Entregue ao time operador:
 - lista explícita de limitações e bloqueadores produtivos.
 
 ## 8. Rollback
+
+No single-node, prefira o mecanismo ensaiado:
+
+```bash
+./scripts/upgrade-local.sh rollback --manifest MANIFEST --confirm ROLLBACK
+```
 
 Se não houve migration incompatível:
 

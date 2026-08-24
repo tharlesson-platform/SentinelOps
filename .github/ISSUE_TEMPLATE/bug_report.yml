@@ -1,0 +1,38 @@
+name: Relatar um bug
+description: Informe um comportamento reproduzível sem incluir dados sensíveis.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Não publique vulnerabilidades ou secrets; use um Security Advisory privado.
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Comportamento observado
+      description: O que ocorreu e qual era o comportamento esperado?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Como reproduzir
+      description: Passos mínimos, versão ou SHA e perfil usado.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidência sanitizada
+      description: Logs e saídas sem tokens, dados pessoais ou credenciais.
+  - type: dropdown
+    id: profile
+    attributes:
+      label: Perfil
+      options:
+        - Local Compose
+        - Linux single-node
+        - Kubernetes
+        - Outro
+    validations:
+      required: true

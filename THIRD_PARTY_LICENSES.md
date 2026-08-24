@@ -4,6 +4,9 @@ Data: 2026-08-17. Este arquivo registra dependências diretas e componentes do
 perfil local. O SBOM CycloneDX/SPDX da release é a fonte completa para
 dependências transitivas e digests promovidos.
 
+O código próprio do SentinelOps é distribuído sob a licença MIT. As licenças
+abaixo permanecem aplicáveis aos componentes e às dependências de terceiros.
+
 | Componente | Licença principal | Observação |
 |---|---|---|
 | Go, PostgreSQL | BSD/PostgreSQL | permissivas |
@@ -24,4 +27,3 @@ Antes de distribuir uma release:
 3. execute policy scan para licenças proibidas;
 4. publique notices exigidos e preserve copyright;
 5. obtenha revisão jurídica para AGPL e plugins Grafana.
-

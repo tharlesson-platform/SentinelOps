@@ -1,3 +1,5 @@
+global: { requireImageDigests: true }
+topologySpread: { whenUnsatisfiable: DoNotSchedule }
 api:
   replicas: 5
   autoscaling: { enabled: true, minReplicas: 5, maxReplicas: 30, targetCPUUtilizationPercentage: 65 }
@@ -7,4 +9,4 @@ worker:
   resources: { requests: { cpu: 500m, memory: 512Mi }, limits: { cpu: "2", memory: 2Gi } }
 web: { replicas: 3 }
 agent: { enabled: false }
-
+gateway: { enabled: true, replicas: 3, service: { type: LoadBalancer } }

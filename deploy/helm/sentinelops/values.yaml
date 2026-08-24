@@ -4,33 +4,72 @@ global:
   timezone: America/Sao_Paulo
   existingSecret: sentinelops-secrets
   databaseURLKey: database-url
+  migrationDatabaseURLKey: migration-database-url
   jwtSecretKey: jwt-secret
+  mtlsProxySecretKey: mtls-proxy-shared-secret
+  webhookSecretsKey: webhook-hmac-secrets
+  upstreamCABundleSecretName: sentinelops-upstream-ca
+  upstreamCABundleKey: ca-bundle.crt
   oidcIssuerURL: ""
   oidcClientID: sentinelops
+  allowedOrigin: ""
   temporalAddress: temporal-frontend.temporal.svc:7233
+  prometheusURL: http://prometheus.observability.svc:9090
+  lokiURL: http://loki.observability.svc:3100
+  tempoURL: http://tempo.observability.svc:3200
+  releaseValidationAllowedHosts: []
+  requireImageDigests: false
 
 api:
   replicas: 3
-  image: { repository: sentinelops-api, tag: 0.1.0, pullPolicy: IfNotPresent }
+  image: { repository: sentinelops-api, tag: 0.1.0, digest: "", pullPolicy: IfNotPresent }
   resources: { requests: { cpu: 200m, memory: 256Mi }, limits: { cpu: "1", memory: 1Gi } }
   autoscaling: { enabled: true, minReplicas: 3, maxReplicas: 10, targetCPUUtilizationPercentage: 70 }
   service: { port: 8080 }
 
 worker:
   replicas: 2
-  image: { repository: sentinelops-worker, tag: 0.1.0, pullPolicy: IfNotPresent }
+  image: { repository: sentinelops-worker, tag: 0.1.0, digest: "", pullPolicy: IfNotPresent }
   resources: { requests: { cpu: 200m, memory: 256Mi }, limits: { cpu: "1", memory: 1Gi } }
+
+migration:
+  enabled: true
+  image: { repository: sentinelops-migrate, tag: 0.1.0, digest: "", pullPolicy: IfNotPresent }
+  activeDeadlineSeconds: 600
+  resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: 500m, memory: 512Mi } }
 
 web:
   replicas: 2
-  image: { repository: sentinelops-web, tag: 0.1.0, pullPolicy: IfNotPresent }
+  image: { repository: sentinelops-web, tag: 0.1.0, digest: "", pullPolicy: IfNotPresent }
   resources: { requests: { cpu: 50m, memory: 64Mi }, limits: { cpu: 250m, memory: 256Mi } }
   service: { port: 3000 }
 
 agent:
   enabled: false
   replicas: 1
-  image: { repository: sentinelops-agent, tag: 0.1.0, pullPolicy: IfNotPresent }
+  image: { repository: sentinelops-agent, tag: 0.1.0, digest: "", pullPolicy: IfNotPresent }
+  resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: 500m, memory: 512Mi } }
+
+gateway:
+  enabled: false
+  replicas: 2
+  image:
+    repository: public.ecr.aws/docker/library/caddy
+    tag: 2.11.4-alpine
+    digest: sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
+    pullPolicy: IfNotPresent
+  serverTLSSecretName: sentinelops-ingest-server-tls
+  clientCASecretName: sentinelops-ingest-client-ca
+  clientCAKey: ca.crt
+  prometheusUpstream: http://prometheus.observability.svc:9090
+  lokiUpstream: http://loki.observability.svc:3100
+  alloyHTTPUpstream: http://alloy.observability.svc:4318
+  alloyGRPCUpstream: h2c://alloy.observability.svc:4317
+  service:
+    type: ClusterIP
+    annotations: {}
+    httpsPort: 8443
+    grpcPort: 4317
   resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: 500m, memory: 512Mi } }
 
 ingress:
@@ -43,8 +82,21 @@ ingress:
 networkPolicy:
   enabled: true
   ingressNamespaceSelector: { kubernetes.io/metadata.name: ingress-nginx }
+  ingressPodSelector: { app.kubernetes.io/name: ingress-nginx }
+  dnsNamespaceSelector: { kubernetes.io/metadata.name: kube-system }
+  dnsPodSelector: { k8s-app: kube-dns }
+  databaseNamespaceSelector: { kubernetes.io/metadata.name: database }
+  databasePodSelector: { app.kubernetes.io/name: postgresql }
+  databaseCIDRs: []
+  temporalNamespaceSelector: { kubernetes.io/metadata.name: temporal }
+  temporalPodSelector: { app.kubernetes.io/name: temporal }
   telemetryNamespaceSelector: { kubernetes.io/metadata.name: observability }
+  telemetryPodSelector: {}
+  externalHTTPSCIDRs: []
+  gatewayIngressCIDRs: []
+  extraEgress: []
 
-podDisruptionBudget: { enabled: true, minAvailable: 1 }
+podDisruptionBudget: { enabled: true, maxUnavailable: 1 }
+topologySpread: { whenUnsatisfiable: ScheduleAnyway }
+podAntiAffinity: { enabled: true }
 serviceAccount: { create: true, name: "", annotations: {} }
-

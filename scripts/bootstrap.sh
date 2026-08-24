@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 ENV_FILE="$ROOT/.env"
 
 if [ -f "$ENV_FILE" ]; then
@@ -21,6 +21,7 @@ apply_env() {
     -e "s|__LOCAL_ADMIN_PASSWORD__|$ADMIN_PASSWORD|" \
     -e "s|__LOCAL_ADMIN_PASSWORD_HASH__|$ADMIN_HASH|" \
     -e "s|__AGENT_BOOTSTRAP_TOKEN__|$(random_hex 32)|" \
+    -e "s|__MTLS_PROXY_SHARED_SECRET__|$(random_hex 32)|" \
     -e "s|__WEBHOOK_HMAC_SECRET__|$(random_hex 32)|" \
     -e "s|__MINIO_ROOT_USER__|sentinel$(random_hex 4)|" \
     -e "s|__MINIO_ROOT_PASSWORD__|$(random_hex 24)|" \
@@ -32,6 +33,4 @@ apply_env > "$ENV_FILE"
 chmod 600 "$ENV_FILE"
 echo "Configuração local criada em $ENV_FILE (modo 0600)."
 echo "Usuário SentinelOps: admin"
-echo "Senha SentinelOps: $ADMIN_PASSWORD"
-echo "Guarde a senha; use 'make credentials' para consultá-la apenas neste host."
-
+echo "A senha não é impressa; use 'make credentials' conscientemente apenas neste host."

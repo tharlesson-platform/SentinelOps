@@ -1,0 +1,13 @@
+{
+  "name": "demo-checkout",
+  "serviceRef": "sentinel-demo-api",
+  "environment": "development",
+  "type": "http",
+  "spec": {
+    "url": "http://demo-api:8090/api/checkout",
+    "method": "GET",
+    "timeout": "10s",
+    "headers": { "X-Synthetic-Test": "sentinelops", "X-Demo-Marker": "scheduled-checkout" },
+    "assertions": [{ "field": "status", "operator": "lessThan", "value": 400 }]
+  }
+}

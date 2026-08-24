@@ -1,5 +1,0 @@
-* @sentinelops/platform
-/infra/ @sentinelops/platform @sentinelops/security
-/deploy/ @sentinelops/platform @sentinelops/security
-/internal/auth/ @sentinelops/security
-

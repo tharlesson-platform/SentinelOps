@@ -1,5 +1,30 @@
 # Onboarding de servidores Linux
 
+## Caminho recomendado: bundle autocontido
+
+No servidor central, emita um pacote com identidade mTLS exclusiva:
+
+    ./scripts/create-linux-collector-bundle.sh \
+      --organization acme-prod \
+      --collector-name srv-app-01 \
+      --gateway-url https://ingest.internal.example:8443 \
+      --tls-server-name ingest.internal.example \
+      --environment production \
+      --team payments \
+      --location dc1
+
+Transfira o arquivo tar.gz e seu SHA-256 por canal autenticado. No host alvo,
+confira o hash, extraia e execute sudo ./install.sh. O pacote instala Docker e
+Compose, constrói o Alloy corrigido, coleta métricas do host e logs do sistema,
+abre OTLP somente em loopback para as aplicações e ativa Systemd ou OpenRC.
+
+O bundle contém somente CA pública, certificado e chave do collector. Ele não
+contém chave da CA, passphrase ou credenciais administrativas. O certificado
+vale 30 dias; gere e distribua novo bundle antes da expiração.
+
+Para containers, acrescente --with-containers ao gerar o bundle. Esse perfil é
+privilegiado e deve ser aprovado por host; ele não é ativado por padrão.
+
 O collector Linux usa Grafana Alloy com os componentes embutidos Unix Exporter
 (baseado em Node Exporter) e cAdvisor opcional. O host inicia conexões de saída
 para o SentinelOps; nenhuma porta de exporter é publicada na rede.
@@ -24,15 +49,19 @@ collector. Se o host cria mounts dinamicamente depois do start, reinicie o
 collector na janela aprovada para atualizar essa descoberta.
 
 Se o collector for executado no mesmo host do stack central, altere as portas
-locais para evitar conflito com o Alloy central:
+locais para evitar conflito com o Alloy central e use o gateway mTLS:
 
 ```bash
 ./scripts/install-linux-collector.sh --phase all \
-  --metrics-endpoint http://host.docker.internal:9090/api/v1/write \
-  --logs-endpoint http://host.docker.internal:3100/loki/api/v1/push \
-  --otlp-endpoint http://host.docker.internal:4318 \
+  --metrics-endpoint https://ingest.local:8443/api/v1/write \
+  --logs-endpoint https://ingest.local:8443/loki/api/v1/push \
+  --otlp-endpoint https://ingest.local:8443 \
+  --tls-ca-file /etc/sentinelops/ca.crt \
+  --tls-cert-file /etc/sentinelops/client.crt \
+  --tls-key-file /etc/sentinelops/client.key \
+  --tls-server-name ingest.local \
   --admin-port 12346 --otlp-grpc-port 14317 --otlp-http-port 14318 \
-  --allow-insecure
+  --enable-service
 ```
 
 `host.docker.internal` é adicionado ao gateway do host pelo Compose. Não use
@@ -48,14 +77,36 @@ configuração/deploy:
 ./scripts/install-linux-server.sh \
   --phase configure \
   --web-bind 10.20.30.40 \
-  --ingest-bind 10.20.30.40
+  --ingest-bind 10.20.30.40 \
+  --ingest-server-name ingest.infra.example.net
 ./scripts/install-linux-server.sh --phase deploy
 ./scripts/install-linux-server.sh --phase verify
 ```
 
-No firewall, permita somente coletores autorizados para TCP `4317`, `4318`,
-`9090` e `3100`. Prefira um gateway HTTPS autenticado; os receivers diretos do
-perfil single-node não possuem autenticação.
+No firewall, permita somente coletores autorizados para TCP `8443` (OTLP HTTP,
+remote write e Loki) e `44317` (OTLP gRPC). As portas diretas 4317/4318/9090/
+3100 continuam em loopback e não devem ser publicadas.
+
+## Emitir identidade de collector
+
+Crie primeiro um bootstrap token autenticado. A resposta contém o
+`organizationId` e exibe o token uma única vez. Em seguida, no servidor da CA,
+emita um certificado exclusivo para a mesma organização e nome:
+
+```bash
+./scripts/bootstrap-pki.sh issue-collector \
+  --ca-dir deploy/gateway/pki \
+  --passphrase-file .sentinelops/secrets/pki-ca-passphrase \
+  --organization ORGANIZATION_UUID \
+  --name srv-app-01 \
+  --output-dir artifacts/collector-srv-app-01
+```
+
+Transfira `ca.crt`, `client.crt` e `client.key` por canal seguro. A chave deve
+permanecer 0600. Certificado de outra organização, sem SAN SPIFFE válido ou
+fora da validade não recebe rota no gateway. Rotacione emitindo novo
+certificado e novo token one-time, registre novamente e só então revogue o
+anterior.
 
 ## Instalar o collector
 
@@ -71,16 +122,16 @@ Copie o diretório do projeto ou empacote `deploy/agents/linux`, `scripts/lib` e
   --environment PRD \
   --team pagamentos \
   --location dc-sp-01 \
-  --metrics-endpoint http://10.20.30.40:9090/api/v1/write \
-  --logs-endpoint http://10.20.30.40:3100/loki/api/v1/push \
-  --otlp-endpoint http://10.20.30.40:4318 \
-  --allow-insecure
+  --metrics-endpoint https://ingest.infra.example.net:8443/api/v1/write \
+  --logs-endpoint https://ingest.infra.example.net:8443/loki/api/v1/push \
+  --otlp-endpoint https://ingest.infra.example.net:8443 \
+  --tls-ca-file /etc/sentinelops/ca.crt \
+  --tls-cert-file /etc/sentinelops/client.crt \
+  --tls-key-file /etc/sentinelops/client.key \
+  --tls-server-name ingest.infra.example.net
 ./scripts/install-linux-collector.sh --phase deploy
 ./scripts/install-linux-collector.sh --phase verify
 ```
-
-O exemplo HTTP pressupõe rede privada e firewall allowlist. Em redes não
-confiáveis, publique endpoints HTTPS e remova `--allow-insecure`.
 
 Com cAdvisor e systemd:
 
@@ -91,9 +142,13 @@ Com cAdvisor e systemd:
   --environment PRD \
   --team plataforma \
   --location dc-sp-01 \
-  --metrics-endpoint https://ingest.example.net/prometheus/api/v1/write \
-  --logs-endpoint https://ingest.example.net/loki/loki/api/v1/push \
-  --otlp-endpoint https://ingest.example.net/otlp \
+  --metrics-endpoint https://ingest.example.net:8443/api/v1/write \
+  --logs-endpoint https://ingest.example.net:8443/loki/api/v1/push \
+  --otlp-endpoint https://ingest.example.net:8443 \
+  --tls-ca-file /etc/sentinelops/ca.crt \
+  --tls-cert-file /etc/sentinelops/client.crt \
+  --tls-key-file /etc/sentinelops/client.key \
+  --tls-server-name ingest.example.net \
   --with-containers \
   --enable-service
 ```

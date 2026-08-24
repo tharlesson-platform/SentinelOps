@@ -8,7 +8,7 @@ ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 COLLECTOR_ROOT="$ROOT/deploy/agents/linux"
 PHASE=all
 INSTALL_RUNTIME=false
-HOST_NAME=$(hostname -s 2>/dev/null || hostname)
+HOST_NAME=$(hostname -s 2>/dev/null || hostname 2>/dev/null || uname -n 2>/dev/null || printf localhost)
 HOST_NAME_SET=false
 ENVIRONMENT=development
 TEAM=platform
@@ -18,11 +18,14 @@ LOGS_ENDPOINT=""
 OTLP_ENDPOINT=""
 WITH_CONTAINERS=false
 WITH_CONTAINERS_SET=false
-ALLOW_INSECURE=false
 ENABLE_SERVICE=false
 ADMIN_PORT=""
 OTLP_GRPC_PORT=""
 OTLP_HTTP_PORT=""
+TLS_CA_FILE=""
+TLS_CERT_FILE=""
+TLS_KEY_FILE=""
+TLS_SERVER_NAME=""
 
 usage() {
   cat <<'EOF'
@@ -41,7 +44,10 @@ Uso: ./scripts/install-linux-collector.sh [opções]
   --admin-port PORT            porta local da UI/readiness Alloy
   --otlp-grpc-port PORT        receiver local para aplicações
   --otlp-http-port PORT        receiver local para aplicações
-  --allow-insecure             aceita HTTP fora de loopback conscientemente
+  --tls-ca-file FILE           CA que valida o gateway de ingestão
+  --tls-cert-file FILE         certificado mTLS exclusivo do collector
+  --tls-key-file FILE          chave privada mTLS do collector
+  --tls-server-name NAME       nome DNS presente no certificado do gateway
   --enable-service             instala uma unit systemd
   --help
 EOF
@@ -62,7 +68,10 @@ while [ "$#" -gt 0 ]; do
     --admin-port) ADMIN_PORT=$2; shift 2 ;;
     --otlp-grpc-port) OTLP_GRPC_PORT=$2; shift 2 ;;
     --otlp-http-port) OTLP_HTTP_PORT=$2; shift 2 ;;
-    --allow-insecure) ALLOW_INSECURE=true; shift ;;
+    --tls-ca-file) TLS_CA_FILE=$2; shift 2 ;;
+    --tls-cert-file) TLS_CERT_FILE=$2; shift 2 ;;
+    --tls-key-file) TLS_KEY_FILE=$2; shift 2 ;;
+    --tls-server-name) TLS_SERVER_NAME=$2; shift 2 ;;
     --enable-service) ENABLE_SERVICE=true; shift ;;
     --help|-h) usage; exit 0 ;;
     *) die "Opção desconhecida: $1" ;;
@@ -102,11 +111,12 @@ if [ "$PHASE" = configure ] || [ "$PHASE" = all ]; then
   [ -n "$LOGS_ENDPOINT" ] || die "--logs-endpoint é obrigatório na configuração"
   [ -n "$OTLP_ENDPOINT" ] || die "--otlp-endpoint é obrigatório na configuração"
   for endpoint in "$METRICS_ENDPOINT" "$LOGS_ENDPOINT" "$OTLP_ENDPOINT"; do
-    printf '%s' "$endpoint" | grep -Eq '^https?://[^[:space:]]+$' || die "Endpoint inválido: $endpoint"
-    case "$endpoint" in
-      http://127.0.0.1:*|http://localhost:*|https://*) ;;
-      http://*) [ "$ALLOW_INSECURE" = true ] || die "HTTP remoto recusado: $endpoint. Use HTTPS ou --allow-insecure em rede privada." ;;
-    esac
+    printf '%s' "$endpoint" | grep -Eq '^https://[^[:space:]]+$' || die "Endpoint deve usar HTTPS: $endpoint"
+  done
+  [ -n "$TLS_SERVER_NAME" ] || die "--tls-server-name é obrigatório"
+  validate_name "$TLS_SERVER_NAME" tls-server-name
+  for certificate_file in "$TLS_CA_FILE" "$TLS_CERT_FILE" "$TLS_KEY_FILE"; do
+    [ -s "$certificate_file" ] || die "arquivo TLS ausente ou vazio: $certificate_file"
   done
 fi
 for port in "$ADMIN_PORT" "$OTLP_GRPC_PORT" "$OTLP_HTTP_PORT"; do
@@ -144,16 +154,45 @@ phase_configure() {
   set_env_value "$COLLECTOR_ROOT/.env" SENTINEL_METRICS_ENDPOINT "$METRICS_ENDPOINT"
   set_env_value "$COLLECTOR_ROOT/.env" SENTINEL_LOGS_ENDPOINT "$LOGS_ENDPOINT"
   set_env_value "$COLLECTOR_ROOT/.env" SENTINEL_OTLP_ENDPOINT "$OTLP_ENDPOINT"
+  set_env_value "$COLLECTOR_ROOT/.env" SENTINEL_TLS_SERVER_NAME "$TLS_SERVER_NAME"
   set_env_value "$COLLECTOR_ROOT/.env" SENTINEL_COLLECTOR_ADMIN_PORT "$ADMIN_PORT"
   set_env_value "$COLLECTOR_ROOT/.env" SENTINEL_COLLECTOR_OTLP_GRPC_PORT "$OTLP_GRPC_PORT"
   set_env_value "$COLLECTOR_ROOT/.env" SENTINEL_COLLECTOR_OTLP_HTTP_PORT "$OTLP_HTTP_PORT"
   set_env_value "$COLLECTOR_ROOT/.env" SENTINEL_COLLECT_CONTAINERS "$WITH_CONTAINERS"
+  mkdir -p "$COLLECTOR_ROOT/certs"
+  copy_tls_file "$TLS_CA_FILE" "$COLLECTOR_ROOT/certs/ca.crt" 0644
+  copy_tls_file "$TLS_CERT_FILE" "$COLLECTOR_ROOT/certs/client.crt" 0644
+  copy_tls_file "$TLS_KEY_FILE" "$COLLECTOR_ROOT/certs/client.key" 0600
+  openssl x509 -checkend 604800 -noout -in "$COLLECTOR_ROOT/certs/client.crt" >/dev/null 2>&1 || \
+    die "Certificado do collector expira em menos de 7 dias; gere um novo bundle."
+  openssl verify -CAfile "$COLLECTOR_ROOT/certs/ca.crt" "$COLLECTOR_ROOT/certs/client.crt" >/dev/null || \
+    die "Certificado do collector não valida contra a CA fornecida."
   chmod 600 "$COLLECTOR_ROOT/.env"
   log "Collector configurado sem imprimir credenciais."
 }
 
+copy_tls_file() {
+  source_file=$1
+  destination_file=$2
+  file_mode=$3
+  source_absolute=$(CDPATH='' cd -- "$(dirname -- "$source_file")" && pwd)/$(basename -- "$source_file")
+  destination_absolute=$(CDPATH='' cd -- "$(dirname -- "$destination_file")" && pwd)/$(basename -- "$destination_file")
+  if [ "$source_absolute" != "$destination_absolute" ]; then
+    install -m "$file_mode" "$source_file" "$destination_file"
+  else
+    chmod "$file_mode" "$destination_file"
+  fi
+}
+
 phase_deploy() {
   log "Fase 30/50: deploy do collector"
+  docker_prefix=$(docker_command)
+  if ! $docker_prefix image inspect sentinelops-alloy:1.18.1-patched.1 >/dev/null 2>&1; then
+    [ -f "$ROOT/deploy/alloy/Dockerfile.patched" ] || die "Imagem Alloy corrigida ausente e Dockerfile não incluído no bundle."
+    log "Construindo Alloy corrigido e fixado; esta etapa pode levar alguns minutos."
+    # shellcheck disable=SC2086
+    $docker_prefix build --file "$ROOT/deploy/alloy/Dockerfile.patched" --tag sentinelops-alloy:1.18.1-patched.1 "$ROOT"
+  fi
   compose=$(collector_compose)
   # shellcheck disable=SC2086
   $compose config --quiet
@@ -169,6 +208,8 @@ phase_verify() {
     [ "$attempts" -lt 30 ] || die "Alloy não ficou ready no tempo esperado."
     sleep 2
   done
+  unhealthy=$(curl -fsS "http://127.0.0.1:$ADMIN_PORT/api/v0/web/components" | jq '[.[] | select(.health.state != "healthy")] | length')
+  [ "$unhealthy" -eq 0 ] || die "Alloy respondeu ready, mas há $unhealthy componente(s) não saudáveis. Consulte /api/v0/web/components."
   compose=$(collector_compose)
   # shellcheck disable=SC2086
   $compose ps
@@ -177,10 +218,28 @@ phase_verify() {
 
 phase_service() {
   log "Fase 50/50: integração com init"
-  command_exists systemctl || die "Unit automática requer systemd; use restart policies em outros init systems."
   docker_binary=$(command -v docker)
   profile_option=""
   [ "$WITH_CONTAINERS" = true ] && profile_option="--profile containers"
+  if command_exists rc-update; then
+    openrc_file=$(mktemp)
+    cat > "$openrc_file" <<EOF
+#!/sbin/openrc-run
+description="SentinelOps Linux collector"
+depend() { need docker; after net; }
+start() { $docker_binary compose --env-file $COLLECTOR_ROOT/.env -f $COLLECTOR_ROOT/docker-compose.yml $profile_option up -d --remove-orphans; }
+stop() { $docker_binary compose --env-file $COLLECTOR_ROOT/.env -f $COLLECTOR_ROOT/docker-compose.yml $profile_option down --remove-orphans; }
+EOF
+    run_as_root install -m 0755 "$openrc_file" /etc/init.d/sentinelops-collector
+    rm -f "$openrc_file"
+    run_as_root rc-update add sentinelops-collector default
+    log "Serviço OpenRC habilitado."
+    return
+  fi
+  if ! command_exists systemctl; then
+    warn "Init não reconhecido; restart policies do Compose permanecerão ativas."
+    return
+  fi
   unit_file=$(mktemp)
   cat > "$unit_file" <<EOF
 [Unit]

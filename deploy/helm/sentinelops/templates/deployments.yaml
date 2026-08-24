@@ -1,6 +1,36 @@
 {{- $root := . -}}
+{{- if $root.Values.agent.enabled }}
+{{- fail "agent.enabled não é suportado no control plane HA; instale agentes próximos aos alvos com bootstrap one-time e mTLS" }}
+{{- end }}
+{{- if $root.Values.global.requireImageDigests }}
+{{- if not (regexMatch "^https://[^[:space:]]+$" (default "" $root.Values.global.oidcIssuerURL)) }}{{- fail "global.oidcIssuerURL HTTPS é obrigatório no perfil produtivo" }}{{- end }}
+{{- if not (regexMatch "^https://[^[:space:]]+$" (default "" $root.Values.global.allowedOrigin)) }}{{- fail "global.allowedOrigin HTTPS é obrigatório no perfil produtivo" }}{{- end }}
+{{- if empty $root.Values.global.existingSecret }}{{- fail "global.existingSecret é obrigatório no perfil produtivo" }}{{- end }}
+{{- if empty $root.Values.global.releaseValidationAllowedHosts }}{{- fail "global.releaseValidationAllowedHosts deve declarar a allowlist SSRF produtiva" }}{{- end }}
+{{- if empty $root.Values.global.upstreamCABundleSecretName }}{{- fail "global.upstreamCABundleSecretName é obrigatório para os upstreams HTTPS internos" }}{{- end }}
+{{- if and (empty $root.Values.networkPolicy.externalHTTPSCIDRs) (empty $root.Values.networkPolicy.extraEgress) }}{{- fail "declare egress HTTPS explícito para IdP e alvos via externalHTTPSCIDRs ou extraEgress" }}{{- end }}
+{{- range $key := list "prometheusURL" "lokiURL" "tempoURL" }}
+{{- if not (regexMatch "^https://[^[:space:]]+$" (default "" (index $root.Values.global $key))) }}{{- fail (printf "global.%s HTTPS é obrigatório no perfil produtivo" $key) }}{{- end }}
+{{- end }}
+{{- end }}
+{{- if and $root.Values.global.requireImageDigests $root.Values.gateway.enabled }}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" (default "" $root.Values.gateway.image.digest)) }}{{- fail "gateway.image.digest deve ser sha256 válido no perfil produtivo" }}{{- end }}
+{{- if empty $root.Values.gateway.serverTLSSecretName }}{{- fail "gateway.serverTLSSecretName é obrigatório" }}{{- end }}
+{{- if empty $root.Values.gateway.clientCASecretName }}{{- fail "gateway.clientCASecretName é obrigatório" }}{{- end }}
+{{- if not (has $root.Values.gateway.service.type (list "ClusterIP" "LoadBalancer")) }}{{- fail "gateway.service.type deve ser ClusterIP ou LoadBalancer" }}{{- end }}
+{{- if empty $root.Values.networkPolicy.gatewayIngressCIDRs }}{{- fail "networkPolicy.gatewayIngressCIDRs deve declarar as origens do gateway mTLS" }}{{- end }}
+{{- range $key := list "prometheusUpstream" "lokiUpstream" "alloyHTTPUpstream" "alloyGRPCUpstream" }}
+{{- if not (regexMatch "^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$" (default "" (index $root.Values.gateway $key))) }}{{- fail (printf "gateway.%s deve usar HTTPS no perfil produtivo" $key) }}{{- end }}
+{{- end }}
+{{- end }}
+{{- if and $root.Values.global.requireImageDigests $root.Values.migration.enabled (not (regexMatch "^sha256:[a-f0-9]{64}$" (default "" $root.Values.migration.image.digest))) }}
+{{- fail "migration.image.digest deve ser sha256 válido no perfil produtivo" }}
+{{- end }}
 {{- range $name := list "api" "worker" "web" }}
 {{- $component := index $root.Values $name }}
+{{- if and $root.Values.global.requireImageDigests (not (regexMatch "^sha256:[a-f0-9]{64}$" (default "" $component.image.digest))) }}
+{{- fail (printf "%s.image.digest deve ser sha256 válido no perfil produtivo" $name) }}
+{{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -9,6 +39,7 @@ metadata:
   labels:
     {{- include "sentinelops.labels" $root | nindent 4 }}
     app.kubernetes.io/component: {{ $name }}
+    sentinelops.io/production-gate: {{ $root.Values.global.requireImageDigests | quote }}
 spec:
   replicas: {{ $component.replicas }}
   revisionHistoryLimit: 3
@@ -25,17 +56,25 @@ spec:
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
+          whenUnsatisfiable: {{ $root.Values.topologySpread.whenUnsatisfiable }}
           labelSelector: { matchLabels: { app.kubernetes.io/instance: {{ $root.Release.Name }}, app.kubernetes.io/component: {{ $name }} } }
+      {{- if $root.Values.podAntiAffinity.enabled }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels: { app.kubernetes.io/instance: {{ $root.Release.Name }}, app.kubernetes.io/component: {{ $name }} }
+      {{- end }}
       containers:
         - name: {{ $name }}
-          image: "{{ $component.image.repository }}:{{ $component.image.tag }}"
+          image: "{{ $component.image.repository }}{{ ternary (printf "@%s" $component.image.digest) (printf ":%s" $component.image.tag) (ne (default "" $component.image.digest) "") }}"
           imagePullPolicy: {{ $component.image.pullPolicy }}
           securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: ["ALL"] } }
-          {{- if ne $name "worker" }}
           ports:
-            - { name: http, containerPort: {{ ternary 3000 8080 (eq $name "web") }}, protocol: TCP }
-          {{- end }}
+            - { name: http, containerPort: {{ ternary 3000 (ternary 8081 8080 (eq $name "worker")) (eq $name "web") }}, protocol: TCP }
           env:
             - { name: SENTINEL_ENV, value: {{ $root.Values.global.environment | quote }} }
             - { name: TZ, value: {{ $root.Values.global.timezone | quote }} }
@@ -44,28 +83,48 @@ spec:
             - { name: OIDC_ISSUER_URL, value: {{ $root.Values.global.oidcIssuerURL | quote }} }
             - { name: OIDC_CLIENT_ID, value: {{ $root.Values.global.oidcClientID | quote }} }
             - { name: TEMPORAL_ADDRESS, value: {{ $root.Values.global.temporalAddress | quote }} }
+            - { name: ALLOWED_ORIGIN, value: {{ $root.Values.global.allowedOrigin | quote }} }
+            {{- if $root.Values.global.upstreamCABundleSecretName }}
+            - { name: SSL_CERT_FILE, value: /etc/sentinelops/upstream-ca/{{ $root.Values.global.upstreamCABundleKey }} }
+            {{- end }}
+            {{- if eq $name "worker" }}
+            - { name: PROMETHEUS_URL, value: {{ $root.Values.global.prometheusURL | quote }} }
+            - { name: LOKI_URL, value: {{ $root.Values.global.lokiURL | quote }} }
+            - { name: TEMPO_URL, value: {{ $root.Values.global.tempoURL | quote }} }
+            - { name: RELEASE_VALIDATION_ALLOWED_HOSTS, value: {{ join "," $root.Values.global.releaseValidationAllowedHosts | quote }} }
+            {{- end }}
             - name: DATABASE_URL
               valueFrom: { secretKeyRef: { name: {{ $root.Values.global.existingSecret }}, key: {{ $root.Values.global.databaseURLKey }} } }
             - name: JWT_SECRET
               valueFrom: { secretKeyRef: { name: {{ $root.Values.global.existingSecret }}, key: {{ $root.Values.global.jwtSecretKey }} } }
+            {{- if eq $name "api" }}
+            - name: MTLS_PROXY_SHARED_SECRET
+              valueFrom: { secretKeyRef: { name: {{ $root.Values.global.existingSecret }}, key: {{ $root.Values.global.mtlsProxySecretKey }} } }
+            - name: WEBHOOK_HMAC_SECRETS
+              valueFrom: { secretKeyRef: { name: {{ $root.Values.global.existingSecret }}, key: {{ $root.Values.global.webhookSecretsKey }} } }
+            {{- end }}
             {{- end }}
           resources: {{- toYaml $component.resources | nindent 12 }}
-          {{- if ne $name "worker" }}
           readinessProbe: { httpGet: { path: {{ ternary "/" "/readyz" (eq $name "web") }}, port: http }, initialDelaySeconds: 5, periodSeconds: 10, timeoutSeconds: 3, failureThreshold: 3 }
           livenessProbe: { httpGet: { path: {{ ternary "/" "/healthz" (eq $name "web") }}, port: http }, initialDelaySeconds: 15, periodSeconds: 20, timeoutSeconds: 3, failureThreshold: 3 }
           startupProbe: { httpGet: { path: {{ ternary "/" "/healthz" (eq $name "web") }}, port: http }, periodSeconds: 5, failureThreshold: 30 }
-          {{- end }}
           {{- if eq $name "web" }}
           volumeMounts:
             - { name: tmp, mountPath: /tmp }
             - { name: web-config, mountPath: /usr/share/nginx/html/config.js, subPath: config.js, readOnly: true }
           {{- else }}
-          volumeMounts: [{ name: tmp, mountPath: /tmp }]
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            {{- if $root.Values.global.upstreamCABundleSecretName }}
+            - { name: upstream-ca, mountPath: /etc/sentinelops/upstream-ca, readOnly: true }
+            {{- end }}
           {{- end }}
       volumes:
         - { name: tmp, emptyDir: { sizeLimit: 256Mi } }
         {{- if eq $name "web" }}
         - { name: web-config, configMap: { name: {{ include "sentinelops.fullname" $root }}-web-config } }
+        {{- else if $root.Values.global.upstreamCABundleSecretName }}
+        - { name: upstream-ca, secret: { secretName: {{ $root.Values.global.upstreamCABundleSecretName }}, defaultMode: 288 } }
         {{- end }}
       imagePullSecrets: {{- toYaml $root.Values.global.imagePullSecrets | nindent 8 }}
 {{- end }}

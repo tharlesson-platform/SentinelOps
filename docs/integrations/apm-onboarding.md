@@ -1,5 +1,27 @@
 # Bootstrap e onboarding APM
 
+Em um host com o collector, aplicações enviam OTLP para
+http://127.0.0.1:4318; o collector aplica redaction, fila e retry e encaminha
+os três sinais pelo gateway mTLS.
+
+Exemplo executável:
+
+    ./scripts/bootstrap-apm.sh \
+      --language fastapi \
+      --service-name payments-api \
+      --environment production \
+      --team payments \
+      --owner payments \
+      --otlp-endpoint http://127.0.0.1:4318
+
+No laboratório local, a prova completa até Prometheus, Loki e Tempo é:
+
+    LANGUAGE=go SERVICE_NAME=my-api make prove-apm
+
+O kit resultante contém variáveis, catálogo, instrução específica do runtime,
+canário e rollback. O bootstrap não edita silenciosamente o repositório da
+aplicação: o time aplica e fixa as dependências no lockfile.
+
 O bootstrap gera um kit por aplicação sem modificar silenciosamente o código
 da equipe. Ele cobre Java, Spring Boot, Quarkus, Node.js, NestJS, Python,
 FastAPI, Django, .NET, Go e React.
@@ -15,7 +37,7 @@ FastAPI, Django, .NET, Go e React.
   --environment staging \
   --team checkout \
   --owner checkout \
-  --otlp-endpoint http://127.0.0.1:4318
+  --otlp-endpoint https://ingest.example.net:8443
 ```
 
 Saída em `artifacts/onboarding/pedidos-api/`:
@@ -64,6 +86,28 @@ Normalize rotas antes da exportação:
 6. Verifique CPU, memória, latência e fila de exportação por 15 minutos.
 7. Registre o serviço com `sentinelctl service apply -f service.json`.
 8. Amplie o rollout somente após os critérios anteriores.
+
+## Prova automática do transporte
+
+`--verify` envia uma métrica, um log e um trace OTLP reais. HTTPS exige a
+tríade mTLS; não existe opção para ignorar a validação. Em laboratório, use
+`--tls-resolve-address` para preservar SNI/Host sem editar DNS:
+
+```bash
+./scripts/bootstrap-apm.sh \
+  --language spring --service-name pedidos-api --environment staging \
+  --otlp-endpoint https://ingest.example.net:8443 \
+  --tls-ca-file /etc/sentinelops/ca.crt \
+  --tls-cert-file /etc/sentinelops/client.crt \
+  --tls-key-file /etc/sentinelops/client.key \
+  --tls-resolve-address 10.20.30.40 \
+  --verify --force
+```
+
+O arquivo `verification.json` registra marker e trace ID, mas nenhuma
+credencial. Aceite somente após localizar o marker em Prometheus, Loki e Tempo
+com o tenant correto. A aceitação HTTP do OTLP isoladamente não comprova
+persistência no backend.
 
 ## Observações por runtime
 

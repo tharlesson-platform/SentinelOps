@@ -1,6 +1,6 @@
 sentinelops-production-gate:
   stage: verify
-  image: curlimages/curl:8.18.0
+  image: curlimages/curl:8.18.0@sha256:d94d07ba9e7d6de898b6d96c1a072f6f8266c687af78a74f380087a0addf5d17
   environment: production
   when: manual
   allow_failure: false
@@ -22,4 +22,3 @@ sentinelops-production-gate:
       done
       case "$(jq -r .data.result sentinelops-validation.json)" in PASS|WARN) exit 0;; FAIL) exit 2;; INCONCLUSIVE) exit 4;; *) exit 3;; esac
   artifacts: { when: always, paths: [sentinelops-validation.json], expire_in: 30 days }
-

@@ -15,4 +15,23 @@ metadata:
 spec:
   selector: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: web }
   ports: [{ name: http, port: {{ .Values.web.service.port }}, targetPort: http }]
-
+{{- if .Values.gateway.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sentinelops.fullname" . }}-gateway
+  labels: {{- include "sentinelops.labels" . | nindent 4 }}
+  annotations: {{- toYaml .Values.gateway.service.annotations | nindent 4 }}
+spec:
+  type: {{ .Values.gateway.service.type }}
+  {{- if eq .Values.gateway.service.type "LoadBalancer" }}
+  externalTrafficPolicy: Local
+  loadBalancerSourceRanges:
+    {{- toYaml .Values.networkPolicy.gatewayIngressCIDRs | nindent 4 }}
+  {{- end }}
+  selector: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: gateway }
+  ports:
+    - { name: https, port: {{ .Values.gateway.service.httpsPort }}, targetPort: https, protocol: TCP }
+    - { name: otlp-grpc, port: {{ .Values.gateway.service.grpcPort }}, targetPort: otlp-grpc, protocol: TCP }
+{{- end }}

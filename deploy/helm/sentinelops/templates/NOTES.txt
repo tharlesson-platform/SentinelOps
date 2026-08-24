@@ -1,4 +1,7 @@
 SentinelOps foi renderizado sem criar secrets. Crie {{ .Values.global.existingSecret }}
+com as chaves {{ .Values.global.databaseURLKey }}, {{ .Values.global.migrationDatabaseURLKey }}, {{ .Values.global.jwtSecretKey }} e
+{{ .Values.global.mtlsProxySecretKey }}/{{ .Values.global.webhookSecretsKey }} antes do rollout.
 via External Secrets, SOPS ou o secret store da sua plataforma antes do deploy.
+Crie também {{ .Values.global.upstreamCABundleSecretName }} com a chave
+{{ .Values.global.upstreamCABundleKey }} contendo raízes públicas e privadas necessárias.
 AUTH_MODE=oidc é obrigatório neste chart.
-

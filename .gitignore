@@ -5,12 +5,17 @@ coverage/
 coverage*.out
 dist/
 node_modules/
+__pycache__/
+*.py[cod]
 apps/web/node_modules/
 apps/web/dist/
 artifacts/
+.sentinelops/
 *.log
 *.tsbuildinfo
 .DS_Store
 terraform.tfstate*
 .terraform/
 *.tfplan
+deploy/gateway/pki*/
+deploy/agents/linux/certs/

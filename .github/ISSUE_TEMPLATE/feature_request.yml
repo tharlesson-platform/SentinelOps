@@ -1,0 +1,24 @@
+name: Solicitar uma melhoria
+description: Proponha uma capacidade, integração ou melhoria operacional.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema
+      description: Qual problema concreto precisa ser resolvido?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Resultado desejado
+      description: Descreva o comportamento e os critérios de aceite.
+    validations:
+      required: true
+  - type: textarea
+    id: risk
+    attributes:
+      label: Riscos e operação
+      description: Considere segurança, tenancy, dados, rollback e observabilidade.

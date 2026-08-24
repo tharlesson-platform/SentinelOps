@@ -19,13 +19,33 @@ run_as_root() {
 }
 
 detect_package_manager() {
-  for manager in apt-get dnf yum zypper apk pacman; do
+  for manager in apt-get dnf yum zypper apk pacman microdnf; do
     if command_exists "$manager"; then
       printf '%s\n' "$manager"
       return 0
     fi
   done
   return 1
+}
+
+install_docker_rpm_repository() {
+  manager=$1
+  family=centos
+  if [ -r /etc/os-release ]; then
+    # shellcheck disable=SC1091
+    . /etc/os-release
+    [ "$ID" != fedora ] || family=fedora
+  fi
+  log "Habilitando repositório Docker CE assinado para $family"
+  if [ "$manager" = dnf ]; then
+    run_as_root dnf install -y dnf-plugins-core
+    run_as_root dnf config-manager --add-repo "https://download.docker.com/linux/$family/docker-ce.repo"
+    run_as_root dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  else
+    run_as_root yum install -y yum-utils
+    run_as_root yum-config-manager --add-repo "https://download.docker.com/linux/$family/docker-ce.repo"
+    run_as_root yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  fi
 }
 
 install_runtime_packages() {
@@ -40,12 +60,16 @@ install_runtime_packages() {
       run_as_root apt-get install -y docker-compose-v2 || run_as_root apt-get install -y docker-compose-plugin || run_as_root apt-get install -y docker-compose
       ;;
     dnf)
-      run_as_root dnf install -y ca-certificates curl git make jq openssl httpd-tools docker docker-compose-plugin || \
-        run_as_root dnf install -y ca-certificates curl git make jq openssl httpd-tools moby-engine docker-compose-plugin
+      run_as_root dnf install -y ca-certificates curl git make jq openssl httpd-tools
+      run_as_root dnf install -y docker docker-compose-plugin || \
+        run_as_root dnf install -y moby-engine docker-compose-plugin || \
+        install_docker_rpm_repository dnf
       ;;
     yum)
-      run_as_root yum install -y ca-certificates curl git make jq openssl httpd-tools docker docker-compose-plugin || \
-        run_as_root yum install -y ca-certificates curl git make jq openssl httpd-tools docker docker-compose
+      run_as_root yum install -y ca-certificates curl git make jq openssl httpd-tools
+      run_as_root yum install -y docker docker-compose-plugin || \
+        run_as_root yum install -y docker docker-compose || \
+        install_docker_rpm_repository yum
       ;;
     zypper)
       run_as_root zypper --non-interactive install ca-certificates curl git make jq openssl apache2-utils docker docker-compose
@@ -56,13 +80,21 @@ install_runtime_packages() {
     pacman)
       run_as_root pacman -Sy --noconfirm ca-certificates curl git make jq openssl apache docker docker-compose
       ;;
+    microdnf)
+      run_as_root microdnf install -y ca-certificates curl git make jq openssl httpd-tools tar gzip dnf
+      command_exists dnf || die "microdnf não conseguiu instalar dnf para configurar Docker/Compose."
+      install_runtime_packages
+      return
+      ;;
   esac
 
   if command_exists systemctl; then
-    run_as_root systemctl enable --now docker
+    if ! run_as_root systemctl enable --now docker; then
+      warn "Docker instalado, mas systemd não está ativo neste ambiente; inicie o daemon no host."
+    fi
   elif command_exists rc-update && command_exists rc-service; then
     run_as_root rc-update add docker default || true
-    run_as_root rc-service docker start
+    run_as_root rc-service docker start || warn "Docker instalado, mas OpenRC não conseguiu iniciar o daemon neste ambiente."
   else
     warn "Init system não reconhecido; inicie o daemon Docker manualmente."
   fi
@@ -91,8 +123,8 @@ validate_runtime() {
 }
 
 validate_linux_host() {
-  minimum_memory_gib=${1:-8}
-  minimum_disk_gib=${2:-40}
+  minimum_memory_gib=${SENTINEL_MIN_MEMORY_GIB:-${1:-8}}
+  minimum_disk_gib=${SENTINEL_MIN_DISK_GIB:-${2:-40}}
   [ "$(uname -s)" = "Linux" ] || die "Este bootstrap é exclusivo para Linux."
   architecture=$(uname -m)
   case "$architecture" in
@@ -140,5 +172,10 @@ set_env_value() {
 compose_command() {
   root_directory=$1
   docker_prefix=$(docker_command)
-  printf '%s\n' "$docker_prefix compose --env-file $root_directory/.env -f $root_directory/deploy/compose/docker-compose.yml"
+  image_lock=$root_directory/artifacts/runtime/docker-compose.images.lock.yml
+  if [ -f "$image_lock" ]; then
+    printf '%s\n' "$docker_prefix compose --env-file $root_directory/.env -f $root_directory/deploy/compose/docker-compose.yml -f $root_directory/deploy/compose/docker-compose.ha.yml -f $image_lock"
+  else
+    printf '%s\n' "$docker_prefix compose --env-file $root_directory/.env -f $root_directory/deploy/compose/docker-compose.yml"
+  fi
 }

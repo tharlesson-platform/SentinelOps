@@ -1,13 +1,14 @@
-FROM golang:1.26.6-alpine3.23 AS build
+FROM golang:1.26.6-alpine3.23@sha256:e57c41c1d5864341031181b0db34b9a537bb5773eb6428e4e5bdaea0f9135406 AS build
 ARG APP
 WORKDIR /src
 RUN apk add --no-cache ca-certificates=20260611-r0 git=2.52.0-r0
 COPY go.mod go.sum* ./
 RUN go mod download
-COPY . .
+COPY apps ./apps
+COPY internal ./internal
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -buildid=" -o /out/app ./apps/${APP}
 
-FROM alpine:3.23.3
+FROM alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
 RUN apk add --no-cache \
         ca-certificates=20260611-r0 \
         libcrypto3=3.5.7-r0 \

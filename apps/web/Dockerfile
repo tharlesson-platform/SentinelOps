@@ -1,11 +1,11 @@
-FROM node:26.7.0-alpine3.23 AS build
+FROM node:26.7.0-alpine3.23@sha256:ce3cc39fe3b8b2602d3b1c4d63d301e46b48c550ecb627869853ddcdda418b63 AS build
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci --ignore-scripts --no-audit --no-fund
 COPY . .
 RUN npm run build
 
-FROM nginx:1.29.5-alpine3.23
+FROM nginx:1.29.5-alpine3.23@sha256:1eff5a5f3fcf8431a0abb7eddf5471fec24e5e1905a2581aeacdb07a4479b92b
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 RUN apk add --no-cache \
@@ -13,7 +13,7 @@ RUN apk add --no-cache \
         curl=8.20.0-r0 \
         libcrypto3=3.5.7-r0 \
         libcurl=8.20.0-r0 \
-        libexpat=2.8.2-r0 \
+        libexpat=2.8.3-r0 \
         libssl3=3.5.7-r0 \
         libxml2=2.13.9-r1 \
         musl=1.2.5-r23 \

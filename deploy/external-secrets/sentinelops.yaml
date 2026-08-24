@@ -8,6 +8,49 @@ spec:
   data:
     - secretKey: database-url
       remoteRef: { key: sentinelops/production/database-url }
+    - secretKey: migration-database-url
+      remoteRef: { key: sentinelops/production/migration-database-url }
     - secretKey: jwt-secret
       remoteRef: { key: sentinelops/production/jwt-secret }
-
+    - secretKey: mtls-proxy-shared-secret
+      remoteRef: { key: sentinelops/production/mtls-proxy-shared-secret }
+    - secretKey: webhook-hmac-secrets
+      remoteRef: { key: sentinelops/production/webhook-hmac-secrets }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata: { name: sentinelops-ingest-server-tls, namespace: sentinelops }
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { name: platform-secret-store, kind: ClusterSecretStore }
+  target:
+    name: sentinelops-ingest-server-tls
+    creationPolicy: Owner
+    template: { type: kubernetes.io/tls }
+  data:
+    - secretKey: tls.crt
+      remoteRef: { key: sentinelops/production/ingest-server-tls-crt }
+    - secretKey: tls.key
+      remoteRef: { key: sentinelops/production/ingest-server-tls-key }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata: { name: sentinelops-ingest-client-ca, namespace: sentinelops }
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { name: platform-secret-store, kind: ClusterSecretStore }
+  target: { name: sentinelops-ingest-client-ca, creationPolicy: Owner }
+  data:
+    - secretKey: ca.crt
+      remoteRef: { key: sentinelops/production/ingest-client-ca-crt }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata: { name: sentinelops-upstream-ca, namespace: sentinelops }
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { name: platform-secret-store, kind: ClusterSecretStore }
+  target: { name: sentinelops-upstream-ca, creationPolicy: Owner }
+  data:
+    - secretKey: ca-bundle.crt
+      remoteRef: { key: sentinelops/production/upstream-ca-bundle }

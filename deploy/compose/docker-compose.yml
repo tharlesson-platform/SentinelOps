@@ -4,12 +4,13 @@ x-app-env: &app-env
   env_file:
     - ../../.env
   environment:
-    DATABASE_URL: postgres://sentinel:${POSTGRES_PASSWORD}@postgres:5432/sentinel?sslmode=disable
+    DATABASE_URL: postgres://sentinel_app:${POSTGRES_PASSWORD}@postgres:5432/sentinel?sslmode=disable
     TEMPORAL_ADDRESS: temporal:7233
     TEMPORAL_NAMESPACE: default
     AUTH_MODE: local
     SENTINEL_ENV: development
     ALLOWED_ORIGIN: http://localhost:3000
+    MTLS_PROXY_SHARED_SECRET: ${MTLS_PROXY_SHARED_SECRET:-local-development-mtls-proxy-secret}
     OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
 
 x-security: &security
@@ -18,9 +19,38 @@ x-security: &security
   cap_drop:
     - ALL
 
+x-demo-service: &demo-service
+  image: ${SENTINEL_DEMO_IMAGE:-sentinelops-demo-api:0.2.0-local}
+  build:
+    context: ../..
+    dockerfile: Dockerfile.demo
+  <<: *security
+  networks: [telemetry, control]
+  read_only: true
+  tmpfs: [/tmp]
+  restart: unless-stopped
+
+x-demo-env: &demo-env
+  SERVICE_VERSION: 1.1.0
+  DEPLOYMENT_ENVIRONMENT: local-demo
+  SERVICE_TEAM: platform
+  SERVICE_OWNER: sentinelops
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
+
 services:
+  local-scope-guard:
+    image: public.ecr.aws/docker/library/alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
+    environment:
+      SENTINEL_ENV: ${SENTINEL_ENV:-development}
+    command: ["/bin/sh", "-ec", "case \"$$SENTINEL_ENV\" in development|local|test) exit 0 ;; *) echo 'Docker Compose e apenas para development/local/test; use Helm com digests nos demais ambientes.' >&2; exit 64 ;; esac"]
+    network_mode: none
+    read_only: true
+    tmpfs: [/tmp]
+    <<: *security
+    restart: "no"
+
   postgres:
-    image: public.ecr.aws/docker/library/postgres:18.3
+    image: public.ecr.aws/docker/library/postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db
     environment:
       POSTGRES_USER: sentinel
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -34,11 +64,45 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+    depends_on:
+      local-scope-guard: { condition: service_completed_successfully }
     networks: [control]
     restart: unless-stopped
 
+  database-role-bootstrap:
+    image: public.ecr.aws/docker/library/postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db
+    environment:
+      DATABASE_MIGRATION_URL: postgres://sentinel:${POSTGRES_PASSWORD}@postgres:5432/sentinel?sslmode=disable
+      APP_DATABASE_USER: sentinel_app
+      APP_DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+    entrypoint: ["/opt/sentinelops/bootstrap-postgres-roles.sh"]
+    volumes:
+      - ../../scripts/bootstrap-postgres-roles.sh:/opt/sentinelops/bootstrap-postgres-roles.sh:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [control]
+    read_only: true
+    tmpfs: [/tmp]
+    restart: "no"
+
+  migrate:
+    image: ${SENTINEL_MIGRATE_IMAGE:-sentinelops-migrate:0.1.0-local}
+    build:
+      context: ../..
+      dockerfile: Dockerfile.app
+      args: { APP: migrate }
+    environment:
+      DATABASE_MIGRATION_URL: postgres://sentinel:${POSTGRES_PASSWORD}@postgres:5432/sentinel?sslmode=disable
+    depends_on:
+      database-role-bootstrap: { condition: service_completed_successfully }
+    networks: [control]
+    read_only: true
+    tmpfs: [/tmp]
+    <<: *security
+    restart: "no"
+
   temporal:
-    image: mirror.gcr.io/temporalio/auto-setup:1.29.7
+    image: mirror.gcr.io/temporalio/auto-setup:1.29.7@sha256:f14912b699cf73015ad5c4fc18d522d4b014db90e794039214dfb7c022c2644f
     environment:
       DB: postgres12
       DB_PORT: 5432
@@ -59,7 +123,7 @@ services:
     restart: unless-stopped
 
   temporal-ui:
-    image: mirror.gcr.io/temporalio/ui:2.53.3
+    image: mirror.gcr.io/temporalio/ui:2.53.3@sha256:eef301146e60fad34b47adaecfae4149016e34b2d44ba94fca5fd8e5441f182a
     environment:
       TEMPORAL_ADDRESS: temporal:7233
       TEMPORAL_CORS_ORIGINS: http://localhost:8088
@@ -72,7 +136,7 @@ services:
     restart: unless-stopped
 
   minio:
-    image: mirror.gcr.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    image: mirror.gcr.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
     command: server /data --console-address :9001
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -91,7 +155,7 @@ services:
     restart: unless-stopped
 
   minio-init:
-    image: mirror.gcr.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+    image: mirror.gcr.io/minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
     entrypoint: ["/bin/sh", "-ec"]
     command: ["mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD && mc mb --ignore-existing local/sentinel-artifacts && mc anonymous set none local/sentinel-artifacts"]
     environment:
@@ -104,14 +168,14 @@ services:
     restart: "no"
 
   api:
-    image: sentinelops-api:0.1.0-local
+    image: ${SENTINEL_API_IMAGE:-sentinelops-api:0.1.0-local}
     build:
       context: ../..
       dockerfile: Dockerfile.app
       args: { APP: api }
     <<: [*app-env, *security]
     depends_on:
-      postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
       temporal: { condition: service_healthy }
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/readyz"]
@@ -128,14 +192,14 @@ services:
     restart: unless-stopped
 
   worker:
-    image: sentinelops-worker:0.1.0-local
+    image: ${SENTINEL_WORKER_IMAGE:-sentinelops-worker:0.1.0-local}
     build:
       context: ../..
       dockerfile: Dockerfile.app
       args: { APP: worker }
     <<: [*app-env, *security]
     environment:
-      DATABASE_URL: postgres://sentinel:${POSTGRES_PASSWORD}@postgres:5432/sentinel?sslmode=disable
+      DATABASE_URL: postgres://sentinel_app:${POSTGRES_PASSWORD}@postgres:5432/sentinel?sslmode=disable
       TEMPORAL_ADDRESS: temporal:7233
       TEMPORAL_NAMESPACE: default
       AUTH_MODE: local
@@ -144,17 +208,37 @@ services:
       LOCAL_ADMIN_PASSWORD_HASH: ${LOCAL_ADMIN_PASSWORD_HASH}
       DEMO_BASE_URL: http://demo-api:8090
       SYNTHETIC_ALLOWED_HOSTS: demo-api
+      RELEASE_VALIDATION_ALLOWED_HOSTS: demo-api
+      PROMETHEUS_URL: http://prometheus:9090
+      LOKI_URL: http://loki:3100
+      TEMPO_URL: http://tempo:3200
     depends_on:
       api: { condition: service_healthy }
       temporal: { condition: service_healthy }
       demo-api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
     networks: [control, telemetry]
     read_only: true
     tmpfs: [/tmp]
     restart: unless-stopped
 
+  agent-credentials-init:
+    image: public.ecr.aws/docker/library/alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
+    command: ["/bin/sh", "-ec", "chown 10001:10001 /credentials && chmod 0700 /credentials"]
+    user: "0:0"
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER]
+    network_mode: none
+    volumes:
+      - agent-credentials:/credentials
+    restart: "no"
+
   agent:
-    image: sentinelops-agent:0.1.0-local
+    image: ${SENTINEL_AGENT_IMAGE:-sentinelops-agent:0.1.0-local}
     build:
       context: ../..
       dockerfile: Dockerfile.app
@@ -163,6 +247,7 @@ services:
     environment:
       SENTINEL_API_URL: http://api:8080
       AGENT_BOOTSTRAP_TOKEN: ${AGENT_BOOTSTRAP_TOKEN}
+      SENTINEL_AGENT_CREDENTIAL_FILE: /var/lib/sentinelops-agent/credentials.json
       AGENT_NAME: local-docker-agent
       AGENT_REGION: local
       AGENT_LOCATION: docker-desktop
@@ -171,13 +256,16 @@ services:
       AGENT_CAPABILITIES: http,dns,tcp,tls
     depends_on:
       api: { condition: service_healthy }
+      agent-credentials-init: { condition: service_completed_successfully }
     networks: [control, telemetry]
     read_only: true
     tmpfs: [/tmp]
+    volumes:
+      - agent-credentials:/var/lib/sentinelops-agent
     restart: unless-stopped
 
   web:
-    image: sentinelops-web:0.1.0-local
+    image: ${SENTINEL_WEB_IMAGE:-sentinelops-web:0.1.0-local}
     build:
       context: ../../apps/web
     <<: *security
@@ -193,14 +281,12 @@ services:
     restart: unless-stopped
 
   demo-api:
-    image: sentinelops-demo-api:0.1.0-local
-    build:
-      context: ../..
-      dockerfile: Dockerfile.demo
-    <<: *security
+    <<: *demo-service
     environment:
-      SERVICE_VERSION: 1.0.0
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
+      <<: *demo-env
+      SERVICE_NAME: sentinel-demo-api
+      SERVICE_ROLE: storefront
+      DEMO_DOWNSTREAM_URL: http://demo-orders:8090/api/orders
     ports:
       - "127.0.0.1:8090:8090"
     healthcheck:
@@ -208,14 +294,62 @@ services:
       interval: 5s
       timeout: 3s
       retries: 30
-    networks: [telemetry, control]
-    read_only: true
-    tmpfs: [/tmp]
-    restart: unless-stopped
+    depends_on:
+      demo-orders: { condition: service_healthy }
+
+  demo-orders:
+    <<: *demo-service
+    environment:
+      <<: *demo-env
+      SERVICE_NAME: sentinel-demo-orders
+      SERVICE_ROLE: orders
+      DEMO_DOWNSTREAM_URL: http://demo-payments:8090/api/payments
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8090/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    depends_on:
+      demo-payments: { condition: service_healthy }
+
+  demo-payments:
+    <<: *demo-service
+    environment:
+      <<: *demo-env
+      SERVICE_NAME: sentinel-demo-payments
+      SERVICE_ROLE: payments
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8090/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  demo-linux-host:
+    <<: *demo-service
+    environment:
+      <<: *demo-env
+      SERVICE_NAME: sentinel-demo-linux
+      SERVICE_ROLE: linux-host
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8090/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  demo-traffic:
+    <<: *demo-service
+    environment:
+      <<: *demo-env
+      SERVICE_NAME: sentinel-demo-traffic
+      SERVICE_ROLE: traffic-generator
+      DEMO_TRAFFIC_TARGET: http://demo-api:8090/api/checkout
+      DEMO_TRAFFIC_INTERVAL: 2s
+    depends_on:
+      demo-api: { condition: service_healthy }
 
   prometheus:
-    image: mirror.gcr.io/prom/prometheus:v3.13.2
-    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus", "--storage.tsdb.retention.time=7d", "--web.enable-remote-write-receiver", "--enable-feature=exemplar-storage", "--enable-feature=native-histograms"]
+    image: mirror.gcr.io/prom/prometheus:v3.13.2@sha256:508729e0e2d18e11fd742a5a5ca70e557b940a93948c3c95fd0123a6fd538b69
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus", "--storage.tsdb.retention.time=7d", "--web.enable-remote-write-receiver", "--web.enable-otlp-receiver", "--enable-feature=exemplar-storage", "--enable-feature=native-histograms"]
     volumes:
       - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ../prometheus/rules.yml:/etc/prometheus/rules.yml:ro
@@ -226,20 +360,20 @@ services:
     restart: unless-stopped
 
   loki-init:
-    image: sentinelops-api:0.1.0-local
+    image: ${SENTINEL_API_IMAGE:-sentinelops-api:0.1.0-local}
     entrypoint: ["/bin/sh", "-ec"]
     command: ["chown 10001:10001 /tmp/loki"]
     user: "0:0"
     cap_drop: [ALL]
     cap_add: [CHOWN]
-    security_opt: [no-new-privileges:true]
+    security_opt: ["no-new-privileges:true"]
     network_mode: none
     volumes:
       - loki-data:/tmp/loki
     restart: "no"
 
   loki:
-    image: mirror.gcr.io/grafana/loki:3.7.6
+    image: mirror.gcr.io/grafana/loki:3.7.6@sha256:efd47c67f9bac88ca29bcf8cb997d9ab29d1848bd0aff579282295542a745952
     command: ["-config.file=/etc/loki/local-config.yaml"]
     volumes:
       - ../loki/loki.yaml:/etc/loki/local-config.yaml:ro
@@ -252,7 +386,7 @@ services:
     restart: unless-stopped
 
   tempo:
-    image: mirror.gcr.io/grafana/tempo:3.0.3
+    image: mirror.gcr.io/grafana/tempo:3.0.3@sha256:0296560ac66f8a3600d7fb3014a52c189d4d9c3549ad6ff441bf2409855d68d5
     command: ["-target=all", "-config.file=/etc/tempo/tempo.yaml"]
     volumes:
       - ../tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
@@ -263,7 +397,7 @@ services:
     restart: unless-stopped
 
   pyroscope:
-    image: mirror.gcr.io/grafana/pyroscope:2.2.1
+    image: mirror.gcr.io/grafana/pyroscope:2.2.1@sha256:70cf34fcb09d286080df909c33a95432df2a78ed4f6613b5e998ac17f90e4c3d
     command: ["server"]
     volumes:
       - pyroscope-data:/data
@@ -272,8 +406,37 @@ services:
     networks: [telemetry]
     restart: unless-stopped
 
+  pyroscope-readiness:
+    image: public.ecr.aws/docker/library/alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
+    command: ["/bin/sh", "-ec", "while :; do sleep 3600; done"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://pyroscope:4040/ready"]
+      start_period: 180s
+      interval: 5s
+      timeout: 4s
+      retries: 2
+    depends_on:
+      pyroscope: { condition: service_started }
+    networks: [telemetry]
+    read_only: true
+    tmpfs: [/tmp]
+    <<: *security
+    restart: unless-stopped
+
+  alloy-data-init:
+    image: public.ecr.aws/docker/library/alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
+    command: ["/bin/sh", "-ec", "chown -R 473:473 /var/lib/alloy/data && chmod -R u+rwX /var/lib/alloy/data"]
+    user: "0:0"
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
+    security_opt: ["no-new-privileges:true"]
+    network_mode: none
+    volumes:
+      - alloy-data:/var/lib/alloy/data
+    restart: "no"
+
   alloy:
-    image: mirror.gcr.io/grafana/alloy:v1.18.1
+    image: ${SENTINEL_ALLOY_IMAGE:-sentinelops-alloy:1.18.1-patched.1}
     command: ["run", "/etc/alloy/config.alloy", "--storage.path=/var/lib/alloy/data", "--server.http.listen-addr=0.0.0.0:12345"]
     volumes:
       - ../alloy/config.alloy:/etc/alloy/config.alloy:ro
@@ -283,11 +446,58 @@ services:
       - "${SENTINEL_OTLP_BIND_ADDRESS:-127.0.0.1}:4317:4317"
       - "${SENTINEL_OTLP_BIND_ADDRESS:-127.0.0.1}:4318:4318"
     networks: [telemetry, control]
-    depends_on: [prometheus, loki, tempo, pyroscope]
+    depends_on:
+      alloy-data-init: { condition: service_completed_successfully }
+      prometheus: { condition: service_started }
+      loki: { condition: service_started }
+      tempo: { condition: service_started }
+      pyroscope-readiness: { condition: service_healthy }
+    restart: unless-stopped
+
+  ingest-gateway-init:
+    image: public.ecr.aws/docker/library/alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
+    profiles: [secure-ingest]
+    command: ["/bin/sh", "-ec", "install -m 0644 /source/server.crt /source/client-ca.crt /certs/ && install -m 0600 /source/server.key /certs/server.key && chown -R 10001:10001 /certs"]
+    user: "0:0"
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
+    network_mode: none
+    volumes:
+      - ../gateway/pki:/source:ro
+      - gateway-certs:/certs
+    restart: "no"
+
+  ingest-gateway:
+    image: public.ecr.aws/docker/library/caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
+    profiles: [secure-ingest]
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    environment:
+      MTLS_PROXY_SHARED_SECRET: ${MTLS_PROXY_SHARED_SECRET:-local-development-mtls-proxy-secret}
+    user: "10001:10001"
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs:
+      - /config:uid=10001,gid=10001,mode=0700
+      - /data:uid=10001,gid=10001,mode=0700
+      - /tmp:uid=10001,gid=10001,mode=0700
+    volumes:
+      - ../gateway/Caddyfile:/etc/caddy/Caddyfile:ro
+      - gateway-certs:/certs:ro
+    ports:
+      - "${SENTINEL_INGEST_BIND_ADDRESS:-127.0.0.1}:${SENTINEL_INGEST_HTTPS_PORT:-8443}:8443"
+      - "${SENTINEL_INGEST_BIND_ADDRESS:-127.0.0.1}:${SENTINEL_INGEST_GRPC_PORT:-44317}:4317"
+    depends_on:
+      ingest-gateway-init: { condition: service_completed_successfully }
+      prometheus: { condition: service_started }
+      loki: { condition: service_started }
+      alloy: { condition: service_started }
+    networks: [telemetry]
     restart: unless-stopped
 
   blackbox:
-    image: mirror.gcr.io/prom/blackbox-exporter:v0.28.0
+    image: mirror.gcr.io/prom/blackbox-exporter:v0.28.0@sha256:e753ff9f3fc458d02cca5eddab5a77e1c175eee484a8925ac7d524f04366c2fc
     command: ["--config.file=/etc/blackbox/blackbox.yml"]
     volumes:
       - ../blackbox/blackbox.yml:/etc/blackbox/blackbox.yml:ro
@@ -295,7 +505,7 @@ services:
     restart: unless-stopped
 
   grafana:
-    image: mirror.gcr.io/grafana/grafana:13.1.3
+    image: mirror.gcr.io/grafana/grafana:13.1.3@sha256:ab5cb380e3ff3172d6c8bd2e7cfd31cce977d2881b260e1f5bc089bf0b759b43
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
@@ -309,12 +519,16 @@ services:
       - ../../dashboards/managed:/var/lib/grafana/dashboards:ro
     ports:
       - "127.0.0.1:3001:3000"
-    depends_on: [prometheus, loki, tempo, pyroscope]
+    depends_on:
+      prometheus: { condition: service_started }
+      loki: { condition: service_started }
+      tempo: { condition: service_started }
+      pyroscope-readiness: { condition: service_healthy }
     networks: [telemetry]
     restart: unless-stopped
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.7.1
+    image: quay.io/keycloak/keycloak:26.7.1@sha256:f1f1f01e472c8a78df40d8f2a49a925274eda4d3d80d5f6edbb5c880ee3c01c6
     command: ["start-dev", "--http-port=8080", "--health-enabled=true"]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER}
@@ -325,7 +539,7 @@ services:
     restart: unless-stopped
 
   mailpit:
-    image: ghcr.io/axllent/mailpit:v1.30.7
+    image: ghcr.io/axllent/mailpit:v1.30.7@sha256:d5ecbb067db3705fa953d79e1b7f81ef84038df67aba6c52825d8c02a1ea748a
     environment:
       MP_MAX_MESSAGES: 500
       MP_SMTP_AUTH_ACCEPT_ANY: "0"
@@ -336,7 +550,7 @@ services:
     restart: unless-stopped
 
   playwright:
-    image: mcr.microsoft.com/playwright:v1.62.1-noble
+    image: mcr.microsoft.com/playwright:v1.62.1-noble@sha256:dcc5531e97840b9b5e794f2814476b21571c5124a3fca2267d73041f56e7580e
     working_dir: /tests
     command: ["/bin/sh", "-ec", "npm install --ignore-scripts --no-audit --no-fund && npx playwright test"]
     environment:
@@ -349,19 +563,21 @@ services:
     depends_on:
       web: { condition: service_started }
     networks: [control]
+    profiles: [test]
     <<: *security
     restart: "no"
 
   k6:
-    image: mirror.gcr.io/grafana/k6:2.2.0
+    image: mirror.gcr.io/grafana/k6:2.2.0@sha256:9bd01d6941fca969cb61bb57d2da5ee9b385fe2aa8881df3798c196564d6ace6
     command: ["run", "/tests/smoke.js"]
-    environment: { DEMO_URL: http://demo-api:8090 }
+    environment: { DEMO_URL: "http://demo-api:8090" }
     volumes:
       - ../../tests/k6:/tests:ro
       - ../../artifacts/k6:/artifacts
     depends_on:
       demo-api: { condition: service_healthy }
     networks: [control, telemetry]
+    profiles: [test]
     <<: *security
     restart: "no"
 
@@ -379,3 +595,5 @@ volumes:
   pyroscope-data: {}
   alloy-data: {}
   artifacts: {}
+  agent-credentials: {}
+  gateway-certs: {}

@@ -41,9 +41,32 @@ func (s *Scheduler) Run(ctx context.Context) {
 }
 
 func (s *Scheduler) runOnce(ctx context.Context) {
+	rows, err := s.Store.Pool.Query(ctx, "SELECT id::text FROM organizations ORDER BY id")
+	if err != nil {
+		s.Logger.Error("synthetic organization query failed", "error", err)
+		return
+	}
+	organizations := []string{}
+	for rows.Next() {
+		var organizationID string
+		if err := rows.Scan(&organizationID); err == nil {
+			organizations = append(organizations, organizationID)
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		s.Logger.Error("synthetic organization scan failed", "error", err)
+		return
+	}
+	for _, organizationID := range organizations {
+		s.runTenant(database.WithTenant(ctx, organizationID), organizationID)
+	}
+}
+
+func (s *Scheduler) runTenant(ctx context.Context, organizationID string) {
 	rows, err := s.Store.Pool.Query(ctx, `SELECT s.id::text,v.spec FROM synthetic_scenarios s JOIN synthetic_scenario_versions v ON v.scenario_id=s.id AND v.version=s.current_version WHERE s.enabled=true AND s.type='http'`)
 	if err != nil {
-		s.Logger.Error("synthetic schedule query failed", "error", err)
+		s.Logger.Error("synthetic schedule query failed", "organization_id", organizationID, "error", err)
 		return
 	}
 	defer rows.Close()
@@ -63,19 +86,17 @@ func (s *Scheduler) runOnce(ctx context.Context) {
 		if json.Unmarshal(raw, &spec) != nil || spec.URL == "" {
 			continue
 		}
-		s.execute(ctx, id, spec.URL, spec.Method, spec.Headers)
+		s.execute(ctx, organizationID, id, spec.URL, spec.Method, spec.Headers)
 	}
 }
 
-func (s *Scheduler) execute(ctx context.Context, scenarioID, url, method string, headers map[string]string) {
+func (s *Scheduler) execute(ctx context.Context, organizationID, scenarioID, url, method string, headers map[string]string) {
 	if method == "" {
 		method = http.MethodGet
 	}
 	started := time.Now().UTC()
 	runID := uuid.NewString()
-	org := ""
-	_ = s.Store.Pool.QueryRow(ctx, "SELECT id::text FROM organizations WHERE name='local'").Scan(&org)
-	_, err := s.Store.Pool.Exec(ctx, `INSERT INTO test_runs(id,organization_id,scenario_id,status,started_at) VALUES($1,$2,$3,'RUNNING',$4)`, runID, org, scenarioID, started)
+	_, err := s.Store.Pool.Exec(ctx, `INSERT INTO test_runs(id,organization_id,scenario_id,status,started_at) VALUES($1,$2,$3,'RUNNING',$4)`, runID, organizationID, scenarioID, started)
 	if err != nil {
 		return
 	}

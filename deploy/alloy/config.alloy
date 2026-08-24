@@ -1,6 +1,12 @@
 otelcol.receiver.otlp "default" {
-  grpc { endpoint = "0.0.0.0:4317" }
-  http { endpoint = "0.0.0.0:4318" }
+  grpc {
+    endpoint         = "0.0.0.0:4317"
+    include_metadata = true
+  }
+  http {
+    endpoint         = "0.0.0.0:4318"
+    include_metadata = true
+  }
   output {
     metrics = [otelcol.processor.batch.default.input]
     logs    = [otelcol.processor.attributes.redact.input]
@@ -58,45 +64,86 @@ otelcol.processor.tail_sampling "default" {
 }
 
 otelcol.processor.batch "default" {
+  metadata_keys = ["tenant_id"]
   output {
-    metrics = [otelcol.exporter.prometheus.default.input]
+    metrics = [otelcol.exporter.otlphttp.prometheus.input]
   }
 }
 otelcol.processor.batch "logs" {
+  metadata_keys = ["tenant_id"]
   output {
     logs = [otelcol.exporter.otlphttp.loki.input]
   }
 }
 otelcol.processor.batch "traces" {
+  metadata_keys = ["tenant_id"]
   output {
-    traces = [otelcol.exporter.otlp.tempo.input]
+    traces = [otelcol.exporter.otlphttp.tempo.input]
   }
 }
 
-otelcol.exporter.prometheus "default" {
-  forward_to = [prometheus.remote_write.local.receiver]
-}
-prometheus.remote_write "local" {
-  endpoint {
-    url = "http://prometheus:9090/api/v1/write"
+otelcol.auth.headers "tenant" {
+  header {
+    key          = "X-Scope-OrgID"
+    from_context = "tenant_id"
   }
 }
-otelcol.exporter.otlp "tempo" {
+
+otelcol.exporter.otlphttp "prometheus" {
   client {
-    endpoint = "tempo:4317"
-    tls {
-      insecure = true
-    }
+    endpoint = "http://prometheus:9090/api/v1/otlp"
+    auth     = otelcol.auth.headers.tenant.handler
+  }
+}
+otelcol.exporter.otlphttp "tempo" {
+  client {
+    endpoint = "http://tempo:4318"
+    auth     = otelcol.auth.headers.tenant.handler
   }
 }
 otelcol.exporter.otlphttp "loki" {
   client {
     endpoint = "http://loki:3100/otlp"
+    auth     = otelcol.auth.headers.tenant.handler
+  }
+}
+
+// The local demo intentionally sends application metrics through Alloy before
+// Prometheus so the evidence covers collection, processing and ingestion.
+prometheus.scrape "demo_apps" {
+  targets = [
+    { "__address__" = "demo-api:8090", "job" = "sentinel-demo-apps", "service_name" = "sentinel-demo-api" },
+    { "__address__" = "demo-orders:8090", "job" = "sentinel-demo-apps", "service_name" = "sentinel-demo-orders" },
+    { "__address__" = "demo-payments:8090", "job" = "sentinel-demo-apps", "service_name" = "sentinel-demo-payments" },
+  ]
+  scrape_interval = "5s"
+  scrape_timeout  = "3s"
+  forward_to      = [prometheus.remote_write.local.receiver]
+}
+
+// A host Linux controlado torna o dashboard e os alertas de hosts testáveis
+// no laboratório local. Collectors reais usam exatamente os mesmos nomes e labels.
+prometheus.scrape "demo_linux_host" {
+  targets = [
+    { "__address__" = "demo-linux-host:8090", "job" = "linux-node", "instance" = "sentinel-demo-linux", "deployment_environment" = "local-demo", "team" = "platform", "location" = "docker-lab" },
+  ]
+  scrape_interval = "5s"
+  scrape_timeout  = "3s"
+  forward_to      = [prometheus.remote_write.local.receiver]
+}
+
+prometheus.remote_write "local" {
+  endpoint {
+    url = "http://prometheus:9090/api/v1/write"
   }
 }
 
 pyroscope.scrape "demo" {
-  targets = [{ "__address__" = "demo-api:8090", "service_name" = "sentinel-demo-api" }]
+  targets = [
+    { "__address__" = "demo-api:8090", "service_name" = "sentinel-demo-api" },
+    { "__address__" = "demo-orders:8090", "service_name" = "sentinel-demo-orders" },
+    { "__address__" = "demo-payments:8090", "service_name" = "sentinel-demo-payments" },
+  ]
   forward_to = [pyroscope.write.local.receiver]
 }
 pyroscope.write "local" {

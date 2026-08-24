@@ -37,6 +37,13 @@ prometheus.remote_write "sentinel" {
   endpoint {
     url = sys.env("SENTINEL_METRICS_ENDPOINT")
     send_native_histograms = true
+    tls_config {
+      ca_file = "/etc/sentinelops/certs/ca.crt"
+      cert_file = "/etc/sentinelops/certs/client.crt"
+      key_file = "/etc/sentinelops/certs/client.key"
+      server_name = sys.env("SENTINEL_TLS_SERVER_NAME")
+      min_version = "TLS12"
+    }
   }
   wal {
     truncate_frequency = "2h"

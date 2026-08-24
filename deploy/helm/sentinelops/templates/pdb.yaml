@@ -6,8 +6,17 @@ kind: PodDisruptionBudget
 metadata:
   name: {{ include "sentinelops.fullname" $ }}-{{ $name }}
 spec:
-  minAvailable: {{ $.Values.podDisruptionBudget.minAvailable }}
+  maxUnavailable: {{ $.Values.podDisruptionBudget.maxUnavailable }}
   selector: { matchLabels: { app.kubernetes.io/instance: {{ $.Release.Name }}, app.kubernetes.io/component: {{ $name }} } }
 {{- end }}
+{{- if .Values.gateway.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "sentinelops.fullname" . }}-gateway
+spec:
+  maxUnavailable: {{ .Values.podDisruptionBudget.maxUnavailable }}
+  selector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: gateway } }
 {{- end }}
-
+{{- end }}

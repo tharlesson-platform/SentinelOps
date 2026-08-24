@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
-ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+# shellcheck disable=SC1091
 . "$ROOT/.env"
 API=${SENTINEL_API_URL:-http://localhost:8080}
 TOKEN=$(curl -fsS -X POST "$API/api/v1/auth/login" -H 'Content-Type: application/json' --data "{\"username\":\"$LOCAL_ADMIN_USER\",\"password\":\"$LOCAL_ADMIN_PASSWORD\"}" | jq -er .data.accessToken)
@@ -11,4 +12,3 @@ wait_result() { validation=$1; i=0; while [ "$i" -lt 60 ]; do data=$(curl -fsS "
 healthy=$(register healthy http://demo-api:8090/health); healthy_validation=$(validate "$healthy"); wait_result "$healthy_validation" | tee "$ROOT/artifacts/healthy-release.json" | jq -e '.result=="PASS"' >/dev/null
 bad=$(register bad http://demo-api:8090/health?fault=error); bad_validation=$(validate "$bad"); wait_result "$bad_validation" | tee "$ROOT/artifacts/bad-release.json" | jq -e '.result=="FAIL"' >/dev/null
 echo "Evidências PASS e FAIL gravadas em artifacts/."
-

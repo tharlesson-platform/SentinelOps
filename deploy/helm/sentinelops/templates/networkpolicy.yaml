@@ -6,14 +6,200 @@ metadata:
 spec:
   podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }} } }
   policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "sentinelops.fullname" . }}-control-plane-dns
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }} }
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values: [api, worker, gateway]
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.dnsNamespaceSelector | nindent 14 }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.dnsPodSelector | nindent 14 }}
+      ports: [{ protocol: UDP, port: 53 }, { protocol: TCP, port: 53 }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "sentinelops.fullname" . }}-api-ingress
+spec:
+  podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: api } }
+  policyTypes: [Ingress]
   ingress:
     - from:
         - namespaceSelector:
             matchLabels:
               {{- toYaml .Values.networkPolicy.ingressNamespaceSelector | nindent 14 }}
-        - podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }} } }
-      ports: [{ protocol: TCP, port: 8080 }, { protocol: TCP, port: 3000 }]
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.ingressPodSelector | nindent 14 }}
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.telemetryNamespaceSelector | nindent 14 }}
+          {{- with .Values.networkPolicy.telemetryPodSelector }}
+          podSelector:
+            matchLabels:
+              {{- toYaml . | nindent 14 }}
+          {{- end }}
+        {{- if .Values.gateway.enabled }}
+        - podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: gateway } }
+        {{- end }}
+      ports: [{ protocol: TCP, port: 8080 }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "sentinelops.fullname" . }}-web-ingress
+spec:
+  podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: web } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.ingressNamespaceSelector | nindent 14 }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.ingressPodSelector | nindent 14 }}
+      ports: [{ protocol: TCP, port: 3000 }]
+{{- if .Values.gateway.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "sentinelops.fullname" . }}-gateway-ingress
+spec:
+  podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: gateway } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- range .Values.networkPolicy.gatewayIngressCIDRs }}
+        - ipBlock: { cidr: {{ . | quote }} }
+        {{- end }}
+      ports: [{ protocol: TCP, port: 8443 }, { protocol: TCP, port: 4317 }]
+{{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "sentinelops.fullname" . }}-api-egress
+spec:
+  podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: api } }
+  policyTypes: [Egress]
   egress:
-    - to: [{ namespaceSelector: {} }]
-      ports: [{ protocol: UDP, port: 53 }, { protocol: TCP, port: 53 }, { protocol: TCP, port: 443 }, { protocol: TCP, port: 5432 }, { protocol: TCP, port: 7233 }]
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.databaseNamespaceSelector | nindent 14 }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.databasePodSelector | nindent 14 }}
+      ports: [{ protocol: TCP, port: 5432 }]
+    {{- range .Values.networkPolicy.databaseCIDRs }}
+    - to: [{ ipBlock: { cidr: {{ . | quote }} } }]
+      ports: [{ protocol: TCP, port: 5432 }]
+    {{- end }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.temporalNamespaceSelector | nindent 14 }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.temporalPodSelector | nindent 14 }}
+      ports: [{ protocol: TCP, port: 7233 }]
+    {{- range .Values.networkPolicy.externalHTTPSCIDRs }}
+    - to: [{ ipBlock: { cidr: {{ . | quote }} } }]
+      ports: [{ protocol: TCP, port: 443 }]
+    {{- end }}
+    {{- with .Values.networkPolicy.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "sentinelops.fullname" . }}-worker-egress
+spec:
+  podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: worker } }
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.databaseNamespaceSelector | nindent 14 }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.databasePodSelector | nindent 14 }}
+      ports: [{ protocol: TCP, port: 5432 }]
+    {{- range .Values.networkPolicy.databaseCIDRs }}
+    - to: [{ ipBlock: { cidr: {{ . | quote }} } }]
+      ports: [{ protocol: TCP, port: 5432 }]
+    {{- end }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.temporalNamespaceSelector | nindent 14 }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.temporalPodSelector | nindent 14 }}
+      ports: [{ protocol: TCP, port: 7233 }]
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.telemetryNamespaceSelector | nindent 14 }}
+          {{- with .Values.networkPolicy.telemetryPodSelector }}
+          podSelector:
+            matchLabels:
+              {{- toYaml . | nindent 14 }}
+          {{- end }}
+      ports: [{ protocol: TCP, port: 443 }, { protocol: TCP, port: 9090 }, { protocol: TCP, port: 3100 }, { protocol: TCP, port: 3200 }]
+    {{- range .Values.networkPolicy.externalHTTPSCIDRs }}
+    - to: [{ ipBlock: { cidr: {{ . | quote }} } }]
+      ports: [{ protocol: TCP, port: 443 }]
+    {{- end }}
+    {{- with .Values.networkPolicy.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- if .Values.gateway.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "sentinelops.fullname" . }}-gateway-egress
+spec:
+  podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: gateway } }
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: api } }
+      ports: [{ protocol: TCP, port: 8080 }]
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.telemetryNamespaceSelector | nindent 14 }}
+          {{- with .Values.networkPolicy.telemetryPodSelector }}
+          podSelector:
+            matchLabels:
+              {{- toYaml . | nindent 14 }}
+          {{- end }}
+      ports: [{ protocol: TCP, port: 443 }, { protocol: TCP, port: 9090 }, { protocol: TCP, port: 3100 }, { protocol: TCP, port: 4317 }, { protocol: TCP, port: 4318 }]
+    {{- range .Values.networkPolicy.externalHTTPSCIDRs }}
+    - to: [{ ipBlock: { cidr: {{ . | quote }} } }]
+      ports: [{ protocol: TCP, port: 443 }]
+    {{- end }}
+    {{- with .Values.networkPolicy.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}
 {{- end }}

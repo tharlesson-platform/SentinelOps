@@ -10,8 +10,6 @@ scrape_configs:
     static_configs: [{ targets: ["localhost:9090"] }]
   - job_name: sentinel-api
     static_configs: [{ targets: ["api:8080"] }]
-  - job_name: sentinel-demo-api
-    static_configs: [{ targets: ["demo-api:8090"] }]
   - job_name: alloy
     static_configs: [{ targets: ["alloy:12345"] }]
   - job_name: blackbox-demo
@@ -22,4 +20,3 @@ scrape_configs:
       - { source_labels: [__address__], target_label: __param_target }
       - { source_labels: [__param_target], target_label: instance }
       - { target_label: __address__, replacement: "blackbox:9115" }
-

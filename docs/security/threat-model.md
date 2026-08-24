@@ -8,16 +8,18 @@ Control Plane/backends e agentes/alvos privados.
 
 | Ameaça | Exemplo | Controle |
 |---|---|---|
-| Spoofing | agente ou webhook falso | bootstrap de uso único, mTLS/OIDC, HMAC, timestamp e nonce |
-| Tampering | alterar gate/evidência | políticas versionadas, checksum de artefato e auditoria append-only |
+| Spoofing | agente, proxy ou webhook falso | bootstrap one-time, mTLS tenant/name-bound, segredo API-gateway, OIDC, HMAC, timestamp e nonce |
+| Tampering | backup/gate/evidência | age autenticado, checksums, políticas versionadas e auditoria |
 | Repudiation | override sem autoria | subject, motivo, expiração, request ID e eventos imutáveis |
 | Information disclosure | token em log/screenshot | redaction de headers/campos, secretRef, CSP e limites de artefato |
 | Denial of service | query ampla/cardinalidade | rate limit, timeout, quotas, allowlist e limites por tenant |
-| Elevation of privilege | acesso entre tenants | RBAC por escopo, `organization_id`, RLS em produção e testes de isolamento |
+| Elevation of privilege | acesso entre tenants | role binding persistido, FORCE RLS em 41 tabelas, role runtime não-superusuária, SAN SPIFFE, tenant/name sobrescritos pelo gateway e testes negativos |
+| SSRF | probe alcança metadata/admin | http(s) absoluto, allowlist exata/wildcard e redirect revalidado |
 
 ## Requisitos de produção
 
-- TLS externo e mTLS para agentes; rotação e revogação documentadas.
+- TLS externo e mTLS para agentes; segredo compartilhado API-gateway com no
+  mínimo 32 bytes, nome/tenant do SAN vinculados, rotação e revogação documentadas.
 - Containers não-root, filesystem read-only, seccomp, capabilities removidas,
   NetworkPolicy e egress explícito.
 - OIDC com MFA delegado; tokens curtos, cookies `HttpOnly/Secure/SameSite` e
@@ -27,6 +29,10 @@ Control Plane/backends e agentes/alvos privados.
 
 ## Riscos residuais locais
 
-Compose é uma demonstração em uma única máquina, sem HA e com tráfego interno
-em rede Docker. Não deve ser exposto à Internet nem promovido diretamente.
-
+Compose é single-node, sem HA, e os backends locais operam em modo single-
+tenant; o isolamento de transporte é provado, mas a separação física/lógica do
+storage deve ser habilitada em Mimir/Loki/Tempo produtivos. O gateway mTLS pode
+ser publicado em rede controlada; UI/backends diretos não devem ir à Internet.
+O PostgreSQL aplica FORCE RLS às tabelas diretas e filhas, além dos filtros
+explícitos no store/API. Migração e runtime usam credenciais distintas; uma URL
+runtime com superusuário ou `BYPASSRLS` reprova o gate.

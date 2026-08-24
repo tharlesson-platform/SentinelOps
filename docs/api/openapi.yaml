@@ -1,54 +1,205 @@
 openapi: 3.1.0
 info:
   title: SentinelOps API
-  version: 0.1.0
-  license: { name: Apache-2.0, identifier: Apache-2.0 }
-servers: [{ url: http://localhost:8080/api/v1 }]
+  version: 0.2.0
+  description: API multi-tenant. Em produção, OIDC e role_bindings persistidos são autoritativos.
+  license: { name: MIT, identifier: MIT }
+servers: [{ url: "/" }]
 security: [{ bearerAuth: [] }]
 paths:
-  /auth/login:
+  /healthz:
+    get: { operationId: health, security: [], summary: Liveness, responses: { '200': { description: Processo vivo }, '429': { $ref: '#/components/responses/Error' } } }
+  /readyz:
+    get: { operationId: readiness, security: [], summary: Readiness do PostgreSQL e Temporal, responses: { '200': { description: Pronto }, '429': { $ref: '#/components/responses/Error' }, '503': { $ref: '#/components/responses/Error' } } }
+  /api/v1/auth/login:
     post:
+      operationId: login
       security: []
-      summary: Login local de desenvolvimento
+      summary: Login local exclusivo de desenvolvimento
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Login' } } } }
-      responses: { '200': { description: Token curto }, '401': { $ref: '#/components/responses/Error' } }
-  /services:
-    get: { summary: Lista serviços, responses: { '200': { description: Catálogo } } }
-    post: { summary: Cria ou atualiza serviço, responses: { '200': { description: Serviço salvo } } }
-  /services/{name}:
-    parameters: [{ in: path, name: name, required: true, schema: { type: string } }]
-    get: { summary: Obtém serviço, responses: { '200': { description: Serviço }, '404': { $ref: '#/components/responses/Error' } } }
-    put: { summary: Aplica serviço, responses: { '200': { description: Serviço salvo } } }
-    delete: { summary: Remove serviço logicamente, responses: { '204': { description: Removido } } }
-  /releases:
+      responses: { '200': { description: Token curto }, '401': { $ref: '#/components/responses/Error' }, '404': { description: Desabilitado em OIDC } }
+  /api/v1/services:
+    get: { operationId: listServices, summary: Lista serviços da organização autenticada, responses: { '200': { description: Catálogo }, '401': { $ref: '#/components/responses/Error' } } }
     post:
+      operationId: upsertService
+      summary: Cria ou atualiza serviço
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Service' } } } }
+      responses: { '200': { description: Serviço salvo }, '422': { $ref: '#/components/responses/Error' } }
+  /api/v1/services/{name}:
+    parameters: [{ $ref: '#/components/parameters/ServiceName' }]
+    get: { operationId: getService, summary: Obtém serviço, responses: { '200': { description: Serviço }, '404': { $ref: '#/components/responses/Error' } } }
+    put:
+      operationId: putService
+      summary: Aplica serviço
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Service' } } } }
+      responses: { '200': { description: Serviço salvo }, '422': { $ref: '#/components/responses/Error' } }
+    delete: { operationId: deleteService, summary: Remove serviço logicamente, responses: { '204': { description: Removido }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/releases:
+    post:
+      operationId: createRelease
       summary: Registra release idempotente
-      parameters: [{ in: header, name: Idempotency-Key, required: true, schema: { type: string, maxLength: 128 } }]
-      responses: { '201': { description: Release } }
-  /releases/{releaseId}/validate:
-    post:
-      summary: Inicia gate determinístico
-      parameters: [{ in: path, name: releaseId, required: true, schema: { type: string, format: uuid } }]
-      responses: { '202': { description: Validação enfileirada } }
-  /validations/{validationId}:
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Release' } } } }
+      responses: { '201': { description: Release }, '400': { $ref: '#/components/responses/Error' } }
+  /api/v1/releases/{id}:
     get:
-      summary: Retorna resultado e evidências
-      parameters: [{ in: path, name: validationId, required: true, schema: { type: string, format: uuid } }]
-      responses: { '200': { description: Validação } }
-  /validations/{validationId}/cancel:
+      operationId: getRelease
+      summary: Obtém release tenant-scoped
+      parameters: [{ $ref: '#/components/parameters/ID' }]
+      responses: { '200': { description: Release }, '404': { $ref: '#/components/responses/Error' } }
+  /api/v1/releases/{releaseId}/validate:
     post:
+      operationId: validateRelease
+      summary: Inicia gate fail-closed
+      description: smoke executa o sintético HTTP; demais modos exigem PromQL, LogQL, SLO e TraceQL.
+      parameters: [{ in: path, name: releaseId, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/ValidationRequest' } } } }
+      responses: { '202': { description: Validação enfileirada }, '404': { $ref: '#/components/responses/Error' }, '503': { $ref: '#/components/responses/Error' } }
+  /api/v1/validations/{id}:
+    get:
+      operationId: getValidation
+      summary: Retorna resultado e evidências tenant-scoped
+      parameters: [{ $ref: '#/components/parameters/ID' }]
+      responses: { '200': { description: Validação }, '404': { $ref: '#/components/responses/Error' } }
+  /api/v1/validations/{id}/cancel:
+    post:
+      operationId: cancelValidation
       summary: Cancela workflow
-      parameters: [{ in: path, name: validationId, required: true, schema: { type: string, format: uuid } }]
+      parameters: [{ $ref: '#/components/parameters/ID' }]
       responses: { '200': { description: Cancelada }, '409': { $ref: '#/components/responses/Error' } }
+  /api/v1/agent-bootstrap-tokens:
+    post:
+      operationId: createAgentBootstrapToken
+      summary: Emite token de uso único, tenant e expiração
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/BootstrapTokenRequest' } } } }
+      responses: { '201': { description: Token exibido uma única vez }, '422': { $ref: '#/components/responses/Error' } }
+  /api/v1/agents/register:
+    post:
+      operationId: registerAgent
+      security: [{ bootstrapToken: [], mutualTLS: [] }]
+      summary: Registra ou rotaciona agente
+      description: O gateway sobrescreve fingerprint e organização a partir do certificado SPIFFE.
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Agent' } } } }
+      responses: { '201': { description: Credencial longa exibida uma única vez }, '401': { $ref: '#/components/responses/Error' } }
+  /api/v1/agents/{id}/heartbeat:
+    post:
+      operationId: heartbeatAgent
+      security: [{ agentToken: [], mutualTLS: [] }]
+      summary: Heartbeat vinculado a token, certificado e organização
+      parameters: [{ $ref: '#/components/parameters/ID' }]
+      requestBody: { content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+      responses: { '200': { description: Aceito }, '401': { $ref: '#/components/responses/Error' } }
+  /api/v1/agents:
+    get: { operationId: listAgents, summary: Lista agentes da organização, responses: { '200': { description: Fleet }, '401': { $ref: '#/components/responses/Error' } } }
+  /api/v1/scenarios:
+    get: { operationId: listScenarios, summary: Lista cenários da organização, responses: { '200': { description: Cenários }, '401': { $ref: '#/components/responses/Error' } } }
+    post:
+      operationId: upsertScenario
+      summary: Aplica nova versão de cenário
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Scenario' } } } }
+      responses: { '200': { description: Cenário versionado }, '422': { $ref: '#/components/responses/Error' } }
+  /api/v1/events:
+    get:
+      operationId: streamEvents
+      summary: Stream SSE de eventos da organização
+      responses: { '200': { description: Stream, content: { text/event-stream: { schema: { type: string } } } }, '401': { $ref: '#/components/responses/Error' } }
+  /api/v1/webhooks/{provider}:
+    post:
+      operationId: ingestWebhook
+      security: [{ webhookSignature: [] }]
+      summary: Evento assinado, tenant-scoped e anti-replay
+      parameters:
+        - { in: path, name: provider, required: true, schema: { type: string, enum: [deployment, github, gitlab, jenkins, azure-devops, aws-codepipeline] } }
+        - { in: header, name: X-Sentinel-Organization, required: true, schema: { type: string } }
+        - { in: header, name: X-Sentinel-Timestamp, required: true, schema: { type: string, pattern: '^[0-9]+$' } }
+        - { in: header, name: X-Sentinel-Nonce, required: true, schema: { type: string } }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+      responses: { '202': { description: Aceito }, '401': { $ref: '#/components/responses/Error' }, '409': { $ref: '#/components/responses/Error' } }
 components:
   securitySchemes:
-    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: OIDC-JWT }
+    bootstrapToken: { type: http, scheme: bearer, description: maxUses=1 e TTL entre 1m e 1h }
+    agentToken: { type: apiKey, in: header, name: X-Agent-Token }
+    mutualTLS: { type: mutualTLS }
+    webhookSignature: { type: apiKey, in: header, name: X-Sentinel-Signature, description: HMAC-SHA256 de organization.timestamp.nonce.body }
+  parameters:
+    ID: { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+    ServiceName: { in: path, name: name, required: true, schema: { type: string, pattern: '^[a-z0-9][a-z0-9-]{1,62}$' } }
+    IdempotencyKey: { in: header, name: Idempotency-Key, required: true, schema: { type: string, maxLength: 128 } }
   responses:
-    Error: { description: Erro com requestId, content: { application/json: { schema: { type: object } } } }
+    Error: { description: Erro com requestId, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
   schemas:
     Login:
       type: object
       additionalProperties: false
       required: [username, password]
       properties: { username: { type: string }, password: { type: string, format: password } }
-
+    Service:
+      type: object
+      required: [name, displayName, ownerTeam]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        name: { type: string }
+        displayName: { type: string }
+        description: { type: string }
+        ownerTeam: { type: string }
+        tier: { type: string }
+        labels: { type: object, additionalProperties: { type: string } }
+    Release:
+      type: object
+      required: [service, environment, version]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        service: { type: string }
+        environment: { type: string }
+        version: { type: string }
+        commitSha: { type: string }
+        image: { type: string }
+        imageDigest: { type: string, pattern: '^sha256:[a-f0-9]{64}$' }
+        deployedAt: { type: string, format: date-time }
+        labels:
+          type: object
+          additionalProperties: { type: string }
+          description: health_url e políticas gate_promql*, gate_logql*, gate_slo_promql* e gate_traceql*.
+    ValidationRequest:
+      type: object
+      additionalProperties: false
+      properties: { mode: { type: string, enum: [smoke, standard, regression, canary, performance, deep], default: standard } }
+    BootstrapTokenRequest:
+      type: object
+      additionalProperties: false
+      properties: { agentName: { type: string }, ttl: { type: string, default: 10m, pattern: '^[0-9]+[smh]$' } }
+    Agent:
+      type: object
+      required: [name]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        name: { type: string }
+        region: { type: string }
+        cloudProvider: { type: string }
+        account: { type: string }
+        cluster: { type: string }
+        network: { type: string }
+        location: { type: string }
+        team: { type: string }
+        environment: { type: string }
+        labels: { type: object, additionalProperties: { type: string } }
+        capabilities: { type: array, items: { type: string } }
+    Scenario:
+      type: object
+      required: [name, serviceRef, environment, type, spec]
+      properties:
+        name: { type: string }
+        serviceRef: { type: string }
+        environment: { type: string }
+        type: { type: string, enum: [http, browser, k6] }
+        schedule: { type: object, additionalProperties: true }
+        spec: { type: object, additionalProperties: true }
+    ErrorEnvelope:
+      type: object
+      properties:
+        error:
+          type: object
+          required: [code, message, requestId]
+          properties: { code: { type: string }, message: { type: string }, requestId: { type: string } }

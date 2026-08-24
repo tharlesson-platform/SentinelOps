@@ -1,0 +1,8 @@
+{
+  "name": "sentinel-demo-payments",
+  "displayName": "Sentinel Demo Payments",
+  "description": "Serviço mock final do fluxo distribuído de pagamentos e falhas controladas.",
+  "ownerTeam": "platform",
+  "tier": "1",
+  "labels": { "environment": "development", "repository": "sentinelops", "health_url": "http://demo-payments:8090/health" }
+}

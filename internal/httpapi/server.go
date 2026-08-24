@@ -36,6 +36,10 @@ type WorkflowStarter interface {
 	CancelWorkflow(context.Context, string, string) error
 }
 
+type workflowHealthChecker interface {
+	CheckHealth(context.Context, *client.CheckHealthRequest) (*client.CheckHealthResponse, error)
+}
+
 type Server struct {
 	cfg       config.Config
 	store     *database.Store
@@ -60,16 +64,22 @@ type apiError struct {
 	RequestID string `json:"requestId"`
 }
 type principal struct {
-	Subject string
-	Role    string
+	Subject        string
+	Role           string
+	Organization   string
+	OrganizationID string
 }
 type contextKey string
 
 const principalKey contextKey = "principal"
 
 var safeName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,62}$`)
+var certificateFingerprint = regexp.MustCompile(`^[a-f0-9]{64}$`)
 
 func New(ctx context.Context, cfg config.Config, store *database.Store, temporal WorkflowStarter, logger *slog.Logger, registry *prometheus.Registry) (*Server, error) {
+	if err := cfg.ValidateAPI(); err != nil {
+		return nil, fmt.Errorf("validate API configuration: %w", err)
+	}
 	var authenticator auth.Authenticator
 	var local *auth.Manager
 	if cfg.AuthMode == "local" {
@@ -109,6 +119,7 @@ func (s *Server) routes(registry *prometheus.Registry) {
 	s.mux.Handle("POST /api/v1/releases/{releaseId}/validate", s.require("validation:write", http.HandlerFunc(s.validateRelease)))
 	s.mux.Handle("GET /api/v1/validations/{id}", s.require("validation:read", http.HandlerFunc(s.getValidation)))
 	s.mux.Handle("POST /api/v1/validations/{id}/cancel", s.require("validation:write", http.HandlerFunc(s.cancelValidation)))
+	s.mux.Handle("POST /api/v1/agent-bootstrap-tokens", s.require("agent:write", http.HandlerFunc(s.createAgentBootstrapToken)))
 	s.mux.Handle("POST /api/v1/agents/register", http.HandlerFunc(s.registerAgent))
 	s.mux.Handle("POST /api/v1/agents/{id}/heartbeat", http.HandlerFunc(s.agentHeartbeat))
 	s.mux.Handle("GET /api/v1/agents", s.require("agent:read", http.HandlerFunc(s.listAgents)))
@@ -128,6 +139,19 @@ func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	if err := s.store.Health(ctx); err != nil {
 		fail(w, r, http.StatusServiceUnavailable, "database_unavailable", "dependência obrigatória indisponível")
+		return
+	}
+	if s.temporal == nil {
+		fail(w, r, http.StatusServiceUnavailable, "temporal_unavailable", "dependência obrigatória indisponível")
+		return
+	}
+	healthChecker, ok := s.temporal.(workflowHealthChecker)
+	if !ok {
+		fail(w, r, http.StatusServiceUnavailable, "temporal_healthcheck_unavailable", "dependência obrigatória indisponível")
+		return
+	}
+	if _, err := healthChecker.CheckHealth(ctx, &client.CheckHealthRequest{}); err != nil {
+		fail(w, r, http.StatusServiceUnavailable, "temporal_unavailable", "dependência obrigatória indisponível")
 		return
 	}
 	write(w, http.StatusOK, map[string]string{"status": "ready"})
@@ -153,7 +177,8 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listServices(w http.ResponseWriter, r *http.Request) {
-	items, err := s.store.ListServices(r.Context())
+	p := getPrincipal(r.Context())
+	items, err := s.store.ListServices(r.Context(), p.OrganizationID)
 	if err != nil {
 		s.internal(w, r, err)
 		return
@@ -161,7 +186,8 @@ func (s *Server) listServices(w http.ResponseWriter, r *http.Request) {
 	write(w, http.StatusOK, items)
 }
 func (s *Server) getService(w http.ResponseWriter, r *http.Request) {
-	item, err := s.store.GetService(r.Context(), r.PathValue("name"))
+	p := getPrincipal(r.Context())
+	item, err := s.store.GetService(r.Context(), p.OrganizationID, r.PathValue("name"))
 	if database.IsNotFound(err) {
 		fail(w, r, http.StatusNotFound, "not_found", "serviço não encontrado")
 		return
@@ -188,7 +214,7 @@ func (s *Server) upsertService(w http.ResponseWriter, r *http.Request) {
 		in.Tier = "3"
 	}
 	p := getPrincipal(r.Context())
-	item, err := s.store.UpsertService(r.Context(), p.Subject, in)
+	item, err := s.store.UpsertService(r.Context(), p.OrganizationID, p.Subject, in)
 	if err != nil {
 		s.internal(w, r, err)
 		return
@@ -197,14 +223,14 @@ func (s *Server) upsertService(w http.ResponseWriter, r *http.Request) {
 	write(w, http.StatusOK, item)
 }
 func (s *Server) deleteService(w http.ResponseWriter, r *http.Request) {
-	if err := s.store.DeleteService(r.Context(), r.PathValue("name")); database.IsNotFound(err) {
+	p := getPrincipal(r.Context())
+	if err := s.store.DeleteService(r.Context(), p.OrganizationID, r.PathValue("name")); database.IsNotFound(err) {
 		fail(w, r, http.StatusNotFound, "not_found", "serviço não encontrado")
 		return
 	} else if err != nil {
 		s.internal(w, r, err)
 		return
 	}
-	p := getPrincipal(r.Context())
 	s.audit(r, p, "service.delete", "service", r.PathValue("name"), nil)
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -224,7 +250,7 @@ func (s *Server) createRelease(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := getPrincipal(r.Context())
-	item, err := s.store.CreateRelease(r.Context(), p.Subject, idem, in)
+	item, err := s.store.CreateRelease(r.Context(), p.OrganizationID, p.Subject, idem, in)
 	if err != nil {
 		s.internal(w, r, err)
 		return
@@ -233,7 +259,8 @@ func (s *Server) createRelease(w http.ResponseWriter, r *http.Request) {
 	writeStatus(w, http.StatusCreated, item)
 }
 func (s *Server) getRelease(w http.ResponseWriter, r *http.Request) {
-	item, err := s.store.GetRelease(r.Context(), r.PathValue("id"))
+	p := getPrincipal(r.Context())
+	item, err := s.store.GetRelease(r.Context(), p.OrganizationID, r.PathValue("id"))
 	if database.IsNotFound(err) {
 		fail(w, r, http.StatusNotFound, "not_found", "release não encontrada")
 		return
@@ -250,7 +277,8 @@ func (s *Server) validateRelease(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	releaseID := r.PathValue("releaseId")
-	if _, err := s.store.GetRelease(r.Context(), releaseID); err != nil {
+	p := getPrincipal(r.Context())
+	if _, err := s.store.GetRelease(r.Context(), p.OrganizationID, releaseID); err != nil {
 		if database.IsNotFound(err) {
 			fail(w, r, http.StatusNotFound, "not_found", "release não encontrada")
 			return
@@ -272,24 +300,24 @@ func (s *Server) validateRelease(w http.ResponseWriter, r *http.Request) {
 		fail(w, r, http.StatusUnprocessableEntity, "validation_error", "mode inválido")
 		return
 	}
-	p := getPrincipal(r.Context())
-	v, err := s.store.CreateValidation(r.Context(), p.Subject, releaseID, in.Mode)
+	v, err := s.store.CreateValidation(r.Context(), p.OrganizationID, p.Subject, releaseID, in.Mode)
 	if err != nil {
 		s.internal(w, r, err)
 		return
 	}
 	wfID := "validation-" + v.ID
-	run, err := s.temporal.ExecuteWorkflow(r.Context(), client.StartWorkflowOptions{ID: wfID, TaskQueue: workflows.ReleaseValidationTaskQueue}, workflows.ReleaseValidationWorkflow, workflows.ValidationInput{ValidationID: v.ID, ReleaseID: releaseID, Mode: in.Mode})
+	run, err := s.temporal.ExecuteWorkflow(r.Context(), client.StartWorkflowOptions{ID: wfID, TaskQueue: workflows.ReleaseValidationTaskQueue}, workflows.ReleaseValidationWorkflow, workflows.ValidationInput{OrganizationID: p.OrganizationID, ValidationID: v.ID, ReleaseID: releaseID, Mode: in.Mode})
 	if err != nil {
 		s.internal(w, r, err)
 		return
 	}
-	_ = s.store.SetWorkflowID(r.Context(), v.ID, wfID)
+	_ = s.store.SetWorkflowID(r.Context(), p.OrganizationID, v.ID, wfID)
 	s.audit(r, p, "validation.start", "validation", v.ID, map[string]string{"workflowId": run.GetID(), "runId": run.GetRunID()})
 	writeStatus(w, http.StatusAccepted, v)
 }
 func (s *Server) getValidation(w http.ResponseWriter, r *http.Request) {
-	item, err := s.store.GetValidation(r.Context(), r.PathValue("id"))
+	p := getPrincipal(r.Context())
+	item, err := s.store.GetValidation(r.Context(), p.OrganizationID, r.PathValue("id"))
 	if database.IsNotFound(err) {
 		fail(w, r, http.StatusNotFound, "not_found", "validação não encontrada")
 		return
@@ -302,22 +330,40 @@ func (s *Server) getValidation(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) cancelValidation(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	p := getPrincipal(r.Context())
 	var wf string
-	_ = s.store.Pool.QueryRow(r.Context(), "SELECT coalesce(temporal_workflow_id,'') FROM validations WHERE id=$1", id).Scan(&wf)
+	_ = s.store.Pool.QueryRow(r.Context(), "SELECT coalesce(temporal_workflow_id,'') FROM validations WHERE organization_id=$1 AND id=$2", p.OrganizationID, id).Scan(&wf)
 	if wf != "" && s.temporal != nil {
 		_ = s.temporal.CancelWorkflow(r.Context(), wf, "")
 	}
-	if err := s.store.CancelValidation(r.Context(), id); err != nil {
+	if err := s.store.CancelValidation(r.Context(), p.OrganizationID, id); err != nil {
 		fail(w, r, http.StatusConflict, "cannot_cancel", err.Error())
 		return
 	}
-	p := getPrincipal(r.Context())
 	s.audit(r, p, "validation.cancel", "validation", id, nil)
 	write(w, http.StatusOK, map[string]string{"status": "CANCELLED"})
 }
 
 func (s *Server) registerAgent(w http.ResponseWriter, r *http.Request) {
-	if s.cfg.AgentBootstrap == "" || subtleToken(r.Header.Get("Authorization"), s.cfg.AgentBootstrap) == false {
+	clientFingerprint := strings.ToLower(strings.TrimSpace(r.Header.Get("X-Sentinel-Client-Cert-Fingerprint")))
+	clientOrganization := strings.TrimSpace(r.Header.Get("X-Sentinel-Client-Organization"))
+	clientName := strings.TrimSpace(r.Header.Get("X-Sentinel-Client-Name"))
+	proxyAuthorized := s.mtlsProxyAuthorized(r)
+	metadataSupplied := clientFingerprint != "" || clientOrganization != "" || clientName != ""
+	if s.cfg.Environment == "production" && !proxyAuthorized {
+		fail(w, r, http.StatusUnauthorized, "mtls_required", "registro de agente exige certificado cliente mTLS verificado")
+		return
+	}
+	if metadataSupplied && !proxyAuthorized {
+		fail(w, r, http.StatusUnauthorized, "untrusted_mtls_proxy", "metadados de certificado vieram de proxy não confiável")
+		return
+	}
+	if proxyAuthorized && (!certificateFingerprint.MatchString(clientFingerprint) || uuid.Validate(clientOrganization) != nil || !safeName.MatchString(clientName)) {
+		fail(w, r, http.StatusBadRequest, "invalid_client_certificate", "identidade do certificado cliente inválida")
+		return
+	}
+	bootstrapToken := bearerToken(r.Header.Get("Authorization"))
+	if bootstrapToken == "" {
 		fail(w, r, http.StatusUnauthorized, "invalid_bootstrap_token", "bootstrap token inválido")
 		return
 	}
@@ -329,6 +375,20 @@ func (s *Server) registerAgent(w http.ResponseWriter, r *http.Request) {
 		fail(w, r, http.StatusUnprocessableEntity, "validation_error", "nome do agente inválido")
 		return
 	}
+	if proxyAuthorized && clientName != in.Name {
+		fail(w, r, http.StatusUnauthorized, "certificate_name_mismatch", "nome do agente difere da identidade do certificado")
+		return
+	}
+	tenantID := clientOrganization
+	if tenantID == "" {
+		var err error
+		tenantID, err = s.store.OrganizationID(r.Context(), "local")
+		if err != nil {
+			s.internal(w, r, err)
+			return
+		}
+	}
+	r = r.WithContext(database.WithTenant(r.Context(), tenantID))
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
 		s.internal(w, r, err)
@@ -336,11 +396,6 @@ func (s *Server) registerAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	token := hex.EncodeToString(tokenBytes)
 	hash := sha256.Sum256([]byte(token))
-	org, err := localOrg(r.Context(), s.store)
-	if err != nil {
-		s.internal(w, r, err)
-		return
-	}
 	labels, _ := json.Marshal(in.Labels)
 	var id string
 	tx, err := s.store.Pool.Begin(r.Context())
@@ -349,15 +404,27 @@ func (s *Server) registerAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback(r.Context())
+	bootstrapHash := sha256.Sum256([]byte(bootstrapToken))
+	var bootstrapID, org, boundName string
+	err = tx.QueryRow(r.Context(), `SELECT id::text,organization_id::text,coalesce(bound_agent_name,'') FROM agent_bootstrap_tokens WHERE token_hash=$1 AND revoked_at IS NULL AND expires_at>now() AND use_count=0 FOR UPDATE`, bootstrapHash[:]).Scan(&bootstrapID, &org, &boundName)
+	if err != nil || (boundName != "" && boundName != in.Name) || (clientOrganization != "" && clientOrganization != org) {
+		fail(w, r, http.StatusUnauthorized, "invalid_bootstrap_token", "bootstrap token inválido, expirado, consumido ou vinculado a outro agente")
+		return
+	}
+	if _, err = tx.Exec(r.Context(), `UPDATE agent_bootstrap_tokens SET use_count=1,used_at=now() WHERE id=$1 AND use_count=0`, bootstrapID); err != nil {
+		s.internal(w, r, err)
+		return
+	}
 	err = tx.QueryRow(r.Context(), `
-		INSERT INTO agents(organization_id,name,region,cloud_provider,account,cluster,network,location,team,environment,labels,token_hash)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+		INSERT INTO agents(organization_id,name,region,cloud_provider,account,cluster,network,location,team,environment,labels,token_hash,client_cert_fingerprint)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,nullif($13,''))
 		ON CONFLICT (organization_id,name) DO UPDATE SET
 			region=EXCLUDED.region, cloud_provider=EXCLUDED.cloud_provider, account=EXCLUDED.account,
 			cluster=EXCLUDED.cluster, network=EXCLUDED.network, location=EXCLUDED.location,
 			team=EXCLUDED.team, environment=EXCLUDED.environment, labels=EXCLUDED.labels,
-			token_hash=EXCLUDED.token_hash, revoked_at=NULL, updated_at=now(), version=agents.version+1
-		RETURNING id::text`, org, in.Name, in.Region, in.CloudProvider, in.Account, in.Cluster, in.Network, in.Location, in.Team, in.Environment, labels, hash[:]).Scan(&id)
+			token_hash=EXCLUDED.token_hash, client_cert_fingerprint=EXCLUDED.client_cert_fingerprint,
+			revoked_at=NULL, updated_at=now(), version=agents.version+1
+		RETURNING id::text`, org, in.Name, in.Region, in.CloudProvider, in.Account, in.Cluster, in.Network, in.Location, in.Team, in.Environment, labels, hash[:], clientFingerprint).Scan(&id)
 	if err != nil {
 		s.internal(w, r, err)
 		return
@@ -378,12 +445,81 @@ func (s *Server) registerAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	writeStatus(w, http.StatusCreated, map[string]any{"id": id, "token": token, "warning": "o token é exibido uma única vez"})
 }
+
+func (s *Server) createAgentBootstrapToken(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		AgentName string `json:"agentName"`
+		TTL       string `json:"ttl"`
+	}
+	if !decodeOptional(w, r, &in) {
+		return
+	}
+	if in.AgentName != "" && !safeName.MatchString(in.AgentName) {
+		fail(w, r, http.StatusUnprocessableEntity, "validation_error", "agentName inválido")
+		return
+	}
+	ttl := 10 * time.Minute
+	var err error
+	if in.TTL != "" {
+		ttl, err = time.ParseDuration(in.TTL)
+		if err != nil || ttl < time.Minute || ttl > time.Hour {
+			fail(w, r, http.StatusUnprocessableEntity, "validation_error", "ttl deve estar entre 1m e 1h")
+			return
+		}
+	}
+	tokenBytes := make([]byte, 32)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	token := hex.EncodeToString(tokenBytes)
+	hash := sha256.Sum256([]byte(token))
+	p := getPrincipal(r.Context())
+	expiresAt := time.Now().UTC().Add(ttl)
+	var id string
+	err = s.store.Pool.QueryRow(r.Context(), `INSERT INTO agent_bootstrap_tokens(organization_id,token_hash,bound_agent_name,expires_at,created_by) VALUES($1,$2,nullif($3,''),$4,$5) RETURNING id::text`, p.OrganizationID, hash[:], in.AgentName, expiresAt, p.Subject).Scan(&id)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	s.audit(r, p, "agent.bootstrap-token.create", "agent_bootstrap_token", id, map[string]any{"agentName": in.AgentName, "expiresAt": expiresAt})
+	writeStatus(w, http.StatusCreated, map[string]any{"id": id, "organizationId": p.OrganizationID, "token": token, "expiresAt": expiresAt, "maxUses": 1, "warning": "o token é exibido uma única vez"})
+}
 func (s *Server) agentHeartbeat(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	token := r.Header.Get("X-Agent-Token")
 	sum := sha256.Sum256([]byte(token))
+	clientFingerprint := strings.ToLower(strings.TrimSpace(r.Header.Get("X-Sentinel-Client-Cert-Fingerprint")))
+	clientOrganization := strings.TrimSpace(r.Header.Get("X-Sentinel-Client-Organization"))
+	clientName := strings.TrimSpace(r.Header.Get("X-Sentinel-Client-Name"))
+	proxyAuthorized := s.mtlsProxyAuthorized(r)
+	metadataSupplied := clientFingerprint != "" || clientOrganization != "" || clientName != ""
+	if s.cfg.Environment == "production" && !proxyAuthorized {
+		fail(w, r, http.StatusUnauthorized, "mtls_required", "heartbeat exige certificado cliente mTLS verificado")
+		return
+	}
+	if metadataSupplied && !proxyAuthorized {
+		fail(w, r, http.StatusUnauthorized, "untrusted_mtls_proxy", "metadados de certificado vieram de proxy não confiável")
+		return
+	}
+	if proxyAuthorized && (!certificateFingerprint.MatchString(clientFingerprint) || uuid.Validate(clientOrganization) != nil || !safeName.MatchString(clientName)) {
+		fail(w, r, http.StatusBadRequest, "invalid_client_certificate", "identidade do certificado cliente inválida")
+		return
+	}
+	tenantID := clientOrganization
+	if tenantID == "" {
+		var err error
+		tenantID, err = s.store.OrganizationID(r.Context(), "local")
+		if err != nil {
+			s.internal(w, r, err)
+			return
+		}
+	}
+	r = r.WithContext(database.WithTenant(r.Context(), tenantID))
 	var ok bool
-	err := s.store.Pool.QueryRow(r.Context(), "SELECT token_hash=$2 AND revoked_at IS NULL FROM agents WHERE id=$1", id, sum[:]).Scan(&ok)
+	err := s.store.Pool.QueryRow(r.Context(), `SELECT token_hash=$2 AND revoked_at IS NULL
+AND (client_cert_fingerprint IS NULL OR client_cert_fingerprint=$3)
+AND ($4::boolean=false OR (client_cert_fingerprint IS NOT NULL AND organization_id::text=$5 AND name=$6)) FROM agents WHERE id=$1`, id, sum[:], clientFingerprint, s.cfg.Environment == "production" || proxyAuthorized, clientOrganization, clientName).Scan(&ok)
 	if err != nil || !ok {
 		fail(w, r, http.StatusUnauthorized, "invalid_agent_token", "token do agente inválido")
 		return
@@ -399,8 +535,14 @@ func (s *Server) agentHeartbeat(w http.ResponseWriter, r *http.Request) {
 	}
 	write(w, http.StatusOK, map[string]any{"status": "accepted", "serverTime": time.Now().UTC()})
 }
+
+func (s *Server) mtlsProxyAuthorized(r *http.Request) bool {
+	provided := r.Header.Get("X-Sentinel-MTLS-Proxy-Authorization")
+	return s.cfg.MTLSProxySecret != "" && hmac.Equal([]byte(provided), []byte(s.cfg.MTLSProxySecret))
+}
 func (s *Server) listAgents(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.store.Pool.Query(r.Context(), `SELECT a.id::text,a.name,coalesce(a.region,''),coalesce(a.cloud_provider,''),coalesce(a.account,''),coalesce(a.cluster,''),coalesce(a.network,''),coalesce(a.location,''),coalesce(a.team,''),coalesce(a.environment,''),a.labels,(SELECT max(observed_at) FROM agent_heartbeats h WHERE h.agent_id=a.id) FROM agents a WHERE a.revoked_at IS NULL ORDER BY a.name`)
+	p := getPrincipal(r.Context())
+	rows, err := s.store.Pool.Query(r.Context(), `SELECT a.id::text,a.name,coalesce(a.region,''),coalesce(a.cloud_provider,''),coalesce(a.account,''),coalesce(a.cluster,''),coalesce(a.network,''),coalesce(a.location,''),coalesce(a.team,''),coalesce(a.environment,''),a.labels,(SELECT max(observed_at) FROM agent_heartbeats h WHERE h.agent_id=a.id) FROM agents a WHERE a.organization_id=$1 AND a.revoked_at IS NULL ORDER BY a.name`, p.OrganizationID)
 	if err != nil {
 		s.internal(w, r, err)
 		return
@@ -437,11 +579,6 @@ func (s *Server) applyScenario(w http.ResponseWriter, r *http.Request) {
 		fail(w, r, http.StatusUnprocessableEntity, "validation_error", "type deve ser http, browser ou k6")
 		return
 	}
-	org, err := localOrg(r.Context(), s.store)
-	if err != nil {
-		s.internal(w, r, err)
-		return
-	}
 	p := getPrincipal(r.Context())
 	spec, _ := json.Marshal(in.Spec)
 	sum := sha256.Sum256(spec)
@@ -453,7 +590,7 @@ func (s *Server) applyScenario(w http.ResponseWriter, r *http.Request) {
 	defer func() { _ = tx.Rollback(r.Context()) }()
 	var id string
 	var version int
-	err = tx.QueryRow(r.Context(), `INSERT INTO synthetic_scenarios(organization_id,name,service_ref,environment,type,enabled,created_by) VALUES($1,$2,$3,$4,$5,true,$6) ON CONFLICT(organization_id,name) DO UPDATE SET service_ref=EXCLUDED.service_ref,environment=EXCLUDED.environment,type=EXCLUDED.type,current_version=synthetic_scenarios.current_version+1,updated_at=now() RETURNING id::text,current_version`, org, in.Name, in.ServiceRef, in.Environment, in.Type, p.Subject).Scan(&id, &version)
+	err = tx.QueryRow(r.Context(), `INSERT INTO synthetic_scenarios(organization_id,name,service_ref,environment,type,enabled,created_by) VALUES($1,$2,$3,$4,$5,true,$6) ON CONFLICT(organization_id,name) DO UPDATE SET service_ref=EXCLUDED.service_ref,environment=EXCLUDED.environment,type=EXCLUDED.type,current_version=synthetic_scenarios.current_version+1,updated_at=now() RETURNING id::text,current_version`, p.OrganizationID, in.Name, in.ServiceRef, in.Environment, in.Type, p.Subject).Scan(&id, &version)
 	if err != nil {
 		s.internal(w, r, err)
 		return
@@ -474,7 +611,8 @@ func (s *Server) applyScenario(w http.ResponseWriter, r *http.Request) {
 	write(w, http.StatusOK, in)
 }
 func (s *Server) listScenarios(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.store.Pool.Query(r.Context(), `SELECT s.id::text,s.name,s.service_ref,s.environment,s.type,s.enabled,s.current_version,v.spec FROM synthetic_scenarios s JOIN synthetic_scenario_versions v ON v.scenario_id=s.id AND v.version=s.current_version ORDER BY s.name`)
+	p := getPrincipal(r.Context())
+	rows, err := s.store.Pool.Query(r.Context(), `SELECT s.id::text,s.name,s.service_ref,s.environment,s.type,s.enabled,s.current_version,v.spec FROM synthetic_scenarios s JOIN synthetic_scenario_versions v ON v.scenario_id=s.id AND v.version=s.current_version WHERE s.organization_id=$1 ORDER BY s.name`, p.OrganizationID)
 	if err != nil {
 		s.internal(w, r, err)
 		return
@@ -495,7 +633,9 @@ func (s *Server) listScenarios(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) webhook(w http.ResponseWriter, r *http.Request) {
-	if s.cfg.WebhookSecret == "" {
+	organization := strings.TrimSpace(r.Header.Get("X-Sentinel-Organization"))
+	secret := s.cfg.WebhookSecrets[organization]
+	if organization == "" || secret == "" {
 		fail(w, r, http.StatusServiceUnavailable, "webhook_disabled", "webhooks não configurados")
 		return
 	}
@@ -513,8 +653,8 @@ func (s *Server) webhook(w http.ResponseWriter, r *http.Request) {
 		s.internal(w, r, err)
 		return
 	}
-	mac := hmac.New(sha256.New, []byte(s.cfg.WebhookSecret))
-	_, _ = mac.Write([]byte(timestamp + "." + nonce + "."))
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write([]byte(organization + "." + timestamp + "." + nonce + "."))
 	_, _ = mac.Write(body)
 	expected := hex.EncodeToString(mac.Sum(nil))
 	provided, err := hex.DecodeString(signature)
@@ -522,11 +662,12 @@ func (s *Server) webhook(w http.ResponseWriter, r *http.Request) {
 		fail(w, r, http.StatusUnauthorized, "invalid_signature", "assinatura, nonce ou idempotency key inválidos")
 		return
 	}
-	org, err := localOrg(r.Context(), s.store)
+	org, err := s.store.OrganizationID(r.Context(), organization)
 	if err != nil {
-		s.internal(w, r, err)
+		fail(w, r, http.StatusUnauthorized, "unknown_organization", "organização inválida")
 		return
 	}
+	r = r.WithContext(database.WithTenant(r.Context(), org))
 	integration := r.PathValue("")
 	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 	integration = parts[len(parts)-1]
@@ -571,11 +712,25 @@ func (s *Server) require(permission string, next http.Handler) http.Handler {
 			fail(w, r, http.StatusUnauthorized, "unauthorized", err.Error())
 			return
 		}
-		if !auth.Can(claims.Role, permission) {
+		organizationID, err := s.store.OrganizationID(r.Context(), claims.Organization)
+		if err != nil {
+			fail(w, r, http.StatusForbidden, "unknown_organization", "organização não provisionada")
+			return
+		}
+		tenantCtx := database.WithTenant(r.Context(), organizationID)
+		role := claims.Role
+		if s.cfg.AuthMode == "oidc" {
+			role, err = s.store.EffectiveRole(tenantCtx, organizationID, claims.Subject)
+			if err != nil {
+				fail(w, r, http.StatusForbidden, "role_binding_required", "identidade sem vínculo RBAC provisionado para a organização")
+				return
+			}
+		}
+		if !auth.Can(role, permission) {
 			fail(w, r, http.StatusForbidden, "forbidden", "permissão insuficiente")
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), principalKey, principal{Subject: claims.Subject, Role: claims.Role})))
+		next.ServeHTTP(w, r.WithContext(context.WithValue(tenantCtx, principalKey, principal{Subject: claims.Subject, Role: role, Organization: claims.Organization, OrganizationID: organizationID})))
 	})
 }
 func getPrincipal(ctx context.Context) principal {
@@ -584,7 +739,7 @@ func getPrincipal(ctx context.Context) principal {
 }
 func (s *Server) audit(r *http.Request, p principal, action, typ, id string, payload any) {
 	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
-	if err := s.store.Audit(r.Context(), p.Subject, action, typ, id, requestID(r), ip, payload); err != nil {
+	if err := s.store.Audit(r.Context(), p.OrganizationID, p.Subject, action, typ, id, requestID(r), ip, payload); err != nil {
 		s.logger.Error("audit write failed", "error", err, "action", action, "request_id", requestID(r))
 	}
 }
@@ -689,14 +844,12 @@ func routeLabel(r *http.Request) string {
 	}
 	return "unmatched"
 }
-func subtleToken(header, expected string) bool {
+func bearerToken(header string) string {
 	parts := strings.SplitN(header, " ", 2)
-	return len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") && hmac.Equal([]byte(parts[1]), []byte(expected))
-}
-func localOrg(ctx context.Context, s *database.Store) (string, error) {
-	var id string
-	err := s.Pool.QueryRow(ctx, "SELECT id::text FROM organizations WHERE name='local'").Scan(&id)
-	return id, err
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		return ""
+	}
+	return strings.TrimSpace(parts[1])
 }
 
 type statusRecorder struct {

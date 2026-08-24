@@ -40,6 +40,13 @@ prometheus.remote_write "sentinel" {
   endpoint {
     url = sys.env("SENTINEL_METRICS_ENDPOINT")
     send_native_histograms = true
+    tls_config {
+      ca_file = "/etc/sentinelops/certs/ca.crt"
+      cert_file = "/etc/sentinelops/certs/client.crt"
+      key_file = "/etc/sentinelops/certs/client.key"
+      server_name = sys.env("SENTINEL_TLS_SERVER_NAME")
+      min_version = "TLS12"
+    }
   }
   wal {
     truncate_frequency = "2h"
@@ -75,6 +82,13 @@ loki.process "system_logs" {
 loki.write "sentinel" {
   endpoint {
     url = sys.env("SENTINEL_LOGS_ENDPOINT")
+    tls_config {
+      ca_file = "/etc/sentinelops/certs/ca.crt"
+      cert_file = "/etc/sentinelops/certs/client.crt"
+      key_file = "/etc/sentinelops/certs/client.key"
+      server_name = sys.env("SENTINEL_TLS_SERVER_NAME")
+      min_version = "TLS12"
+    }
   }
   external_labels = {
     source = "sentinelops-linux-collector",
@@ -120,6 +134,14 @@ otelcol.processor.batch "applications" {
 otelcol.exporter.otlphttp "sentinel" {
   client {
     endpoint = sys.env("SENTINEL_OTLP_ENDPOINT")
+    tls {
+      ca_file = "/etc/sentinelops/certs/ca.crt"
+      cert_file = "/etc/sentinelops/certs/client.crt"
+      key_file = "/etc/sentinelops/certs/client.key"
+      server_name = sys.env("SENTINEL_TLS_SERVER_NAME")
+      min_version = "1.2"
+      reload_interval = "5m"
+    }
   }
   retry_on_failure {
     enabled = true

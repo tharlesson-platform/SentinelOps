@@ -1,0 +1,11 @@
+# Proprietário padrão e caminhos críticos. Substitua ou complemente o usuário
+# por times da organização quando eles existirem no GitHub.
+* @tharlesson
+
+/.github/ @tharlesson
+/deploy/ @tharlesson
+/infra/ @tharlesson
+/internal/auth/ @tharlesson
+/internal/database/ @tharlesson
+/scripts/bootstrap* @tharlesson
+/SECURITY.md @tharlesson

@@ -1,0 +1,6 @@
+bucket         = "sentinelops-terraform-state-ACCOUNT_ID"
+key            = "sentinelops/prod/terraform.tfstate"
+region         = "sa-east-1"
+encrypt        = true
+use_lockfile   = true
+kms_key_id     = "arn:aws:kms:sa-east-1:ACCOUNT_ID:key/KEY_ID"

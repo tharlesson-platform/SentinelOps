@@ -1,6 +1,7 @@
 SentinelOps
-Copyright 2026 SentinelOps contributors
+Copyright 2026 Tharlesson Platform
 
-This product bundles or connects to third-party open-source software. See
-THIRD_PARTY_LICENSES.md and docs/architecture/component-versions.md.
-
+The SentinelOps source code is distributed under the MIT License. This product
+bundles or connects to third-party open-source software under their respective
+licenses. See THIRD_PARTY_LICENSES.md and
+docs/architecture/component-versions.md.

@@ -7,21 +7,35 @@ x-security: &security
     - ALL
 
 services:
+  collector-certs-init:
+    image: public.ecr.aws/docker/library/alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
+    entrypoint: ["/bin/sh", "-ec"]
+    command: ["install -m 0644 /source/ca.crt /source/client.crt /certs/ && install -m 0600 /source/client.key /certs/client.key && chown -R 473:473 /certs"]
+    user: "0:0"
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
+    security_opt: ["no-new-privileges:true"]
+    network_mode: none
+    volumes:
+      - ./certs:/source:ro
+      - collector-certs:/certs
+    restart: "no"
+
   alloy-init:
-    image: mirror.gcr.io/grafana/alloy:v1.18.1
+    image: ${SENTINEL_ALLOY_IMAGE:-sentinelops-alloy:1.18.1-patched.1}
     entrypoint: ["/bin/sh", "-ec"]
     command: ["chown 473:473 /tmp/alloy"]
     user: "0:0"
     cap_drop: [ALL]
     cap_add: [CHOWN]
-    security_opt: [no-new-privileges:true]
+    security_opt: ["no-new-privileges:true"]
     network_mode: none
     volumes:
       - alloy-data:/tmp/alloy
     restart: "no"
 
   alloy:
-    image: mirror.gcr.io/grafana/alloy:v1.18.1
+    image: ${SENTINEL_ALLOY_IMAGE:-sentinelops-alloy:1.18.1-patched.1}
     command:
       - run
       - /etc/alloy/config.alloy
@@ -37,12 +51,14 @@ services:
       - /sys:/host/sys:ro
       - /var/log:/host/var/log:ro
       - alloy-data:/var/lib/alloy/data
+      - collector-certs:/etc/sentinelops/certs:ro
     ports:
       - "127.0.0.1:${SENTINEL_COLLECTOR_ADMIN_PORT:-12345}:12345"
       - "127.0.0.1:${SENTINEL_COLLECTOR_OTLP_GRPC_PORT:-4317}:4317"
       - "127.0.0.1:${SENTINEL_COLLECTOR_OTLP_HTTP_PORT:-4318}:4318"
     depends_on:
       alloy-init: { condition: service_completed_successfully }
+      collector-certs-init: { condition: service_completed_successfully }
     networks: [collector]
     <<: *security
     user: "473:473"
@@ -51,7 +67,7 @@ services:
     restart: unless-stopped
 
   container-metrics:
-    image: mirror.gcr.io/grafana/alloy:v1.18.1
+    image: ${SENTINEL_ALLOY_IMAGE:-sentinelops-alloy:1.18.1-patched.1}
     profiles: [containers]
     command:
       - run
@@ -68,6 +84,9 @@ services:
       - /sys:/sys:ro
       - /var/lib/docker:/var/lib/docker:ro
       - /dev/disk:/dev/disk:ro
+      - collector-certs:/etc/sentinelops/certs:ro
+    depends_on:
+      collector-certs-init: { condition: service_completed_successfully }
     networks: [collector]
     read_only: true
     tmpfs:
@@ -80,3 +99,4 @@ networks:
 
 volumes:
   alloy-data: {}
+  collector-certs: {}

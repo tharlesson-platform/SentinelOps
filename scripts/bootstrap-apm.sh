@@ -16,6 +16,11 @@ OTLP_ENDPOINT=http://127.0.0.1:4318
 FARO_ENDPOINT=""
 OUTPUT_ROOT="$ROOT/artifacts/onboarding"
 FORCE=false
+VERIFY=false
+TLS_CA_FILE=""
+TLS_CERT_FILE=""
+TLS_KEY_FILE=""
+TLS_RESOLVE_ADDRESS=""
 
 usage() {
   cat <<'EOF'
@@ -33,6 +38,11 @@ Linguagens: java, spring, quarkus, node, nestjs, python, fastapi, django,
   --faro-endpoint URL          obrigatório para React
   --output DIRECTORY
   --force
+  --verify                    envia métrica, log e trace OTLP de prova
+  --tls-ca-file FILE          CA do gateway HTTPS para --verify
+  --tls-cert-file FILE        certificado cliente mTLS para --verify
+  --tls-key-file FILE         chave cliente mTLS para --verify
+  --tls-resolve-address IP    resolve o host OTLP neste IP sem alterar SNI
 
 O comando gera configuração, catálogo e instruções em artifacts/onboarding.
 Ele não altera automaticamente o repositório da aplicação.
@@ -52,6 +62,11 @@ while [ "$#" -gt 0 ]; do
     --faro-endpoint) FARO_ENDPOINT=$2; shift 2 ;;
     --output) OUTPUT_ROOT=$2; shift 2 ;;
     --force) FORCE=true; shift ;;
+    --verify) VERIFY=true; shift ;;
+    --tls-ca-file) TLS_CA_FILE=$2; shift 2 ;;
+    --tls-cert-file) TLS_CERT_FILE=$2; shift 2 ;;
+    --tls-key-file) TLS_KEY_FILE=$2; shift 2 ;;
+    --tls-resolve-address) TLS_RESOLVE_ADDRESS=$2; shift 2 ;;
     --help|-h) usage; exit 0 ;;
     *) die "Opção desconhecida: $1" ;;
   esac
@@ -199,3 +214,49 @@ EOF
 
 log "Kit APM criado em $OUTPUT_DIRECTORY"
 log "Revise README.md e .env.sentinelops antes de alterar a aplicação."
+
+if [ "$VERIFY" = true ]; then
+  command_exists curl || die "curl é obrigatório para --verify"
+  command_exists openssl || die "openssl é obrigatório para --verify"
+  case "$OTLP_ENDPOINT" in
+    https://*)
+      for certificate_file in "$TLS_CA_FILE" "$TLS_CERT_FILE" "$TLS_KEY_FILE"; do
+        [ -s "$certificate_file" ] || die "HTTPS --verify exige CA, certificado e chave mTLS"
+      done
+      if [ -n "$TLS_RESOLVE_ADDRESS" ]; then
+        printf '%s' "$TLS_RESOLVE_ADDRESS" | grep -Eq '^[A-Za-z0-9.:-]+$' || die "--tls-resolve-address inválido"
+      fi
+      ;;
+  esac
+  trace_id=$(openssl rand -hex 16)
+  span_id=$(openssl rand -hex 8)
+  observed_at="$(date +%s)000000000"
+  marker="sentinelops-apm-$SERVICE_NAME-$(date +%s)"
+  post_otlp() {
+    signal_path=$1
+    payload=$2
+    if [ -n "$TLS_CA_FILE" ]; then
+      if [ -n "$TLS_RESOLVE_ADDRESS" ]; then
+        authority=${OTLP_ENDPOINT#https://}
+        authority=${authority%%/*}
+        case "$authority" in *:*) resolve_entry="$authority:$TLS_RESOLVE_ADDRESS" ;; *) resolve_entry="$authority:443:$TLS_RESOLVE_ADDRESS" ;; esac
+        curl -fsS --max-time 15 --resolve "$resolve_entry" --cacert "$TLS_CA_FILE" --cert "$TLS_CERT_FILE" --key "$TLS_KEY_FILE" \
+          -H 'Content-Type: application/json' --data-binary "$payload" "$OTLP_ENDPOINT/v1/$signal_path" >/dev/null
+      else
+        curl -fsS --max-time 15 --cacert "$TLS_CA_FILE" --cert "$TLS_CERT_FILE" --key "$TLS_KEY_FILE" \
+          -H 'Content-Type: application/json' --data-binary "$payload" "$OTLP_ENDPOINT/v1/$signal_path" >/dev/null
+      fi
+    else
+      curl -fsS --max-time 15 -H 'Content-Type: application/json' --data-binary "$payload" "$OTLP_ENDPOINT/v1/$signal_path" >/dev/null
+    fi
+  }
+  resource='{"attributes":[{"key":"service.name","value":{"stringValue":"'"$SERVICE_NAME"'"}},{"key":"deployment.environment.name","value":{"stringValue":"'"$ENVIRONMENT"'"}},{"key":"sentinelops.probe","value":{"stringValue":"'"$marker"'"}}]}'
+  post_otlp traces '{"resourceSpans":[{"resource":'"$resource"',"scopeSpans":[{"scope":{"name":"sentinelops-bootstrap"},"spans":[{"traceId":"'"$trace_id"'","spanId":"'"$span_id"'","name":"bootstrap-apm-verify","kind":1,"startTimeUnixNano":"'"$observed_at"'","endTimeUnixNano":"'"$observed_at"'","attributes":[{"key":"http.request.header.x_synthetic_test","value":{"stringValue":"sentinelops"}}],"status":{"code":1}}]}]}]}'
+  post_otlp logs '{"resourceLogs":[{"resource":'"$resource"',"scopeLogs":[{"scope":{"name":"sentinelops-bootstrap"},"logRecords":[{"timeUnixNano":"'"$observed_at"'","severityNumber":9,"severityText":"INFO","body":{"stringValue":"'"$marker"'"}}]}]}]}'
+  post_otlp metrics '{"resourceMetrics":[{"resource":'"$resource"',"scopeMetrics":[{"scope":{"name":"sentinelops-bootstrap"},"metrics":[{"name":"sentinelops.apm.bootstrap","gauge":{"dataPoints":[{"timeUnixNano":"'"$observed_at"'","asInt":"1"}]}}]}]}]}'
+  cat > "$OUTPUT_DIRECTORY/verification.json" <<EOF
+{"verifiedAt":"$(date -u +%Y-%m-%dT%H:%M:%SZ)","marker":"$marker","traceId":"$trace_id","signals":["metrics","logs","traces"],"endpoint":"$OTLP_ENDPOINT"}
+EOF
+  chmod 600 "$OUTPUT_DIRECTORY/verification.json"
+  log "Prova OTLP aceita para métricas, logs e traces. Marcador: $marker"
+fi

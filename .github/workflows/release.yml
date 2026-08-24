@@ -6,69 +6,202 @@ on:
 
 permissions:
   contents: read
-  packages: write
-  id-token: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  publish:
+  verify:
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
         include:
-          - image: sentinelops-api
-            context: .
-            dockerfile: Dockerfile.app
-            build_args: APP=api
-          - image: sentinelops-worker
-            context: .
-            dockerfile: Dockerfile.app
-            build_args: APP=worker
-          - image: sentinelops-agent
-            context: .
-            dockerfile: Dockerfile.app
-            build_args: APP=agent
-          - image: sentinelops-demo-api
-            context: .
-            dockerfile: Dockerfile.demo
-            build_args: ''
-          - image: sentinelops-web
-            context: apps/web
-            dockerfile: apps/web/Dockerfile
-            build_args: ''
+          - { image: sentinelops-api, context: ., dockerfile: Dockerfile.app, build_args: APP=api }
+          - { image: sentinelops-worker, context: ., dockerfile: Dockerfile.app, build_args: APP=worker }
+          - { image: sentinelops-migrate, context: ., dockerfile: Dockerfile.app, build_args: APP=migrate }
+          - { image: sentinelops-agent, context: ., dockerfile: Dockerfile.app, build_args: APP=agent }
+          - { image: sentinelops-backupcrypt, context: ., dockerfile: Dockerfile.app, build_args: APP=backupcrypt }
+          - { image: sentinelops-cli, context: ., dockerfile: Dockerfile.app, build_args: APP=cli }
+          - { image: sentinelops-demo-api, context: ., dockerfile: Dockerfile.demo, build_args: '' }
+          - { image: sentinelops-web, context: apps/web, dockerfile: apps/web/Dockerfile, build_args: '' }
+          - { image: sentinelops-alloy, context: ., dockerfile: deploy/alloy/Dockerfile.patched, build_args: '' }
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
-      - uses: docker/setup-qemu-action@v4.2.0
-      - uses: docker/setup-buildx-action@v4.2.0
-      - uses: docker/login-action@v4.6.0
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - name: Build amd64 candidate
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          build-args: ${{ matrix.build_args }}
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: sentinelops-release-candidate:${{ matrix.image }}-amd64
+          provenance: false
+          sbom: false
+      - name: Block HIGH or CRITICAL vulnerabilities on amd64
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: sentinelops-release-candidate:${{ matrix.image }}-amd64
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          ignore-unfixed: true
+      - name: Build arm64 candidate
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          build-args: ${{ matrix.build_args }}
+          platforms: linux/arm64
+          load: true
+          push: false
+          tags: sentinelops-release-candidate:${{ matrix.image }}-arm64
+          provenance: false
+          sbom: false
+      - name: Block HIGH or CRITICAL vulnerabilities on arm64
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: sentinelops-release-candidate:${{ matrix.image }}-arm64
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          ignore-unfixed: true
+
+  stage:
+    needs: verify
+    runs-on: ubuntu-24.04
+    environment: production
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { image: sentinelops-api, context: ., dockerfile: Dockerfile.app, build_args: APP=api }
+          - { image: sentinelops-worker, context: ., dockerfile: Dockerfile.app, build_args: APP=worker }
+          - { image: sentinelops-migrate, context: ., dockerfile: Dockerfile.app, build_args: APP=migrate }
+          - { image: sentinelops-agent, context: ., dockerfile: Dockerfile.app, build_args: APP=agent }
+          - { image: sentinelops-backupcrypt, context: ., dockerfile: Dockerfile.app, build_args: APP=backupcrypt }
+          - { image: sentinelops-cli, context: ., dockerfile: Dockerfile.app, build_args: APP=cli }
+          - { image: sentinelops-demo-api, context: ., dockerfile: Dockerfile.demo, build_args: '' }
+          - { image: sentinelops-web, context: apps/web, dockerfile: apps/web/Dockerfile, build_args: '' }
+          - { image: sentinelops-alloy, context: ., dockerfile: deploy/alloy/Dockerfile.patched, build_args: '' }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - id: meta
-        uses: docker/metadata-action@v6.2.0
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=sha
       - id: build
-        uses: docker/build-push-action@v7.3.0
+        name: Publish immutable candidate digest
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           build-args: ${{ matrix.build_args }}
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:candidate-${{ github.sha }}
           provenance: mode=max
           sbom: true
-      - uses: sigstore/cosign-installer@v4.1.2
-      - name: Sign immutable digest with GitHub OIDC
+      - name: Scan the exact published candidate digest
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          ignore-unfixed: true
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: Sign and verify candidate digest with GitHub OIDC
         env:
           COSIGN_YES: 'true'
           IMAGE: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
           DIGEST: ${{ steps.build.outputs.digest }}
-        run: cosign sign "$IMAGE@$DIGEST"
+        run: |
+          cosign sign "$IMAGE@$DIGEST"
+          cosign verify "$IMAGE@$DIGEST" \
+            --certificate-identity-regexp "^https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+$" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+
+  promote:
+    needs: stage
+    runs-on: ubuntu-24.04
+    environment: production
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+    steps:
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: Preflight every signed candidate, then promote
+        env:
+          COSIGN_YES: 'true'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          if ! printf '%s\n' "$GITHUB_REF_NAME" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "invalid semantic version tag" >&2
+            exit 1
+          fi
+          version=${GITHUB_REF_NAME#v}
+          short_sha=$(printf '%s' "$GITHUB_SHA" | cut -c1-12)
+          images='sentinelops-api sentinelops-worker sentinelops-migrate sentinelops-agent sentinelops-backupcrypt sentinelops-cli sentinelops-demo-api sentinelops-web sentinelops-alloy'
+          evidence_dir=$(mktemp -d)
+          printf '[]\n' > "$evidence_dir/images.json"
+          for name in $images; do
+            image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/$name"
+            candidate="$image:candidate-$GITHUB_SHA"
+            digest=$(docker buildx imagetools inspect "$candidate" --format '{{.Manifest.Digest}}')
+            case "$digest" in sha256:????????????????????????????????????????????????????????????????) ;; *) echo "invalid digest for $name" >&2; exit 1 ;; esac
+            cosign verify "$image@$digest" \
+              --certificate-identity-regexp "^https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+$" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com >/dev/null
+            jq --arg name "$name" --arg image "$image" --arg digest "$digest" \
+              '. + [{name:$name,image:$image,digest:$digest}]' "$evidence_dir/images.json" > "$evidence_dir/images.next.json"
+            mv "$evidence_dir/images.next.json" "$evidence_dir/images.json"
+          done
+          for name in $images; do
+            image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/$name"
+            digest=$(jq -r --arg name "$name" '.[] | select(.name==$name) | .digest' "$evidence_dir/images.json")
+            docker buildx imagetools create \
+              --tag "$image:$version" \
+              --tag "$image:sha-$short_sha" \
+              "$image@$digest"
+            promoted=$(docker buildx imagetools inspect "$image:$version" --format '{{.Manifest.Digest}}')
+            test "$promoted" = "$digest"
+          done
+          jq -n \
+            --arg version "$version" \
+            --arg gitTag "$GITHUB_REF_NAME" \
+            --arg commit "$GITHUB_SHA" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --slurpfile images "$evidence_dir/images.json" \
+            '{schemaVersion:1,version:$version,gitTag:$gitTag,commit:$commit,repository:$repository,images:$images[0]}' \
+            > release-manifest.json
+          cosign sign-blob --yes --bundle release-manifest.bundle.json release-manifest.json
+          cosign verify-blob \
+            --bundle release-manifest.bundle.json \
+            --certificate-identity-regexp "^https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@refs/tags/v[0-9]+\\.[0-9]+\\.[0-9]+$" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            release-manifest.json
+          gh release create "$GITHUB_REF_NAME" \
+            --verify-tag \
+            --title "SentinelOps $version" \
+            --notes "Release promovida somente após todos os gates, assinaturas e digests multi-arquitetura." \
+            release-manifest.json release-manifest.bundle.json

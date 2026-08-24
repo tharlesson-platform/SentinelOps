@@ -1,0 +1,39 @@
+{{- if and .Values.migration.enabled .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "sentinelops.fullname" . }}-migrate-egress
+  labels:
+    {{- include "sentinelops.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "-1"
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+    helm.sh/hook-weight: "-10"
+spec:
+  podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: migrate } }
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.dnsNamespaceSelector | nindent 14 }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.dnsPodSelector | nindent 14 }}
+      ports: [{ protocol: UDP, port: 53 }, { protocol: TCP, port: 53 }]
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.databaseNamespaceSelector | nindent 14 }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.databasePodSelector | nindent 14 }}
+      ports: [{ protocol: TCP, port: 5432 }]
+    {{- range .Values.networkPolicy.databaseCIDRs }}
+    - to: [{ ipBlock: { cidr: {{ . | quote }} } }]
+      ports: [{ protocol: TCP, port: 5432 }]
+    {{- end }}
+{{- end }}

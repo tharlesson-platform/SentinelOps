@@ -1,65 +1,123 @@
-# Evidência — bootstrap Linux, collector e onboarding APM
+# Evidência local — hardening, Linux, ingestão, APM e lifecycle
 
-Data: 2026-08-20. Escopo: validação local e containers Linux arm64; não é
-aprovação de produção nem substitui teste em servidor/distribuição alvo.
+Data: 2026-08-20. Host: macOS arm64 + Docker Desktop. Escopo: prova local
+reproduzível; não substitui homologação no servidor, IdP, registry ou cluster
+produtivos.
 
-## Estrutura validada
+## Build, testes e supply chain
 
-- scripts POSIX passaram em `sh -n`;
-- help/argumentos dos três bootstraps foram executados;
-- Compose central e Compose do collector passaram em `config --quiet`;
-- Alloy 1.18.1 validou `deploy/agents/linux/config.alloy`;
-- Promtool 3.13.2 validou seis regras;
-- preflight do servidor e do collector passou dentro de Alpine 3.23.3 arm64;
-- kits APM foram gerados para Java, Spring, Quarkus, Node, NestJS, Python,
-  FastAPI, Django, .NET, Go e React; os JSONs foram validados por `jq` e os
-  arquivos de ambiente permaneceram com modo 0600.
-- o primeiro `make test` atual revelou que a imagem Go Alpine não possuía CGO
-  para `-race`; a suíte foi separada para `golang:1.26.6-bookworm`.
-- após a correção, `make test` passou com Go race detector, Vitest e build Vite;
-- `make lint`, `go vet`, ShellCheck, `doctor` e `prove-gates.sh` passaram;
-- Trivy filesystem terminou com zero HIGH/CRITICAL em dependências do projeto,
-  zero secrets e zero misconfigurations reconhecidas;
-- o Prometheus recarregou e expôs o grupo `sentinelops-linux-hosts` com as novas
-  regras de filesystem, memória e clock skew.
+- todos os pacotes Go passaram em Go 1.26.6, incluindo rejeição de backup age
+  adulterado;
+- ShellCheck e `sh -n` passaram nos bootstraps/lifecycle;
+- Compose base, collector e perfil `secure-ingest` renderizaram;
+- Helm lint e render default passaram; os perfis produtivos pequeno e
+  distribuído recusaram inputs/digests ausentes, renderizaram 26 recursos com
+  valores explícitos e passaram no Kubeconform 0.8.0 strict para Kubernetes
+  1.35;
+- Alloy `v1.18.1-sentinel.1` foi reconstruído com Go 1.26.6, go-git/x-mod
+  corrigidos e patch oficial Moby AuthZ;
+- Trivy 0.73.0 retornou zero HIGH/CRITICAL no OS e binário do Alloy corrigido;
+  SBOM CycloneDX e digest local foram gerados em `artifacts/security/`.
+- o scan final também retornou zero HIGH/CRITICAL para API, worker, migrate,
+  agent, backupcrypt, CLI, demo, Web e Alloy; os workflows cobrem as nove
+  imagens.
+- actions de CI/release foram fixadas por commit SHA; release examina candidatos
+  amd64 e arm64 antes de promover qualquer tag, assina cada digest e só conclui
+  a entrega com um GitHub Release contendo o manifesto assinado das nove
+  imagens; o digest multiarch publicado como candidato também é escaneado antes
+  da assinatura.
 
-## Prova dinâmica do collector
+O digest local do build arm64 final, executando como `473:473`, foi
+`sha256:c045bc64dee1bbe8d070e54e8b5ccf6b37180b4379bae48d9d94c3cfe4c26d14`.
+Ele é evidência local, não digest publicado/multiarch nem assinatura.
 
-O collector foi executado com Alloy 1.18.1 e Unix Exporter embutido. O primeiro
-start revelou e corrigiu dois problemas reais antes da entrega:
+## Matriz Linux
 
-1. mount propagation `rslave` incompatível fora de Linux nativo;
-2. inicialização do volume Alloy incompatível com `cap_drop: ALL`.
+`scripts/test-linux-matrix.sh` executou preflight e contrato CLI do servidor e
+collector nas imagens fixadas de Ubuntu 24.04, Debian 12, Rocky 9 minimal,
+Fedora 42, openSUSE Leap 15.6 e Alpine 3.23.3. A matriz detectou e corrigiu a
+ausência de `hostname` no Rocky minimal. Instalação real do daemon Docker e
+systemd/OpenRC ainda deve ser provada em cada host alvo.
 
-A solução final usa mount raiz somente leitura e um init container com apenas
-`CAP_CHOWN`; o processo principal executa como UID/GID 473 sem capabilities.
+## Ingestão, agente e tenant
 
-As imagens oficiais externas Node Exporter 1.12.1 e cAdvisor 0.60.5 foram
-retiradas do caminho após o Trivy encontrar oito vulnerabilidades HIGH
-corrigíveis em cada binário. O perfil final usa os componentes embutidos no
-Alloy; cAdvisor permanece opt-in e privilegiado.
+- Caddyfile validado com Caddy 2.11.4 fixado por digest;
+- cliente sem certificado: handshake recusado (`curl` exit 56);
+- registro com mTLS: HTTP 201;
+- reutilização do bootstrap token: HTTP 401;
+- heartbeat com token/certificado vinculados: HTTP 200;
+- fingerprint persistido e igual ao certificado: verdadeiro;
+- certificado válido da CA, mas SAN de outra organização: HTTP 401;
+- Alloy reportou todos os componentes saudáveis e preservou `tenant_id` até
+  `X-Scope-OrgID` nos exporters.
 
-O scan do Alloy 1.18.1 encontrou doze vulnerabilidades HIGH corrigíveis no
-binário, incluindo stdlib Go e dependências Docker/go-git/x/mod. Em 2026-08-20,
-1.18.1 continuava sendo a release oficial mais recente. Portanto, este
-collector permanece restrito a laboratório/piloto até uma imagem upstream
-corrigida ou um build interno revisado e assinado.
+## Banco e isolamento multi-tenant
 
-Com o collector pronto:
+- migração habilitou e forçou RLS em 41 tabelas tenant-aware;
+- role de runtime comprovada com `rolsuper=false` e `rolbypassrls=false`;
+- contexto de tenant vazio não retornou registros e a organização A não leu a
+  organização B;
+- inserts cross-tenant diretos e por tabelas filhas foram recusados;
+- a role de runtime não conseguiu forjar o contexto interno de migração `*`;
+- bootstrap de roles e migrador são idempotentes e separados do ciclo de vida
+  da API/worker.
 
-- Prometheus recebeu `up{job="linux-node",instance="validation-host"}`;
-- Prometheus recebeu `node_uname_info{instance="validation-host"}`;
-- um log OTLP enviado ao collector foi localizado no Loki com
-  `service_name="collector-smoke"`;
-- um span de erro OTLP atravessou collector → Alloy central → Tempo e foi
-  consultado pelo trace ID.
+## Kubernetes, GitOps e data plane
 
-## Limites
+- gateway Caddy HA terminou TLS/mTLS e validou o Caddyfile produtivo completo;
+- API, worker e migrador usam trust bundle explícito, e apenas o migrador recebe
+  a URL do proprietário do schema;
+- ExternalSecret cobre URLs de runtime/migração, JWT, proxy, webhooks, TLS do
+  servidor, CA cliente e CA de upstream;
+- renderer Argo CD recusou valores sem production gate e aceitou somente SHA Git
+  exato e arquivo de values interno ao chart;
+- raízes Terraform DEV/STG/PRD passaram em `fmt`, `init -backend=false` e
+  `validate` com Terraform 1.15.9; nenhum `plan` ou `apply` de cloud foi
+  executado.
 
-- o preflight foi executado em container Alpine; ainda é necessário executar
-  o instalador em cada distro/servidor alvo;
-- cAdvisor permanece opt-in por exigir privilégio e mounts sensíveis;
-- endpoints HTTP remotos são aceitos somente com `--allow-insecure` explícito;
-- gateway TLS/mTLS, OIDC corporativo, HA, DR e isolamento multi-tenant continuam
-  bloqueadores produtivos descritos em `docs/operations/documentation-status.md`.
-- a imagem Alloy atual possui findings HIGH corrigíveis e bloqueia PRD.
+## Gates observacionais
+
+`scripts/prove-observational-gates.sh` produziu:
+
+```text
+standard_pass_result=PASS
+standard_pass_checks=5
+missing_policy_result=INCONCLUSIVE
+over_threshold_result=FAIL
+```
+
+Os cinco checks são sintético HTTP, PromQL, LogQL, burn-rate SLO e TraceQL.
+Queries recebem `X-Scope-OrgID`; ausência de política/amostra nunca aprova.
+
+## Collector e APM
+
+O collector usa Unix Exporter embutido, logs com redaction e cAdvisor opt-in.
+Um collector real enviou métrica de host e log pelo gateway mTLS. O bootstrap
+APM foi gerado para Java, Spring, Quarkus, Node, NestJS, Python, FastAPI,
+Django, .NET, Go e React. A prova mTLS correlacionada resultou em:
+
+```text
+tenant_metric_samples=1
+tenant_log_records=1
+tenant_trace_matches=1
+```
+
+## Backup, restore, upgrade e rollback
+
+- backup final `.tar.gz.age` modo 0600, três dumps PostgreSQL, bucket,
+  metadata e checksums;
+- restore autenticado em `sentinelops-final-restore`: todos checksums OK;
+- contagens restauradas: `organizations=1`, `services=1`, `releases=12`;
+- upgrade reteve cinco imagens anteriores, fez backup/rebuild/recreate;
+- falha pós-deploy simulada acionou rollback, recriou os serviços e `doctor`
+  passou.
+
+## Limites externos restantes
+
+- publicar imagens amd64/arm64 em registry por digest, assinar e comprovar
+  admission policy;
+- checks remotos terminais no SHA publicado;
+- OIDC/MFA/grupos no IdP real e role bindings provisionados;
+- Mimir/Loki/Tempo/PostgreSQL/Temporal HA e multi-tenant no cluster alvo;
+- restore/DR regional e RTO/RPO aprovados;
+- cAdvisor continua exceção privilegiada opt-in.

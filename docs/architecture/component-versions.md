@@ -8,6 +8,8 @@ por digest após scan e assinatura.
 |---|---:|---|
 | Go | 1.26.6 | toolchain estável, multiarch; <https://go.dev/dl/> |
 | Node.js | 26.7.0 | build do frontend; <https://nodejs.org/en/download> |
+| Terraform | 1.15.9 | IaC DEV/STG/PRD; <https://github.com/hashicorp/terraform/releases/tag/v1.15.9> |
+| kubeconform | 0.8.0 | validação OpenAPI dos manifests renderizados; <https://github.com/yannh/kubeconform/releases> |
 | React | 19.2.8 | UI; <https://www.npmjs.com/package/react> |
 | TypeScript | 7.0.2 | tipagem; <https://www.npmjs.com/package/typescript> |
 | Vite | 8.2.1 | build; <https://www.npmjs.com/package/vite> |
@@ -17,6 +19,8 @@ por digest após scan e assinatura.
 | MinIO | RELEASE.2025-09-07T16-13-09Z | versão mais recente publicada na imagem oficial; <https://hub.docker.com/r/minio/minio/tags> |
 | Grafana | 13.1.3 | visualização e alertas; <https://github.com/grafana/grafana/releases> |
 | Grafana Alloy | 1.18.1 | collector suportado; <https://grafana.com/docs/alloy/latest/release-notes/> |
+| Caddy | 2.11.4 | gateway TLS/mTLS; <https://github.com/caddyserver/caddy/releases> |
+| age | 1.3.1 | backup autenticado via biblioteca Go; <https://github.com/FiloSottile/age/releases> |
 | Prometheus | 3.13.2 | métricas local; <https://github.com/prometheus/prometheus/releases> |
 | Loki | 3.7.6 | logs monolíticos; <https://grafana.com/docs/loki/latest/release-notes/> |
 | Tempo | 3.0.3 | traces e metrics-generator; <https://grafana.com/docs/tempo/latest/release-notes/> |
@@ -37,9 +41,11 @@ O Compose usa `mirror.gcr.io` e `public.ecr.aws/docker/library` como mirrors de
 distribuição para imagens Docker Hub, preservando nomes upstream e tags exatas.
 Isso reduz falhas por rate limit sem alterar a versão do componente.
 
-## Exceção de segurança atual
+## Build Alloy corrigido
 
-Em 2026-08-20, Trivy encontrou 12 vulnerabilidades HIGH corrigíveis no binário
-da release oficial Alloy 1.18.1. Como não havia release upstream posterior, a
-versão permanece somente para laboratório/piloto. Produção exige release
-corrigida ou build interno reproduzível, escaneado, assinado e revisado.
+A release oficial Alloy 1.18.1 tinha findings HIGH corrigíveis. O Compose usa
+`deploy/alloy/Dockerfile.patched`, que fixa o commit upstream, Go 1.26.6,
+go-git/x-mod e aplica o patch oficial da autorização Moby. O scan local Trivy
+0.73.0 terminou com zero HIGH/CRITICAL no OS e binário. Produção ainda exige
+publicar o build multiarch por digest, SBOM/provenance, assinatura Cosign e
+verificação por admission policy; o digest arm64 local não é promovível.

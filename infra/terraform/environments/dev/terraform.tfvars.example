@@ -1,0 +1,4 @@
+artifact_bucket_name        = "sentinelops-dev-artifacts-ACCOUNT_ID"
+kms_key_arn                 = "arn:aws:kms:sa-east-1:ACCOUNT_ID:key/KEY_ID"
+database_subnet_ids         = ["subnet-private-a", "subnet-private-b"]
+database_security_group_ids = ["sg-sentinelops-postgres"]

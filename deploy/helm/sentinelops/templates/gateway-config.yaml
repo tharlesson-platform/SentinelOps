@@ -1,0 +1,109 @@
+{{- if .Values.gateway.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sentinelops.fullname" . }}-gateway
+  labels: {{- include "sentinelops.labels" . | nindent 4 }}
+data:
+  Caddyfile: |
+    {
+      admin off
+      servers {
+        max_header_size 64KB
+        timeouts {
+          read_body 30s
+          read_header 10s
+          idle 2m
+        }
+      }
+    }
+
+    (collector_mtls) {
+      tls /certs/server/tls.crt /certs/server/tls.key {
+        protocols tls1.2 tls1.3
+        client_auth {
+          mode require_and_verify
+          trust_pool file /certs/client-ca/{{ .Values.gateway.clientCAKey }}
+        }
+      }
+    }
+
+    https://:8443 {
+      import collector_mtls
+      request_body {
+        max_size 16MB
+      }
+      @prometheus {
+        path /api/v1/write
+        vars_regexp tenant_uri {http.request.tls.client.san.uris.0} ^spiffe://sentinelops/organizations/([A-Za-z0-9][A-Za-z0-9._-]{1,62})/collectors/([A-Za-z0-9][A-Za-z0-9._-]{1,62})$
+      }
+      handle @prometheus {
+        reverse_proxy {{ .Values.gateway.prometheusUpstream }} {
+          header_up X-Scope-OrgID {re.tenant_uri.1}
+          {{- if hasPrefix "https://" .Values.gateway.prometheusUpstream }}
+          transport http {
+            tls_trust_pool file /certs/upstream-ca/{{ .Values.global.upstreamCABundleKey }}
+          }
+          {{- end }}
+        }
+      }
+      @loki {
+        path /loki/api/v1/push
+        vars_regexp tenant_uri {http.request.tls.client.san.uris.0} ^spiffe://sentinelops/organizations/([A-Za-z0-9][A-Za-z0-9._-]{1,62})/collectors/([A-Za-z0-9][A-Za-z0-9._-]{1,62})$
+      }
+      handle @loki {
+        reverse_proxy {{ .Values.gateway.lokiUpstream }} {
+          header_up X-Scope-OrgID {re.tenant_uri.1}
+          {{- if hasPrefix "https://" .Values.gateway.lokiUpstream }}
+          transport http {
+            tls_trust_pool file /certs/upstream-ca/{{ .Values.global.upstreamCABundleKey }}
+          }
+          {{- end }}
+        }
+      }
+      @otlp {
+        path /v1/metrics /v1/logs /v1/traces
+        vars_regexp tenant_uri {http.request.tls.client.san.uris.0} ^spiffe://sentinelops/organizations/([A-Za-z0-9][A-Za-z0-9._-]{1,62})/collectors/([A-Za-z0-9][A-Za-z0-9._-]{1,62})$
+      }
+      handle @otlp {
+        reverse_proxy {{ .Values.gateway.alloyHTTPUpstream }} {
+          header_up tenant_id {re.tenant_uri.1}
+          {{- if hasPrefix "https://" .Values.gateway.alloyHTTPUpstream }}
+          transport http {
+            tls_trust_pool file /certs/upstream-ca/{{ .Values.global.upstreamCABundleKey }}
+          }
+          {{- end }}
+        }
+      }
+      @agents {
+        path /api/v1/agents/register /api/v1/agents/*/heartbeat
+        vars_regexp tenant_uri {http.request.tls.client.san.uris.0} ^spiffe://sentinelops/organizations/([A-Za-z0-9][A-Za-z0-9._-]{1,62})/collectors/([A-Za-z0-9][A-Za-z0-9._-]{1,62})$
+      }
+      handle @agents {
+        reverse_proxy http://{{ include "sentinelops.fullname" . }}-api:{{ .Values.api.service.port }} {
+          header_up X-Sentinel-Client-Cert-Fingerprint {tls_client_fingerprint}
+          header_up X-Sentinel-Client-Organization {re.tenant_uri.1}
+          header_up X-Sentinel-Client-Name {re.tenant_uri.2}
+          header_up X-Sentinel-MTLS-Proxy-Authorization {env.MTLS_PROXY_SHARED_SECRET}
+        }
+      }
+      respond 404
+    }
+
+    https://:4317 {
+      import collector_mtls
+      @tenant vars_regexp tenant_uri {http.request.tls.client.san.uris.0} ^spiffe://sentinelops/organizations/([A-Za-z0-9][A-Za-z0-9._-]{1,62})/collectors/([A-Za-z0-9][A-Za-z0-9._-]{1,62})$
+      handle @tenant {
+        reverse_proxy {{ .Values.gateway.alloyGRPCUpstream }} {
+          header_up tenant_id {re.tenant_uri.1}
+          {{- if hasPrefix "https://" .Values.gateway.alloyGRPCUpstream }}
+          transport http {
+            versions 2
+            tls_trust_pool file /certs/upstream-ca/{{ .Values.global.upstreamCABundleKey }}
+          }
+          {{- end }}
+        }
+      }
+      respond 403
+    }
+{{- end }}

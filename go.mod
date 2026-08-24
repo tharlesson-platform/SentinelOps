@@ -3,6 +3,7 @@ module github.com/sentinelops/sentinelops
 go 1.26.0
 
 require (
+	filippo.io/age v1.3.1
 	github.com/coreos/go-oidc/v3 v3.20.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
@@ -22,6 +23,7 @@ require (
 )
 
 require (
+	filippo.io/hpke v0.4.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

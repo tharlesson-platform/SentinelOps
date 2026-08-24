@@ -8,16 +8,51 @@ concurrency: { group: "ci-${{ github.ref }}", cancel-in-progress: true }
 jobs:
   test:
     runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: public.ecr.aws/docker/library/postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db
+        env:
+          POSTGRES_USER: sentinel
+          POSTGRES_PASSWORD: sentinel-ci-migration-password
+          POSTGRES_DB: sentinel
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U sentinel -d sentinel"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
-      - uses: actions/setup-go@v7.0.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with: { go-version: 1.26.6, cache: true }
+      - name: Provision least-privilege database role and migrate
+        run: |
+          docker run --rm --network host \
+            -v "$PWD/scripts/bootstrap-postgres-roles.sh:/opt/sentinelops/bootstrap-postgres-roles.sh:ro" \
+            -e DATABASE_MIGRATION_URL='postgres://sentinel:sentinel-ci-migration-password@127.0.0.1:5432/sentinel?sslmode=disable' \
+            -e APP_DATABASE_USER=sentinel_app \
+            -e APP_DATABASE_PASSWORD=sentinel-ci-runtime-password \
+            --entrypoint /opt/sentinelops/bootstrap-postgres-roles.sh \
+            public.ecr.aws/docker/library/postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db
+          DATABASE_MIGRATION_URL='postgres://sentinel:sentinel-ci-migration-password@127.0.0.1:5432/sentinel?sslmode=disable' go run ./apps/migrate
       - run: find apps internal demo -name '*.go' -print0 | xargs -0 gofmt -d | tee /tmp/gofmt.diff && test ! -s /tmp/gofmt.diff
       - run: go vet ./...
       - run: go test -race -coverprofile=coverage-go.out ./...
+        env:
+          SENTINELOPS_TEST_DATABASE_MIGRATION_URL: postgres://sentinel:sentinel-ci-migration-password@127.0.0.1:5432/sentinel?sslmode=disable
+          SENTINELOPS_TEST_DATABASE_URL: postgres://sentinel_app:sentinel-ci-runtime-password@127.0.0.1:5432/sentinel?sslmode=disable
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
-      - uses: actions/setup-node@v7.0.0
+      - run: shellcheck -x scripts/*.sh scripts/lib/*.sh
+      - run: python3 scripts/check-markdown-links.py
+      - name: Validate Compose profiles
+        run: |
+          cp .env.example .env
+          docker compose --env-file .env -f deploy/compose/docker-compose.yml config --quiet
+          docker compose --env-file .env -f deploy/compose/docker-compose.yml --profile secure-ingest config --quiet
+          docker compose --env-file deploy/agents/linux/.env.example -f deploy/agents/linux/docker-compose.yml config --quiet
+      - run: ./scripts/test-linux-matrix.sh
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with: { node-version: 26.7.0, cache: npm, cache-dependency-path: apps/web/package-lock.json }
       - run: npm ci --ignore-scripts
         working-directory: apps/web
@@ -27,35 +62,133 @@ jobs:
         working-directory: apps/web
       - run: npm audit --omit=dev
         working-directory: apps/web
-      - run: helm lint deploy/helm/sentinelops && helm template sentinelops deploy/helm/sentinelops --set global.oidcIssuerURL=https://id.example.com/realms/platform >/tmp/rendered.yaml
-      - run: terraform fmt -check -recursive infra/terraform
-      - uses: gitleaks/gitleaks-action@v2.3.9
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with: { terraform_version: 1.15.9, terraform_wrapper: false }
+      - name: Validate Helm default and production gates
+        run: |
+          helm lint deploy/helm/sentinelops
+          helm template sentinelops deploy/helm/sentinelops --set global.oidcIssuerURL=https://id.example.com/realms/platform >/tmp/rendered.yaml
+          if helm template sentinelops deploy/helm/sentinelops -f deploy/helm/sentinelops/values-small-production.yaml >/tmp/invalid-production.yaml 2>/dev/null; then exit 1; fi
+          digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          helm template sentinelops deploy/helm/sentinelops -f deploy/helm/sentinelops/values-small-production.yaml \
+            --set global.oidcIssuerURL=https://id.example.com/realms/platform \
+            --set global.allowedOrigin=https://sentinelops.example.com \
+            --set 'global.releaseValidationAllowedHosts[0]=api.example.internal' \
+            --set global.prometheusURL=https://prometheus.observability.svc \
+            --set global.lokiURL=https://loki.observability.svc \
+            --set global.tempoURL=https://tempo.observability.svc \
+            --set gateway.prometheusUpstream=https://prometheus.observability.svc \
+            --set gateway.lokiUpstream=https://loki.observability.svc \
+            --set gateway.alloyHTTPUpstream=https://alloy-http.observability.svc \
+            --set gateway.alloyGRPCUpstream=https://alloy-grpc.observability.svc \
+            --set api.image.digest="$digest" --set worker.image.digest="$digest" --set web.image.digest="$digest" \
+            --set migration.image.digest="$digest" \
+            --set 'networkPolicy.externalHTTPSCIDRs[0]=10.10.0.0/24' \
+            --set 'networkPolicy.gatewayIngressCIDRs[0]=10.20.0.0/24' >/tmp/rendered-production.yaml
+          docker run --rm -i \
+            ghcr.io/yannh/kubeconform:v0.8.0-alpine@sha256:6b90a5f23d846140ce0194fe050b1995e546eba938f3a6bf10c039dd5e24588f \
+            -strict -summary -kubernetes-version 1.35.0 < /tmp/rendered-production.yaml
+          gateway_dir=$(mktemp -d)
+          ruby -ryaml -e 'YAML.load_stream(File.read("/tmp/rendered-production.yaml")).compact.each { |d| print d.dig("data", "Caddyfile") if d["kind"] == "ConfigMap" && d.dig("metadata", "name")&.end_with?("-gateway") }' > "$gateway_dir/Caddyfile"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=sentinelops-ci \
+            -keyout "$gateway_dir/tls.key" -out "$gateway_dir/tls.crt" >/dev/null 2>&1
+          cp "$gateway_dir/tls.crt" "$gateway_dir/ca.crt"
+          docker run --rm \
+            -v "$gateway_dir/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            -v "$gateway_dir/tls.crt:/certs/server/tls.crt:ro" \
+            -v "$gateway_dir/tls.key:/certs/server/tls.key:ro" \
+            -v "$gateway_dir/ca.crt:/certs/client-ca/ca.crt:ro" \
+            -v "$gateway_dir/ca.crt:/certs/upstream-ca/ca-bundle.crt:ro" \
+            public.ecr.aws/docker/library/caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648 \
+            caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+      - name: Validate safe Argo CD renderer
+        run: |
+          output_dir=$(mktemp -d)
+          if ./scripts/render-argocd-application.sh \
+            --repo-url https://github.com/example/sentinelops.git \
+            --revision aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+            --values-file values.yaml \
+            --output "$output_dir/unsafe.yaml"; then
+            echo "renderer accepted values without the production gate" >&2
+            exit 1
+          fi
+          values_file=$(mktemp deploy/helm/sentinelops/values-ci.XXXXXX.yaml)
+          trap 'rm -f "$values_file"' EXIT
+          cat > "$values_file" <<'EOF'
+          global:
+            requireImageDigests: true
+            oidcIssuerURL: https://id.example.com/realms/platform
+            allowedOrigin: https://sentinelops.example.com
+            releaseValidationAllowedHosts: [api.example.internal]
+            prometheusURL: https://prometheus.observability.svc
+            lokiURL: https://loki.observability.svc
+            tempoURL: https://tempo.observability.svc
+          api: { image: { digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa } }
+          worker: { image: { digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa } }
+          web: { image: { digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa } }
+          migration: { image: { digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa } }
+          gateway:
+            enabled: true
+            prometheusUpstream: https://prometheus.observability.svc
+            lokiUpstream: https://loki.observability.svc
+            alloyHTTPUpstream: https://alloy-http.observability.svc
+            alloyGRPCUpstream: https://alloy-grpc.observability.svc
+          networkPolicy:
+            externalHTTPSCIDRs: [10.10.0.0/24]
+            gatewayIngressCIDRs: [10.20.0.0/24]
+          EOF
+          ./scripts/render-argocd-application.sh \
+            --repo-url https://github.com/example/sentinelops.git \
+            --revision aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+            --values-file "$(basename "$values_file")" \
+            --output "$output_dir/application.yaml"
+          grep -q 'targetRevision: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"' "$output_dir/application.yaml"
+      - name: Validate Terraform roots
+        run: |
+          terraform fmt -check -recursive infra/terraform
+          for environment in dev stg prod; do
+            terraform -chdir="infra/terraform/environments/$environment" init -backend=false -input=false
+            terraform -chdir="infra/terraform/environments/$environment" validate
+          done
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
-      - uses: aquasecurity/trivy-action@v0.36.0
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with: { scan-type: fs, scan-ref: ., severity: CRITICAL,HIGH, exit-code: '1', ignore-unfixed: true }
 
   images:
     runs-on: ubuntu-24.04
     needs: test
-    strategy: { matrix: { app: [api, worker, agent] } }
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: api, context: ., file: Dockerfile.app, build_args: APP=api }
+          - { name: worker, context: ., file: Dockerfile.app, build_args: APP=worker }
+          - { name: migrate, context: ., file: Dockerfile.app, build_args: APP=migrate }
+          - { name: agent, context: ., file: Dockerfile.app, build_args: APP=agent }
+          - { name: backupcrypt, context: ., file: Dockerfile.app, build_args: APP=backupcrypt }
+          - { name: cli, context: ., file: Dockerfile.app, build_args: APP=cli }
+          - { name: demo-api, context: ., file: Dockerfile.demo, build_args: '' }
+          - { name: web, context: apps/web, file: apps/web/Dockerfile, build_args: '' }
+          - { name: alloy, context: ., file: deploy/alloy/Dockerfile.patched, build_args: '' }
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
-      - uses: docker/setup-buildx-action@v4.2.0
-      - uses: docker/build-push-action@v7.3.0
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
-          context: .
-          file: Dockerfile.app
-          build-args: APP=${{ matrix.app }}
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          build-args: ${{ matrix.build_args }}
           platforms: linux/amd64
           load: true
           push: false
-          tags: sentinelops-${{ matrix.app }}:${{ github.sha }}
+          tags: sentinelops-${{ matrix.name }}:${{ github.sha }}
           provenance: true
           sbom: true
-      - uses: aquasecurity/trivy-action@v0.36.0
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: sentinelops-${{ matrix.app }}:${{ github.sha }}
+          image-ref: sentinelops-${{ matrix.name }}:${{ github.sha }}
           severity: CRITICAL,HIGH
           exit-code: '1'
           ignore-unfixed: true

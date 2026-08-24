@@ -24,6 +24,10 @@ func main() {
 		logger.Error("configuration invalid", "error", err)
 		os.Exit(1)
 	}
+	if err = cfg.ValidateAPI(); err != nil {
+		logger.Error("api configuration invalid", "error", err)
+		os.Exit(1)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	store, err := database.Open(ctx, cfg.DatabaseURL)
@@ -32,14 +36,21 @@ func main() {
 		os.Exit(1)
 	}
 	defer store.Close()
-	if err = store.Migrate(ctx); err != nil {
-		logger.Error("migration failed", "error", err)
-		os.Exit(1)
+	if cfg.AgentBootstrap != "" {
+		organizationID, lookupErr := store.OrganizationID(ctx, "local")
+		if lookupErr != nil {
+			logger.Error("development bootstrap organization unavailable", "error", lookupErr)
+			os.Exit(1)
+		}
+		if seedErr := store.SeedDevelopmentBootstrapToken(ctx, organizationID, cfg.AgentBootstrap, "local-docker-agent", time.Now().UTC().Add(24*time.Hour)); seedErr != nil {
+			logger.Error("development bootstrap token seed failed", "error", seedErr)
+			os.Exit(1)
+		}
 	}
 	var tc client.Client
-	tc, err = client.Dial(client.Options{HostPort: cfg.TemporalAddress, Namespace: cfg.TemporalNamespace})
+	tc, err = client.NewLazyClient(client.Options{HostPort: cfg.TemporalAddress, Namespace: cfg.TemporalNamespace})
 	if err != nil {
-		logger.Warn("Temporal unavailable at startup; validation API will return 503", "error", err)
+		logger.Error("temporal client initialization failed", "error", err)
 		tc = nil
 	} else {
 		defer tc.Close()

@@ -1,0 +1,17 @@
+# NÃO APLIQUE ESTE ARQUIVO. Gere application.yaml com
+# scripts/render-argocd-application.sh depois de criar um values produtivo real.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata: { name: sentinelops, namespace: argocd }
+spec:
+  project: platform
+  source:
+    repoURL: REPLACE_WITH_IMMUTABLE_REPOSITORY_URL
+    targetRevision: REPLACE_WITH_COMMIT_SHA
+    path: deploy/helm/sentinelops
+    helm: { valueFiles: [REPLACE_WITH_PRODUCTION_VALUES_FILE] }
+  destination: { server: "https://kubernetes.default.svc", namespace: sentinelops }
+  syncPolicy:
+    automated: { prune: false, selfHeal: true }
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    retry: { limit: 5, backoff: { duration: 5s, factor: 2, maxDuration: 3m } }

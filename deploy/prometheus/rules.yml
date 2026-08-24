@@ -16,10 +16,24 @@ groups:
           summary: Probe sintético falhando
           runbook_url: docs/runbooks/synthetic-tests-failing.md
       - record: service:http_requests:rate5m
-        expr: sum by (service_name) (rate(demo_http_requests_total[5m]))
+        expr: sum by (service) (rate(demo_pipeline_requests_total[5m]))
 
   - name: sentinelops-linux-hosts
     rules:
+      - alert: LinuxHostDown
+        expr: up{job="linux-node"} == 0
+        for: 5m
+        labels: { severity: critical, team: platform }
+        annotations:
+          summary: Host Linux sem coleta há 5 minutos
+          runbook_url: docs/runbooks/operational-response.md
+      - alert: LinuxHostCPUHigh
+        expr: 100 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100 > 90
+        for: 15m
+        labels: { severity: warning, team: platform }
+        annotations:
+          summary: CPU Linux acima de 90%
+          runbook_url: docs/runbooks/operational-response.md
       - alert: LinuxHostFilesystemLow
         expr: (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) < 0.10 and on(instance,device,mountpoint) node_filesystem_readonly == 0
         for: 15m
@@ -40,4 +54,21 @@ groups:
         labels: { severity: warning, team: platform }
         annotations:
           summary: Clock skew Linux acima de 100 ms
+          runbook_url: docs/runbooks/operational-response.md
+
+  - name: sentinelops-applications
+    rules:
+      - alert: ApplicationErrorRateHigh
+        expr: sum by (service) (rate(demo_pipeline_requests_total{status=~"5.."}[5m])) / clamp_min(sum by (service) (rate(demo_pipeline_requests_total[5m])), 0.000001) > 0.05
+        for: 10m
+        labels: { severity: warning, team: platform }
+        annotations:
+          summary: Taxa de erro da aplicação acima de 5%
+          runbook_url: docs/runbooks/operational-response.md
+      - alert: ApplicationLatencyP95High
+        expr: histogram_quantile(0.95, sum by (le,service) (rate(demo_pipeline_request_duration_seconds_bucket[5m]))) > 1
+        for: 10m
+        labels: { severity: warning, team: platform }
+        annotations:
+          summary: Latência p95 da aplicação acima de 1 segundo
           runbook_url: docs/runbooks/operational-response.md
