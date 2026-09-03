@@ -8,13 +8,13 @@ COPY apps ./apps
 COPY internal ./internal
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -buildid=" -o /out/app ./apps/${APP}
 
-FROM alpine:3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
+FROM alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
 RUN apk add --no-cache \
         ca-certificates=20260611-r0 \
         libcrypto3=3.5.8-r0 \
         libssl3=3.5.8-r0 \
-        musl=1.2.5-r23 \
-        musl-utils=1.2.5-r23 \
+        musl=1.2.6-r2 \
+        musl-utils=1.2.6-r2 \
         tzdata=2026c-r0 \
         zlib=1.3.2-r0 \
     && addgroup -S -g 10001 sentinel \
