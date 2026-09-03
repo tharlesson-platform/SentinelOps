@@ -189,11 +189,11 @@ copy_tls_file() {
 phase_deploy() {
   log "Fase 30/50: deploy do collector"
   docker_prefix=$(docker_command)
-  if ! $docker_prefix image inspect sentinelops-alloy:1.18.1-patched.1 >/dev/null 2>&1; then
+  if ! $docker_prefix image inspect sentinelops-alloy:1.18.1-patched.2 >/dev/null 2>&1; then
     [ -f "$ROOT/deploy/alloy/Dockerfile.patched" ] || die "Imagem Alloy corrigida ausente e Dockerfile não incluído no bundle."
     log "Construindo Alloy corrigido e fixado; esta etapa pode levar alguns minutos."
     # shellcheck disable=SC2086
-    $docker_prefix build --file "$ROOT/deploy/alloy/Dockerfile.patched" --tag sentinelops-alloy:1.18.1-patched.1 "$ROOT"
+    $docker_prefix build --file "$ROOT/deploy/alloy/Dockerfile.patched" --tag sentinelops-alloy:1.18.1-patched.2 "$ROOT"
   fi
   compose=$(collector_compose)
   # shellcheck disable=SC2086

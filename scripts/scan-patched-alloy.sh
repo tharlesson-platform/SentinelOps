@@ -2,7 +2,7 @@
 set -eu
 
 ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
-IMAGE=${ALLOY_PATCHED_IMAGE:-sentinelops-alloy:1.18.1-patched.1}
+IMAGE=${ALLOY_PATCHED_IMAGE:-sentinelops-alloy:1.18.1-patched.2}
 TRIVY_IMAGE=aquasec/trivy:0.73.0@sha256:7cced7cae583819fc7806d4cbc0dbbc7cad18b99f7d3e235192e6da8c091045c
 OUTPUT_DIR=${SECURITY_ARTIFACT_DIR:-$ROOT/artifacts/security}
 mkdir -p "$OUTPUT_DIR"

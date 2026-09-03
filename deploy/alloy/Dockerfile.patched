@@ -27,19 +27,22 @@ FROM golang@sha256:116d58cbd88c1297624acc6e967a060012422bacf9930927e23fb719189c6
 
 FROM grafana/alloy-build-image@sha256:4371598809230ffd7611367ba0dcb92bbc8b74bda88471293e5d478b48a0d186 AS build
 ARG ALLOY_SOURCE_REF=6012ec4ac6a541ade720777ecec2f2b02b496def
-ARG ALLOY_VERSION=v1.18.1-sentinel.1
+ARG ALLOY_VERSION=v1.18.1-sentinel.2
 COPY --from=patched-go /usr/local/go /usr/local/go
 COPY --from=source-ui /src/alloy /src/alloy
 COPY --from=moby-backport /src/docker /src/docker
 WORKDIR /src/alloy
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     go mod edit -replace github.com/docker/docker=/src/docker \
-    && go get github.com/go-git/go-git/v5@v5.19.2 \
+    && go get github.com/apache/thrift@v0.24.0 \
+           github.com/go-git/go-git/v5@v5.19.2 \
            golang.org/x/mod@v0.40.0 \
+           google.golang.org/grpc@v1.83.1 \
     && go mod tidy \
     && go mod edit -require=github.com/docker/docker@v29.3.1+incompatible \
     && go mod edit -modfile=collector/go.mod -replace github.com/docker/docker=/src/docker \
     && go mod edit -modfile=collector/go.mod -require=github.com/docker/docker@v29.3.1+incompatible \
+    && go mod edit -modfile=collector/go.mod -require=google.golang.org/grpc@v1.83.1 \
     && sed -i '\#  - github.com/grafana/alloy/syntax => ../syntax#a\  - github.com/docker/docker => /src/docker' collector/builder-config.yaml
 RUN --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     --mount=type=cache,target=/go/pkg/mod,sharing=locked \
@@ -51,8 +54,8 @@ FROM mirror.gcr.io/grafana/alloy@sha256:0f4434c92b3e6cdac38bb129b344e1790c246f7b
 ARG ALLOY_SOURCE_REF=6012ec4ac6a541ade720777ecec2f2b02b496def
 LABEL org.opencontainers.image.source="https://github.com/grafana/alloy" \
       org.opencontainers.image.revision="$ALLOY_SOURCE_REF" \
-      org.opencontainers.image.version="v1.18.1-sentinel.1" \
+      org.opencontainers.image.version="v1.18.1-sentinel.2" \
       io.sentinelops.moby.backport="v28.5.2+e89edb19ad7de0407a5d31e3111cb01aa10b5a38" \
-      org.opencontainers.image.description="SentinelOps rebuild of Alloy v1.18.1 with fixed Go and module dependencies"
+      org.opencontainers.image.description="SentinelOps rebuild of Alloy v1.18.1 with patched Go, Moby and gRPC dependencies"
 COPY --from=build --chown=473:473 /src/alloy/build/alloy /bin/alloy
 USER 473:473

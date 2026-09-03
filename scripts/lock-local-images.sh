@@ -23,7 +23,8 @@ migrate_id=$(image_id sentinelops-migrate:0.1.0-local)
 agent_id=$(image_id sentinelops-agent:0.1.0-local)
 web_id=$(image_id sentinelops-web:0.1.0-local)
 demo_id=$(image_id sentinelops-demo-api:0.2.0-local)
-alloy_id=$(image_id sentinelops-alloy:1.18.1-patched.1)
+alloy_id=$(image_id sentinelops-alloy:1.18.1-patched.2)
+caddy_id=$(image_id sentinelops-caddy:2.11.4-patched.1)
 
 mkdir -p "$(dirname -- "$OUTPUT")"
 temporary=$(mktemp "${OUTPUT}.XXXXXX")
@@ -38,10 +39,11 @@ umask 077
   for service in web api-edge; do printf '  %s: { image: "%s", pull_policy: never }\n' "$service" "$web_id"; done
   for service in demo-api demo-orders demo-payments demo-traffic; do printf '  %s: { image: "%s", pull_policy: never }\n' "$service" "$demo_id"; done
   printf '  alloy: { image: "%s", pull_policy: never }\n' "$alloy_id"
+  printf '  ingest-gateway: { image: "%s", pull_policy: never }\n' "$caddy_id"
 } > "$temporary"
 chmod 600 "$temporary"
 mv "$temporary" "$OUTPUT"
 trap - EXIT HUP INT TERM
 
-printf 'image_lock=%s\napi=%s\nworker=%s\nweb=%s\ndemo=%s\nalloy=%s\n' \
-  "$OUTPUT" "$api_id" "$worker_id" "$web_id" "$demo_id" "$alloy_id"
+printf 'image_lock=%s\napi=%s\nworker=%s\nweb=%s\ndemo=%s\nalloy=%s\ncaddy=%s\n' \
+  "$OUTPUT" "$api_id" "$worker_id" "$web_id" "$demo_id" "$alloy_id" "$caddy_id"

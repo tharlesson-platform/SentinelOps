@@ -82,6 +82,7 @@ jobs:
             --set gateway.lokiUpstream=https://loki.observability.svc \
             --set gateway.alloyHTTPUpstream=https://alloy-http.observability.svc \
             --set gateway.alloyGRPCUpstream=https://alloy-grpc.observability.svc \
+            --set gateway.image.digest="$digest" \
             --set api.image.digest="$digest" --set worker.image.digest="$digest" --set web.image.digest="$digest" \
             --set migration.image.digest="$digest" \
             --set 'networkPolicy.externalHTTPSCIDRs[0]=10.10.0.0/24' \
@@ -130,6 +131,7 @@ jobs:
           migration: { image: { digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa } }
           gateway:
             enabled: true
+            image: { digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa }
             prometheusUpstream: https://prometheus.observability.svc
             lokiUpstream: https://loki.observability.svc
             alloyHTTPUpstream: https://alloy-http.observability.svc
@@ -175,6 +177,7 @@ jobs:
           - { name: demo-api, context: ., file: Dockerfile.demo, build_args: '' }
           - { name: web, context: apps/web, file: apps/web/Dockerfile, build_args: '' }
           - { name: alloy, context: ., file: deploy/alloy/Dockerfile.patched, build_args: '' }
+          - { name: caddy, context: ., file: deploy/caddy/Dockerfile.patched, build_args: '' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }

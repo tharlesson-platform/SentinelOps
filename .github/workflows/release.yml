@@ -27,6 +27,7 @@ jobs:
           - { image: sentinelops-demo-api, context: ., dockerfile: Dockerfile.demo, build_args: '' }
           - { image: sentinelops-web, context: apps/web, dockerfile: apps/web/Dockerfile, build_args: '' }
           - { image: sentinelops-alloy, context: ., dockerfile: deploy/alloy/Dockerfile.patched, build_args: '' }
+          - { image: sentinelops-caddy, context: ., dockerfile: deploy/caddy/Dockerfile.patched, build_args: '' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
@@ -92,6 +93,7 @@ jobs:
           - { image: sentinelops-demo-api, context: ., dockerfile: Dockerfile.demo, build_args: '' }
           - { image: sentinelops-web, context: apps/web, dockerfile: apps/web/Dockerfile, build_args: '' }
           - { image: sentinelops-alloy, context: ., dockerfile: deploy/alloy/Dockerfile.patched, build_args: '' }
+          - { image: sentinelops-caddy, context: ., dockerfile: deploy/caddy/Dockerfile.patched, build_args: '' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
@@ -161,7 +163,7 @@ jobs:
           fi
           version=${GITHUB_REF_NAME#v}
           short_sha=$(printf '%s' "$GITHUB_SHA" | cut -c1-12)
-          images='sentinelops-api sentinelops-worker sentinelops-migrate sentinelops-agent sentinelops-backupcrypt sentinelops-cli sentinelops-demo-api sentinelops-web sentinelops-alloy'
+          images='sentinelops-api sentinelops-worker sentinelops-migrate sentinelops-agent sentinelops-backupcrypt sentinelops-cli sentinelops-demo-api sentinelops-web sentinelops-alloy sentinelops-caddy'
           evidence_dir=$(mktemp -d)
           printf '[]\n' > "$evidence_dir/images.json"
           for name in $images; do

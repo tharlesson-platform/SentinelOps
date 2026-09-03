@@ -54,9 +54,11 @@ gateway:
   enabled: false
   replicas: 2
   image:
-    repository: public.ecr.aws/docker/library/caddy
-    tag: 2.11.4-alpine
-    digest: sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
+    repository: sentinelops-caddy
+    tag: 2.11.4-patched.1
+    # Required in production. release-images publishes the immutable digest.
+    # The production gate rejects an empty value rather than deploying a fake one.
+    digest: ""
     pullPolicy: IfNotPresent
   serverTLSSecretName: sentinelops-ingest-server-tls
   clientCASecretName: sentinelops-ingest-client-ca
