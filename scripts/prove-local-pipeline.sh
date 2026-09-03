@@ -127,10 +127,20 @@ while [ "$profile_attempt" -lt 30 ]; do
   sleep 3
 done
 printf '%s' "$profile_services" | has_expected_services || { echo "Perfis dos três mocks não chegaram ao Pyroscope." >&2; exit 1; }
-profile_ticks=$(curl --max-time 20 -fsSG "$PYROSCOPE_URL/pyroscope/render" \
-  --data-urlencode 'query=process_cpu:cpu:nanoseconds:cpu:nanoseconds{service_name="sentinel-demo-api"}' \
-  --data-urlencode 'from=now-15m' | jq -er '.flamebearer.numTicks')
-[ "$profile_ticks" -gt 0 ] || { echo "Perfil CPU não contém amostras." >&2; exit 1; }
+profile_ticks=0
+profile_tick_attempt=0
+while [ "$profile_tick_attempt" -lt 60 ]; do
+  profile_ticks=$(curl --max-time 20 -fsSG "$PYROSCOPE_URL/pyroscope/render" \
+    --data-urlencode 'query=process_cpu:cpu:nanoseconds:cpu:nanoseconds{service_name="sentinel-demo-api"}' \
+    --data-urlencode 'from=now-15m' 2>/dev/null | jq -r '.flamebearer.numTicks // 0' 2>/dev/null || printf '0')
+  case "$profile_ticks" in
+    *[!0-9]*|'') profile_ticks=0 ;;
+  esac
+  [ "$profile_ticks" -gt 0 ] && break
+  profile_tick_attempt=$((profile_tick_attempt + 1))
+  sleep 3
+done
+[ "$profile_ticks" -gt 0 ] || { echo "Perfil CPU não contém amostras após aguardar o scrape." >&2; exit 1; }
 
 "$ROOT/scripts/seed.sh" >/dev/null
 login_payload=$(jq -nc --arg username "$LOCAL_ADMIN_USER" --arg password "$LOCAL_ADMIN_PASSWORD" '{username:$username,password:$password}')
