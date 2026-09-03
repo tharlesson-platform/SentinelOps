@@ -26,6 +26,7 @@ helm template sentinelops "$CHART" -f "$CHART/values-distributed-production.yaml
   --set gateway.lokiUpstream=https://loki.observability.svc \
   --set gateway.alloyHTTPUpstream=https://alloy-http.observability.svc \
   --set gateway.alloyGRPCUpstream=https://alloy-grpc.observability.svc \
+  --set gateway.image.digest="$DIGEST" \
   --set api.image.digest="$DIGEST" --set worker.image.digest="$DIGEST" \
   --set web.image.digest="$DIGEST" --set migration.image.digest="$DIGEST" \
   --set 'networkPolicy.externalHTTPSCIDRs[0]=10.10.0.0/24' \

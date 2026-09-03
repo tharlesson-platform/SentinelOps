@@ -25,7 +25,8 @@ for entry in \
   agent=sentinelops-agent:0.1.0-local \
   web=sentinelops-web:0.1.0-local \
   demo=sentinelops-demo-api:0.2.0-local \
-  alloy=sentinelops-alloy:1.18.1-patched.1
+  alloy=sentinelops-alloy:1.18.1-patched.2 \
+  caddy=sentinelops-caddy:2.11.4-patched.1
 do
   name=${entry%%=*}
   image=${entry#*=}

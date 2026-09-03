@@ -16,7 +16,8 @@ bootstrap:
 	@./scripts/generate-dashboards.sh
 
 prepare-images: bootstrap
-	@docker image inspect sentinelops-alloy:1.18.1-patched.1 >/dev/null 2>&1 || ./scripts/build-patched-alloy.sh
+	@docker image inspect sentinelops-alloy:1.18.1-patched.2 >/dev/null 2>&1 || ./scripts/build-patched-alloy.sh
+	@docker image inspect sentinelops-caddy:2.11.4-patched.1 >/dev/null 2>&1 || ./scripts/build-patched-caddy.sh
 	$(COMPOSE) build migrate api worker agent web demo-api
 	@./scripts/lock-local-images.sh
 

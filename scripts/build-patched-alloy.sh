@@ -2,7 +2,7 @@
 set -eu
 
 ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
-IMAGE=${ALLOY_PATCHED_IMAGE:-sentinelops-alloy:1.18.1-patched.1}
+IMAGE=${ALLOY_PATCHED_IMAGE:-sentinelops-alloy:1.18.1-patched.2}
 
 docker build \
   --file "$ROOT/deploy/alloy/Dockerfile.patched" \

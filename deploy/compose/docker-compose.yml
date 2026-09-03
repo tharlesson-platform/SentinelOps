@@ -39,7 +39,7 @@ x-demo-env: &demo-env
 
 services:
   local-scope-guard:
-    image: public.ecr.aws/docker/library/alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
+    image: public.ecr.aws/docker/library/alpine:3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
     environment:
       SENTINEL_ENV: ${SENTINEL_ENV:-development}
     command: ["/bin/sh", "-ec", "case \"$$SENTINEL_ENV\" in development|local|test) exit 0 ;; *) echo 'Docker Compose e apenas para development/local/test; use Helm com digests nos demais ambientes.' >&2; exit 64 ;; esac"]
@@ -227,7 +227,7 @@ services:
     restart: unless-stopped
 
   agent-credentials-init:
-    image: public.ecr.aws/docker/library/alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
+    image: public.ecr.aws/docker/library/alpine:3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
     command: ["/bin/sh", "-ec", "chown 10001:10001 /credentials && chmod 0700 /credentials"]
     user: "0:0"
     cap_drop: [ALL]
@@ -407,7 +407,7 @@ services:
     restart: unless-stopped
 
   pyroscope-readiness:
-    image: public.ecr.aws/docker/library/alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
+    image: public.ecr.aws/docker/library/alpine:3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
     command: ["/bin/sh", "-ec", "while :; do sleep 3600; done"]
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://pyroscope:4040/ready"]
@@ -424,7 +424,7 @@ services:
     restart: unless-stopped
 
   alloy-data-init:
-    image: public.ecr.aws/docker/library/alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
+    image: public.ecr.aws/docker/library/alpine:3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
     command: ["/bin/sh", "-ec", "chown -R 473:473 /var/lib/alloy/data && chmod -R u+rwX /var/lib/alloy/data"]
     user: "0:0"
     cap_drop: [ALL]
@@ -436,7 +436,7 @@ services:
     restart: "no"
 
   alloy:
-    image: ${SENTINEL_ALLOY_IMAGE:-sentinelops-alloy:1.18.1-patched.1}
+    image: ${SENTINEL_ALLOY_IMAGE:-sentinelops-alloy:1.18.1-patched.2}
     command: ["run", "/etc/alloy/config.alloy", "--storage.path=/var/lib/alloy/data", "--server.http.listen-addr=0.0.0.0:12345"]
     volumes:
       - ../alloy/config.alloy:/etc/alloy/config.alloy:ro
@@ -455,7 +455,7 @@ services:
     restart: unless-stopped
 
   ingest-gateway-init:
-    image: public.ecr.aws/docker/library/alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
+    image: public.ecr.aws/docker/library/alpine:3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
     profiles: [secure-ingest]
     command: ["/bin/sh", "-ec", "install -m 0644 /source/server.crt /source/client-ca.crt /certs/ && install -m 0600 /source/server.key /certs/server.key && chown -R 10001:10001 /certs"]
     user: "0:0"
@@ -468,11 +468,15 @@ services:
     restart: "no"
 
   ingest-gateway:
-    image: public.ecr.aws/docker/library/caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
+    image: ${SENTINEL_CADDY_IMAGE:-sentinelops-caddy:2.11.4-patched.1}
     profiles: [secure-ingest]
     command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
     environment:
       MTLS_PROXY_SHARED_SECRET: ${MTLS_PROXY_SHARED_SECRET:-local-development-mtls-proxy-secret}
+      HOME: /tmp
+      XDG_CONFIG_HOME: /config
+      XDG_DATA_HOME: /data
+      XDG_CACHE_HOME: /tmp
     user: "10001:10001"
     cap_drop: [ALL]
     cap_add: [NET_BIND_SERVICE]

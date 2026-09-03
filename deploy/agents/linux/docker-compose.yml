@@ -8,7 +8,7 @@ x-security: &security
 
 services:
   collector-certs-init:
-    image: public.ecr.aws/docker/library/alpine:3.23.3@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
+    image: public.ecr.aws/docker/library/alpine:3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
     entrypoint: ["/bin/sh", "-ec"]
     command: ["install -m 0644 /source/ca.crt /source/client.crt /certs/ && install -m 0600 /source/client.key /certs/client.key && chown -R 473:473 /certs"]
     user: "0:0"
@@ -22,7 +22,7 @@ services:
     restart: "no"
 
   alloy-init:
-    image: ${SENTINEL_ALLOY_IMAGE:-sentinelops-alloy:1.18.1-patched.1}
+    image: ${SENTINEL_ALLOY_IMAGE:-sentinelops-alloy:1.18.1-patched.2}
     entrypoint: ["/bin/sh", "-ec"]
     command: ["chown 473:473 /tmp/alloy"]
     user: "0:0"
@@ -35,7 +35,7 @@ services:
     restart: "no"
 
   alloy:
-    image: ${SENTINEL_ALLOY_IMAGE:-sentinelops-alloy:1.18.1-patched.1}
+    image: ${SENTINEL_ALLOY_IMAGE:-sentinelops-alloy:1.18.1-patched.2}
     command:
       - run
       - /etc/alloy/config.alloy
@@ -67,7 +67,7 @@ services:
     restart: unless-stopped
 
   container-metrics:
-    image: ${SENTINEL_ALLOY_IMAGE:-sentinelops-alloy:1.18.1-patched.1}
+    image: ${SENTINEL_ALLOY_IMAGE:-sentinelops-alloy:1.18.1-patched.2}
     profiles: [containers]
     command:
       - run
