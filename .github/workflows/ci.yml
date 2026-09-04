@@ -174,6 +174,8 @@ jobs:
           - { name: agent, context: ., file: Dockerfile.app, build_args: APP=agent }
           - { name: backupcrypt, context: ., file: Dockerfile.app, build_args: APP=backupcrypt }
           - { name: cli, context: ., file: Dockerfile.app, build_args: APP=cli }
+
+          - { name: vmware-exporter, context: ., file: Dockerfile.app, build_args: APP=vmwareexporter }
           - { name: demo-api, context: ., file: Dockerfile.demo, build_args: '' }
           - { name: web, context: apps/web, file: apps/web/Dockerfile, build_args: '' }
           - { name: alloy, context: ., file: deploy/alloy/Dockerfile.patched, build_args: '' }

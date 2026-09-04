@@ -58,27 +58,28 @@ install_runtime_packages() {
       run_as_root apt-get update
       run_as_root apt-get install -y ca-certificates curl git make jq openssl apache2-utils docker.io
       run_as_root apt-get install -y docker-compose-v2 || run_as_root apt-get install -y docker-compose-plugin || run_as_root apt-get install -y docker-compose
+      run_as_root apt-get install -y docker-buildx || run_as_root apt-get install -y docker-buildx-v2 || run_as_root apt-get install -y docker-buildx-plugin
       ;;
     dnf)
       run_as_root dnf install -y ca-certificates curl git make jq openssl httpd-tools
-      run_as_root dnf install -y docker docker-compose-plugin || \
-        run_as_root dnf install -y moby-engine docker-compose-plugin || \
+      run_as_root dnf install -y docker docker-buildx-plugin docker-compose-plugin || \
+        run_as_root dnf install -y moby-engine docker-buildx-plugin docker-compose-plugin || \
         install_docker_rpm_repository dnf
       ;;
     yum)
       run_as_root yum install -y ca-certificates curl git make jq openssl httpd-tools
-      run_as_root yum install -y docker docker-compose-plugin || \
-        run_as_root yum install -y docker docker-compose || \
+      run_as_root yum install -y docker docker-buildx-plugin docker-compose-plugin || \
+        run_as_root yum install -y docker docker-buildx-plugin docker-compose || \
         install_docker_rpm_repository yum
       ;;
     zypper)
-      run_as_root zypper --non-interactive install ca-certificates curl git make jq openssl apache2-utils docker docker-compose
+      run_as_root zypper --non-interactive install ca-certificates curl git make jq openssl apache2-utils docker docker-buildx docker-compose
       ;;
     apk)
-      run_as_root apk add ca-certificates curl git make jq openssl apache2-utils docker docker-cli-compose
+      run_as_root apk add ca-certificates curl git make jq openssl apache2-utils docker docker-cli-buildx docker-cli-compose
       ;;
     pacman)
-      run_as_root pacman -Sy --noconfirm ca-certificates curl git make jq openssl apache docker docker-compose
+      run_as_root pacman -Sy --noconfirm ca-certificates curl git make jq openssl apache docker docker-buildx docker-compose
       ;;
     microdnf)
       run_as_root microdnf install -y ca-certificates curl git make jq openssl httpd-tools tar gzip dnf
@@ -118,8 +119,11 @@ validate_runtime() {
   docker_prefix=$(docker_command)
   # shellcheck disable=SC2086
   $docker_prefix compose version >/dev/null 2>&1 || die "Docker Compose v2 não encontrado."
+  # shellcheck disable=SC2086
+  $docker_prefix buildx version >/dev/null 2>&1 || die "Docker Buildx não encontrado."
   log "$($docker_prefix version --format '{{.Server.Version}}' 2>/dev/null || $docker_prefix version | head -1)"
   log "$($docker_prefix compose version)"
+  log "$($docker_prefix buildx version)"
 }
 
 validate_linux_host() {

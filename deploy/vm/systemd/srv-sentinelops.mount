@@ -1,0 +1,12 @@
+[Unit]
+Description=Persistent data volume for SentinelOps
+Before=docker.service
+
+[Mount]
+What=/dev/ubuntu-vg/sentinelops-data
+Where=/srv/sentinelops
+Type=ext4
+Options=defaults,noatime
+
+[Install]
+WantedBy=local-fs.target
