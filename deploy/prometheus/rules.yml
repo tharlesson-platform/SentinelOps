@@ -56,6 +56,44 @@ groups:
           summary: Clock skew Linux acima de 100 ms
           runbook_url: docs/runbooks/operational-response.md
 
+  - name: sentinelops-vmware
+    rules:
+      - alert: VMwareInventoryUnavailable
+        expr: absent(sentinelops_vmware_scrape_success) or sentinelops_vmware_scrape_success != 1
+        for: 3m
+        labels: { severity: critical, team: platform, integration: vmware }
+        annotations:
+          summary: Coleta de inventário VMware indisponível
+          runbook_url: docs/integrations/vmware-monitoring.md
+      - alert: VMwarePerformanceUnavailable
+        expr: absent(sentinelops_vmware_performance_scrape_success) or sentinelops_vmware_performance_scrape_success != 1
+        for: 5m
+        labels: { severity: warning, team: platform, integration: vmware }
+        annotations:
+          summary: Coleta de rede e disco VMware indisponível
+          runbook_url: docs/integrations/vmware-monitoring.md
+      - alert: VMwareVirtualMachinePoweredOff
+        expr: sentinelops_vmware_vm_power_state == 0
+        for: 5m
+        labels: { severity: warning, team: platform, integration: vmware }
+        annotations:
+          summary: Máquina virtual desligada
+          runbook_url: docs/integrations/vmware-monitoring.md
+      - alert: VMwareDatastoreLowSpace
+        expr: sentinelops_vmware_datastore_free_bytes / sentinelops_vmware_datastore_capacity_bytes < 0.10
+        for: 15m
+        labels: { severity: warning, team: platform, integration: vmware }
+        annotations:
+          summary: Datastore VMware abaixo de 10% livre
+          runbook_url: docs/integrations/vmware-monitoring.md
+      - alert: VMwareVirtualMachineDiskLatencyHigh
+        expr: max by (endpoint, vm_name, vm_uuid) (sentinelops_vmware_vm_disk_read_latency_milliseconds or sentinelops_vmware_vm_disk_write_latency_milliseconds) > 20
+        for: 10m
+        labels: { severity: warning, team: platform, integration: vmware }
+        annotations:
+          summary: Latência de disco de VM acima de 20 ms
+          runbook_url: docs/integrations/vmware-monitoring.md
+
   - name: sentinelops-applications
     rules:
       - alert: ApplicationErrorRateHigh

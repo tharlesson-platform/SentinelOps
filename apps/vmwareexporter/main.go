@@ -22,10 +22,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
+	"github.com/vmware/govmomi/performance"
 	"github.com/vmware/govmomi/session"
 	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/soap"
+	"github.com/vmware/govmomi/vim25/types"
 )
 
 type config struct {
@@ -75,7 +77,11 @@ type exporter struct {
 	success                                             prometheus.Gauge
 	lastSuccess                                         prometheus.Gauge
 	hostCPU, hostCPUMax, hostMem, hostMemMax, hostPower *prometheus.GaugeVec
-	vmCPU, vmMem, vmMemMax, vmPower, vmIP               *prometheus.GaugeVec
+	vmCPU, vmMem, vmMemMax, vmPower, vmIP, vmTools      *prometheus.GaugeVec
+	vmNetRx, vmNetTx, vmDiskRead, vmDiskWrite           *prometheus.GaugeVec
+	vmDiskReadIOPS, vmDiskWriteIOPS                     *prometheus.GaugeVec
+	vmDiskReadLatency, vmDiskWriteLatency               *prometheus.GaugeVec
+	performanceSuccess                                  prometheus.Gauge
 	dsFree, dsCapacity                                  *prometheus.GaugeVec
 }
 
@@ -83,10 +89,12 @@ func newExporter(c config, logger *slog.Logger, r *prometheus.Registry) *exporte
 	e := &exporter{cfg: c, logger: logger,
 		success:     prometheus.NewGauge(prometheus.GaugeOpts{Name: "sentinelops_vmware_scrape_success", Help: "1 when the most recent VMware inventory collection succeeded."}),
 		lastSuccess: prometheus.NewGauge(prometheus.GaugeOpts{Name: "sentinelops_vmware_last_success_unixtime", Help: "Unix timestamp of the most recent successful VMware collection."}),
+		performanceSuccess: prometheus.NewGauge(prometheus.GaugeOpts{Name: "sentinelops_vmware_performance_scrape_success", Help: "1 when the most recent VMware VM performance collection succeeded."}),
 		hostCPU:     gauge("sentinelops_vmware_host_cpu_usage_mhz", "Host CPU usage in MHz.", "endpoint", "host"), hostCPUMax: gauge("sentinelops_vmware_host_cpu_capacity_mhz", "Host CPU capacity in MHz.", "endpoint", "host"), hostMem: gauge("sentinelops_vmware_host_memory_usage_bytes", "Host memory usage in bytes.", "endpoint", "host"), hostMemMax: gauge("sentinelops_vmware_host_memory_capacity_bytes", "Host memory capacity in bytes.", "endpoint", "host"), hostPower: gauge("sentinelops_vmware_host_power_state", "Host power state (1=on).", "endpoint", "host"),
-		vmCPU: gauge("sentinelops_vmware_vm_cpu_usage_mhz", "VM CPU usage in MHz.", "endpoint", "vm_name", "vm_uuid"), vmMem: gauge("sentinelops_vmware_vm_memory_usage_bytes", "VM memory usage in bytes.", "endpoint", "vm_name", "vm_uuid"), vmMemMax: gauge("sentinelops_vmware_vm_memory_capacity_bytes", "VM configured memory in bytes.", "endpoint", "vm_name", "vm_uuid"), vmPower: gauge("sentinelops_vmware_vm_power_state", "VM power state (1=on).", "endpoint", "vm_name", "vm_uuid"), vmIP: gauge("sentinelops_vmware_vm_guest_ip_info", "VM guest IP inventory record.", "endpoint", "vm_name", "vm_uuid", "ip_address"),
+		vmCPU: gauge("sentinelops_vmware_vm_cpu_usage_mhz", "VM CPU usage in MHz.", "endpoint", "vm_name", "vm_uuid"), vmMem: gauge("sentinelops_vmware_vm_memory_usage_bytes", "VM memory usage in bytes.", "endpoint", "vm_name", "vm_uuid"), vmMemMax: gauge("sentinelops_vmware_vm_memory_capacity_bytes", "VM configured memory in bytes.", "endpoint", "vm_name", "vm_uuid"), vmPower: gauge("sentinelops_vmware_vm_power_state", "VM power state (1=on).", "endpoint", "vm_name", "vm_uuid"), vmIP: gauge("sentinelops_vmware_vm_guest_ip_info", "VM guest IP inventory record.", "endpoint", "vm_name", "vm_uuid", "ip_address"), vmTools: gauge("sentinelops_vmware_vm_tools_running", "VMware Tools running state (1=running).", "endpoint", "vm_name", "vm_uuid"),
+		vmNetRx: gauge("sentinelops_vmware_vm_network_receive_bytes_per_second", "VM network receive throughput in bytes per second.", "endpoint", "vm_name", "vm_uuid"), vmNetTx: gauge("sentinelops_vmware_vm_network_transmit_bytes_per_second", "VM network transmit throughput in bytes per second.", "endpoint", "vm_name", "vm_uuid"), vmDiskRead: gauge("sentinelops_vmware_vm_disk_read_bytes_per_second", "VM disk read throughput in bytes per second.", "endpoint", "vm_name", "vm_uuid"), vmDiskWrite: gauge("sentinelops_vmware_vm_disk_write_bytes_per_second", "VM disk write throughput in bytes per second.", "endpoint", "vm_name", "vm_uuid"), vmDiskReadIOPS: gauge("sentinelops_vmware_vm_disk_read_iops", "VM disk read operations per second.", "endpoint", "vm_name", "vm_uuid"), vmDiskWriteIOPS: gauge("sentinelops_vmware_vm_disk_write_iops", "VM disk write operations per second.", "endpoint", "vm_name", "vm_uuid"), vmDiskReadLatency: gauge("sentinelops_vmware_vm_disk_read_latency_milliseconds", "VM disk read latency in milliseconds.", "endpoint", "vm_name", "vm_uuid"), vmDiskWriteLatency: gauge("sentinelops_vmware_vm_disk_write_latency_milliseconds", "VM disk write latency in milliseconds.", "endpoint", "vm_name", "vm_uuid"),
 		dsFree: gauge("sentinelops_vmware_datastore_free_bytes", "Datastore free capacity in bytes.", "endpoint", "datastore"), dsCapacity: gauge("sentinelops_vmware_datastore_capacity_bytes", "Datastore capacity in bytes.", "endpoint", "datastore")}
-	r.MustRegister(e.success, e.lastSuccess, e.hostCPU, e.hostCPUMax, e.hostMem, e.hostMemMax, e.hostPower, e.vmCPU, e.vmMem, e.vmMemMax, e.vmPower, e.vmIP, e.dsFree, e.dsCapacity)
+	r.MustRegister(e.success, e.lastSuccess, e.performanceSuccess, e.hostCPU, e.hostCPUMax, e.hostMem, e.hostMemMax, e.hostPower, e.vmCPU, e.vmMem, e.vmMemMax, e.vmPower, e.vmIP, e.vmTools, e.vmNetRx, e.vmNetTx, e.vmDiskRead, e.vmDiskWrite, e.vmDiskReadIOPS, e.vmDiskWriteIOPS, e.vmDiskReadLatency, e.vmDiskWriteLatency, e.dsFree, e.dsCapacity)
 	return e
 }
 func gauge(name, help string, labels ...string) *prometheus.GaugeVec {
@@ -144,6 +152,8 @@ func (e *exporter) refresh(ctx context.Context) error {
 		return fmt.Errorf("list datastores: %w", err)
 	}
 	e.reset()
+	vmReferences := make([]types.ManagedObjectReference, 0, len(vms))
+	vmLabels := make(map[string]vmIdentity, len(vms))
 	for _, h := range hosts {
 		var x mo.HostSystem
 		if err := h.Properties(ctx, h.Reference(), []string{"summary"}, &x); err != nil {
@@ -166,6 +176,8 @@ func (e *exporter) refresh(ctx context.Context) error {
 		}
 		s := x.Summary
 		name, id := s.Config.Name, s.Config.Uuid
+		vmReferences = append(vmReferences, vm.Reference())
+		vmLabels[vm.Reference().Value] = vmIdentity{name: name, id: id}
 		e.vmCPU.WithLabelValues(e.cfg.endpoint, name, id).Set(float64(s.QuickStats.OverallCpuUsage))
 		e.vmMem.WithLabelValues(e.cfg.endpoint, name, id).Set(float64(s.QuickStats.GuestMemoryUsage) * 1024 * 1024)
 		e.vmMemMax.WithLabelValues(e.cfg.endpoint, name, id).Set(float64(s.Config.MemorySizeMB) * 1024 * 1024)
@@ -175,6 +187,15 @@ func (e *exporter) refresh(ctx context.Context) error {
 		if s.Guest.IpAddress != "" {
 			e.vmIP.WithLabelValues(e.cfg.endpoint, name, id, s.Guest.IpAddress).Set(1)
 		}
+		if string(s.Guest.ToolsRunningStatus) == "guestToolsRunning" {
+			e.vmTools.WithLabelValues(e.cfg.endpoint, name, id).Set(1)
+		}
+	}
+	if err := e.collectPerformance(ctx, vc, vmReferences, vmLabels); err != nil {
+		e.performanceSuccess.Set(0)
+		e.logger.Warn("VMware performance collection failed", "error", err)
+	} else {
+		e.performanceSuccess.Set(1)
 	}
 	for _, ds := range dss {
 		var x mo.Datastore
@@ -203,8 +224,124 @@ func (e *exporter) reset() {
 	e.vmMemMax.Reset()
 	e.vmPower.Reset()
 	e.vmIP.Reset()
+	e.vmTools.Reset()
+	e.vmNetRx.Reset()
+	e.vmNetTx.Reset()
+	e.vmDiskRead.Reset()
+	e.vmDiskWrite.Reset()
+	e.vmDiskReadIOPS.Reset()
+	e.vmDiskWriteIOPS.Reset()
+	e.vmDiskReadLatency.Reset()
+	e.vmDiskWriteLatency.Reset()
 	e.dsFree.Reset()
 	e.dsCapacity.Reset()
+}
+
+type vmIdentity struct{ name, id string }
+
+type performanceValue struct {
+	sum, aggregate float64
+	aggregateSet   bool
+	unit           string
+}
+
+// collectPerformance reads the real-time vSphere counters. Counters with a
+// device instance are summed, while a VM-level aggregate (instance "") wins
+// when the ESXi server offers both forms to avoid double counting.
+func (e *exporter) collectPerformance(ctx context.Context, client *vim25.Client, refs []types.ManagedObjectReference, identities map[string]vmIdentity) error {
+	if len(refs) == 0 {
+		return nil
+	}
+	manager := performance.NewManager(client)
+	counters, err := manager.CounterInfoByName(ctx)
+	if err != nil {
+		return fmt.Errorf("list performance counters: %w", err)
+	}
+	wanted := []string{
+		"net.received.average", "net.transmitted.average",
+		"disk.read.average", "disk.write.average",
+		"disk.numberReadAveraged.average", "disk.numberWriteAveraged.average",
+		"disk.totalReadLatency.average", "disk.totalWriteLatency.average",
+	}
+	metrics := make([]string, 0, len(wanted))
+	for _, name := range wanted {
+		if _, ok := counters[name]; ok {
+			metrics = append(metrics, name)
+		}
+	}
+	if len(metrics) == 0 {
+		return errors.New("nenhum contador de rede ou disco VMware está disponível")
+	}
+	series, err := manager.SampleByName(ctx, types.PerfQuerySpec{MaxSample: 1, IntervalId: 20, MetricId: []types.PerfMetricId{{Instance: "*"}}}, metrics, refs)
+	if err != nil {
+		return fmt.Errorf("query performance counters: %w", err)
+	}
+	entities, err := manager.ToMetricSeries(ctx, series)
+	if err != nil {
+		return fmt.Errorf("decode performance counters: %w", err)
+	}
+	for _, entity := range entities {
+		identity, ok := identities[entity.Entity.Value]
+		if !ok {
+			continue
+		}
+		values := map[string]performanceValue{}
+		for _, metric := range entity.Value {
+			if len(metric.Value) == 0 {
+				continue
+			}
+			value := float64(metric.Value[len(metric.Value)-1])
+			current := values[metric.Name]
+			current.unit = metric.Unit
+			if metric.Instance == "" {
+				current.aggregate, current.aggregateSet = value, true
+			} else {
+				current.sum += value
+			}
+			values[metric.Name] = current
+		}
+		labels := []string{e.cfg.endpoint, identity.name, identity.id}
+		if v, ok := values["net.received.average"]; ok {
+			e.vmNetRx.WithLabelValues(labels...).Set(kilobytesPerSecond(v))
+		}
+		if v, ok := values["net.transmitted.average"]; ok {
+			e.vmNetTx.WithLabelValues(labels...).Set(kilobytesPerSecond(v))
+		}
+		if v, ok := values["disk.read.average"]; ok {
+			e.vmDiskRead.WithLabelValues(labels...).Set(kilobytesPerSecond(v))
+		}
+		if v, ok := values["disk.write.average"]; ok {
+			e.vmDiskWrite.WithLabelValues(labels...).Set(kilobytesPerSecond(v))
+		}
+		if v, ok := values["disk.numberReadAveraged.average"]; ok {
+			e.vmDiskReadIOPS.WithLabelValues(labels...).Set(v.value())
+		}
+		if v, ok := values["disk.numberWriteAveraged.average"]; ok {
+			e.vmDiskWriteIOPS.WithLabelValues(labels...).Set(v.value())
+		}
+		if v, ok := values["disk.totalReadLatency.average"]; ok {
+			e.vmDiskReadLatency.WithLabelValues(labels...).Set(v.value())
+		}
+		if v, ok := values["disk.totalWriteLatency.average"]; ok {
+			e.vmDiskWriteLatency.WithLabelValues(labels...).Set(v.value())
+		}
+	}
+	return nil
+}
+
+func (v performanceValue) value() float64 {
+	if v.aggregateSet {
+		return v.aggregate
+	}
+	return v.sum
+}
+
+func kilobytesPerSecond(v performanceValue) float64 {
+	value := v.value()
+	if strings.EqualFold(v.unit, "bytesPerSecond") {
+		return value
+	}
+	return value * 1024
 }
 func (e *exporter) healthy() bool {
 	e.mu.RLock()
