@@ -8,11 +8,12 @@ RUN npm run build
 FROM nginx:1.29.6-alpine3.23@sha256:f46cb72c7df02710e693e863a983ac42f6a9579058a59a35f1ae36c9958e4ce0
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
-RUN apk add --no-cache \
+RUN apk upgrade --no-cache \
+    && apk add --no-cache \
         c-ares=1.34.8-r0 \
-        curl=8.20.0-r0 \
+        curl=8.22.0-r0 \
         libcrypto3=3.5.8-r0 \
-        libcurl=8.20.0-r0 \
+        libcurl=8.22.0-r0 \
         libexpat=2.8.4-r0 \
         libssl3=3.5.8-r0 \
         libxml2=2.13.9-r1 \
