@@ -1,5 +1,17 @@
 # Observabilidade de hosts Docker Azure
 
+## Escopo inicial
+
+| Host | Papel | Onda |
+|---|---|---:|
+| `tqi-platform` | aplicações Docker privadas | 1 |
+| `easy-vm` | aplicações Docker privadas do Easy | 1 |
+| `tqi-platform-edge` | entrada Traefik/edge | 2 |
+
+Os dois hosts privados recebem o mesmo baseline de inventário, métricas e logs.
+O edge entra após a primeira onda provar que o collector não altera listeners,
+Traefik ou rotas de aplicação.
+
 ## Descoberta sem impacto
 
 Em cada host, execute `sudo ./scripts/discover-docker-host.sh`. O artefato não
