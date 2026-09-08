@@ -68,7 +68,8 @@ mkdir -p "$bundle/scripts/lib" "$bundle/deploy/agents/linux" "$bundle/deploy/all
 cp "$ROOT/scripts/install-linux-collector.sh" "$bundle/scripts/"
 cp "$ROOT/scripts/lib/linux-common.sh" "$bundle/scripts/lib/"
 cp "$ROOT/deploy/agents/linux/docker-compose.yml" "$ROOT/deploy/agents/linux/config.alloy" \
-  "$ROOT/deploy/agents/linux/config-cadvisor.alloy" "$ROOT/deploy/agents/linux/.env.example" "$bundle/deploy/agents/linux/"
+  "$ROOT/deploy/agents/linux/config-cadvisor.alloy" "$ROOT/deploy/agents/linux/config-docker-logs.alloy" \
+  "$ROOT/deploy/agents/linux/.env.example" "$bundle/deploy/agents/linux/"
 cp "$ROOT/deploy/alloy/Dockerfile.patched" "$bundle/deploy/alloy/"
 cp "$ROOT/deploy/alloy/patches/moby-cve-2026-34040.patch" "$bundle/deploy/alloy/patches/"
 mkdir -p "$bundle/cert-source"

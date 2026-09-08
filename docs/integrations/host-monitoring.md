@@ -34,7 +34,8 @@ para o SentinelOps; nenhuma porta de exporter é publicada na rede.
 - Unix Exporter: CPU, load, memória, swap, filesystem, inodes, disco, rede,
   TCP, processos, file descriptors, clock, uptime e kernel.
 - Logs: arquivos `*.log` diretamente abaixo de `/var/log`, com descarte de
-  linhas que aparentem conter credenciais.
+  linhas que aparentem conter credenciais. Com `--with-containers`, inclui os
+  logs JSON do Docker por mount somente leitura, sem acesso ao socket Docker.
 - OTLP local: aplicações do host enviam métricas, logs e traces para
   `127.0.0.1:4317` ou `127.0.0.1:4318`.
 - cAdvisor opcional: CPU, memória, rede, I/O, estado e restarts de containers.

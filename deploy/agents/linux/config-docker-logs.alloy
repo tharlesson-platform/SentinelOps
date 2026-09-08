@@ -1,0 +1,54 @@
+// Docker JSON logs are collected through a read-only bind mount. This profile
+// deliberately does not mount docker.sock and only runs with --with-containers.
+local.file_match "docker_json_logs" {
+  path_targets = [{
+    "__path__" = "/host/docker-containers/*/*-json.log",
+    "job" = "docker-container",
+    "host_name" = sys.env("SENTINEL_HOST_NAME"),
+    "deployment_environment" = sys.env("SENTINEL_ENVIRONMENT"),
+    "team" = sys.env("SENTINEL_TEAM"),
+    "location" = sys.env("SENTINEL_LOCATION"),
+  }]
+}
+
+loki.source.file "docker_json_logs" {
+  targets    = local.file_match.docker_json_logs.targets
+  forward_to = [loki.process.docker_json_logs.receiver]
+}
+
+loki.process "docker_json_logs" {
+  stage.json {
+    expressions = {
+      message = "log",
+      stream  = "stream",
+      time    = "time",
+    }
+  }
+  stage.drop {
+    expression          = "(?i)(authorization|cookie|password|passwd|secret|token)="
+    drop_counter_reason = "possible_secret"
+  }
+  stage.labels {
+    values = { stream = "" }
+  }
+  stage.timestamp {
+    source = "time"
+    format = "RFC3339Nano"
+  }
+  stage.output { source = "message" }
+  forward_to = [loki.write.sentinel.receiver]
+}
+
+loki.write "sentinel" {
+  endpoint {
+    url = sys.env("SENTINEL_LOGS_ENDPOINT")
+    tls_config {
+      ca_file = "/etc/sentinelops/certs/ca.crt"
+      cert_file = "/etc/sentinelops/certs/client.crt"
+      key_file = "/etc/sentinelops/certs/client.key"
+      server_name = sys.env("SENTINEL_TLS_SERVER_NAME")
+      min_version = "TLS12"
+    }
+  }
+  external_labels = { source = "sentinelops-docker-collector" }
+}
