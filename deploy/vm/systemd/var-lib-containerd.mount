@@ -1,0 +1,14 @@
+[Unit]
+Description=Containerd state on the SentinelOps data volume
+Requires=srv-sentinelops.mount
+After=srv-sentinelops.mount
+Before=containerd.service
+
+[Mount]
+What=/srv/sentinelops/containerd
+Where=/var/lib/containerd
+Type=none
+Options=bind
+
+[Install]
+WantedBy=multi-user.target

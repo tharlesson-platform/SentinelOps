@@ -59,7 +59,9 @@ done
 
 [ "$(uname -s)" = Linux ] || die "Este bootstrap é exclusivo para Linux."
 case "$INSTALL_DIR" in /*) ;; *) die "--install-dir deve ser absoluto" ;; esac
-printf '%s' "$SOURCE_SHA256" | grep -Eq '^$|^[a-fA-F0-9]{64}$' || die "SHA-256 inválido"
+if [ -n "$SOURCE_SHA256" ]; then
+  printf '%s\n' "$SOURCE_SHA256" | grep -Eq '^[a-fA-F0-9]{64}$' || die "SHA-256 inválido"
+fi
 
 install_fetch_tools() {
   command_exists curl && command_exists tar && { command_exists sha256sum || command_exists openssl; } && return 0
@@ -114,6 +116,10 @@ if [ -n "$SOURCE_URL" ]; then
 else
   [ -x "$SCRIPT_ROOT/scripts/install-linux-server.sh" ] || die "Execute dentro do release ou informe --source-url."
 fi
+
+# Archives produzidos no macOS podem conter AppleDouble (._*) com resource forks.
+# Eles não pertencem ao release e não podem ser consumidos como configuração YAML.
+find "$SCRIPT_ROOT" -type f -name '._*' -delete
 
 log "Fase 20/40: instalando runtime e subindo a plataforma"
 set -- --phase all --install-runtime --web-bind "$WEB_BIND" --ingest-bind "$INGEST_BIND" --ingest-server-name "$INGEST_SERVER_NAME"

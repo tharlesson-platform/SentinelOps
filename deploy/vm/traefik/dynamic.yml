@@ -1,0 +1,28 @@
+http:
+  routers:
+    sentinelops-web:
+      entryPoints: [web]
+      rule: PathPrefix(`/`)
+      service: sentinelops-web
+    grafana:
+      entryPoints: [grafana]
+      rule: PathPrefix(`/`)
+      service: grafana
+    temporal-ui:
+      entryPoints: [temporal]
+      rule: PathPrefix(`/`)
+      service: temporal-ui
+
+  services:
+    sentinelops-web:
+      loadBalancer:
+        servers:
+          - url: http://127.0.0.1:3000
+    grafana:
+      loadBalancer:
+        servers:
+          - url: http://127.0.0.1:3001
+    temporal-ui:
+      loadBalancer:
+        servers:
+          - url: http://127.0.0.1:8088

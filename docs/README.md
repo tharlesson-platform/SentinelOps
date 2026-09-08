@@ -11,6 +11,7 @@ produção; não promova um perfil porque ele apenas iniciou containers.
 | Pessoa avaliadora | [Primeiros 30 minutos](user-guide/first-30-minutes.md) | `make prove-local` |
 | Administrador Linux | [Bootstrap do zero](installation/bootstrap-zero-to-running.md) | `make doctor` |
 | Time de infraestrutura | [Monitorar hosts](integrations/host-monitoring.md) | prova mTLS do collector |
+| Time de infraestrutura | [Monitorar VMware](integrations/vmware-monitoring.md) | ESXi/vCenter somente leitura |
 | Time de aplicação | [Onboarding APM](integrations/apm-onboarding.md) | prova de métricas, logs e traces |
 | SRE/Plataforma | [Arquitetura](architecture/overview.md) e [fluxos](architecture/system-flows.md) | `make check` e `make validate-release` |
 | Operação de produção | [Produção](operations/production.md) | gates externos do alvo real |

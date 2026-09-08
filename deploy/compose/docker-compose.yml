@@ -359,6 +359,37 @@ services:
     networks: [telemetry]
     restart: unless-stopped
 
+  vmware-exporter:
+    image: ${SENTINEL_VMWARE_EXPORTER_IMAGE:-sentinelops-vmware-exporter:0.1.0-local}
+    build:
+      context: ../..
+      dockerfile: Dockerfile.app
+      args: { APP: vmwareexporter }
+    profiles: [vmware]
+    environment:
+      VMWARE_ENDPOINT: ${VMWARE_ENDPOINT:-}
+      VMWARE_USERNAME: ${VMWARE_USERNAME:-}
+      VMWARE_PASSWORD_FILE: /run/sentinelops/vmware-password
+      VMWARE_TLS_THUMBPRINT: ${VMWARE_TLS_THUMBPRINT:-}
+      VMWARE_SCRAPE_INTERVAL: ${VMWARE_SCRAPE_INTERVAL:-60s}
+      VMWARE_EXPORTER_ADDRESS: 0.0.0.0:9472
+      VMWARE_ALLOW_CONTAINER_BIND: "true"
+    volumes:
+      - ${SENTINEL_VMWARE_PASSWORD_FILE:-/dev/null}:/run/sentinelops/vmware-password:ro
+    ports:
+      - "127.0.0.1:9472:9472"
+    networks: [telemetry]
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9472/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+    <<: *security
+    restart: unless-stopped
+
   loki-init:
     image: ${SENTINEL_API_IMAGE:-sentinelops-api:0.1.0-local}
     entrypoint: ["/bin/sh", "-ec"]

@@ -18,7 +18,7 @@ bootstrap:
 prepare-images: bootstrap
 	@docker image inspect sentinelops-alloy:1.18.1-patched.2 >/dev/null 2>&1 || ./scripts/build-patched-alloy.sh
 	@docker image inspect sentinelops-caddy:2.11.4-patched.1 >/dev/null 2>&1 || ./scripts/build-patched-caddy.sh
-	$(COMPOSE) build migrate api worker agent web demo-api
+	$(COMPOSE) build migrate api worker agent web demo-api vmware-exporter
 	@./scripts/lock-local-images.sh
 
 up: prepare-images
@@ -75,7 +75,7 @@ lint:
 	$(COMPOSE_HA) config --quiet
 
 build:
-	$(COMPOSE) build migrate api worker agent web demo-api
+	$(COMPOSE) build migrate api worker agent web demo-api vmware-exporter
 
 check: test lint
 

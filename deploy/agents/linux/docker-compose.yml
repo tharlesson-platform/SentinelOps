@@ -94,6 +94,30 @@ services:
       - /var/lib/alloy/data
     restart: unless-stopped
 
+  container-logs:
+    image: ${SENTINEL_ALLOY_IMAGE:-sentinelops-alloy:1.18.1-patched.2}
+    profiles: [containers]
+    command:
+      - run
+      - /etc/alloy/config-docker-logs.alloy
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=0.0.0.0:12346
+    env_file: [.env]
+    volumes:
+      - ./config-docker-logs.alloy:/etc/alloy/config-docker-logs.alloy:ro
+      - ${SENTINEL_DOCKER_LOG_ROOT:-/var/lib/docker/containers}:/host/docker-containers:ro
+      - alloy-data:/var/lib/alloy/data
+      - collector-certs:/etc/sentinelops/certs:ro
+    depends_on:
+      alloy-init: { condition: service_completed_successfully }
+      collector-certs-init: { condition: service_completed_successfully }
+    networks: [collector]
+    <<: *security
+    user: "473:473"
+    read_only: true
+    tmpfs: [/tmp]
+    restart: unless-stopped
+
 networks:
   collector: {}
 

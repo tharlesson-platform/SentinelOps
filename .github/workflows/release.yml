@@ -24,6 +24,7 @@ jobs:
           - { image: sentinelops-agent, context: ., dockerfile: Dockerfile.app, build_args: APP=agent }
           - { image: sentinelops-backupcrypt, context: ., dockerfile: Dockerfile.app, build_args: APP=backupcrypt }
           - { image: sentinelops-cli, context: ., dockerfile: Dockerfile.app, build_args: APP=cli }
+          - { image: sentinelops-vmware-exporter, context: ., dockerfile: Dockerfile.app, build_args: APP=vmwareexporter }
           - { image: sentinelops-demo-api, context: ., dockerfile: Dockerfile.demo, build_args: '' }
           - { image: sentinelops-web, context: apps/web, dockerfile: apps/web/Dockerfile, build_args: '' }
           - { image: sentinelops-alloy, context: ., dockerfile: deploy/alloy/Dockerfile.patched, build_args: '' }
@@ -90,6 +91,7 @@ jobs:
           - { image: sentinelops-agent, context: ., dockerfile: Dockerfile.app, build_args: APP=agent }
           - { image: sentinelops-backupcrypt, context: ., dockerfile: Dockerfile.app, build_args: APP=backupcrypt }
           - { image: sentinelops-cli, context: ., dockerfile: Dockerfile.app, build_args: APP=cli }
+          - { image: sentinelops-vmware-exporter, context: ., dockerfile: Dockerfile.app, build_args: APP=vmwareexporter }
           - { image: sentinelops-demo-api, context: ., dockerfile: Dockerfile.demo, build_args: '' }
           - { image: sentinelops-web, context: apps/web, dockerfile: apps/web/Dockerfile, build_args: '' }
           - { image: sentinelops-alloy, context: ., dockerfile: deploy/alloy/Dockerfile.patched, build_args: '' }
