@@ -82,7 +82,11 @@ def validate(path: Path) -> list[str]:
             continue
         if not variable.get("includeAll") or not variable.get("multi"):
             errors.append(f"{path}: filtro {variable.get('name')} não aceita seleção múltipla/All")
-        if variable.get("current", {}).get("value") != "$__all":
+        if variable.get("current", {}).get("value") != "$__all" and not (
+            path.name == "logs.json"
+            and variable.get("name") == "log_source"
+            and variable.get("current", {}).get("value") == "docker-container"
+        ):
             errors.append(f"{path}: filtro {variable.get('name')} não inicia em All")
 
     if path.name in APPLICATION_DASHBOARDS and "application" not in declared:
@@ -96,7 +100,7 @@ def validate(path: Path) -> list[str]:
             errors.append(f"{path}: All de rotas ignora o conjunto top-200")
     if path.name in CONTAINER_DASHBOARDS and "container" not in declared:
         errors.append(f"{path}: dashboard Docker/log sem filtro de aplicação/container")
-    if path.name == "logs.json" and not {"container_id", "stream", "search"}.issubset(declared):
+    if path.name == "logs.json" and not {"log_source", "container_id", "stream", "search"}.issubset(declared):
         errors.append(f"{path}: dashboard de logs sem filtros operacionais completos")
     container_id_variables = [variable for variable in variables if variable.get("name") == "container_id"]
     if any(variable.get("allValue") for variable in container_id_variables):

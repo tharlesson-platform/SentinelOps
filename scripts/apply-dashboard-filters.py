@@ -377,16 +377,21 @@ def apply_synthetic(dashboard: dict[str, object]) -> None:
 
 def apply_logs(dashboard: dict[str, object]) -> None:
     variables = infrastructure_variables()
-    variables.insert(
-        0,
-        query_variable(
-            "application",
-            "Aplicação OTel",
-            LOKI,
-            'label_values({service_name=~".+"}, service_name)',
-            all_value=".+",
-        ),
+    log_source = query_variable(
+        "log_source",
+        "Fonte de logs",
+        LOKI,
+        'label_values({job=~".+"}, job)',
+        all_value=".+",
     )
+    # O foco operacional padrão é a aplicação/container. As demais fontes
+    # continuam disponíveis no seletor, inclusive a opção All.
+    log_source["current"] = {
+        "selected": True,
+        "text": "docker-container",
+        "value": "docker-container",
+    }
+    variables.insert(0, log_source)
     variables.append(
         query_variable(
             "stream",
@@ -398,20 +403,23 @@ def apply_logs(dashboard: dict[str, object]) -> None:
     variables.append(textbox_variable("search", "Buscar no conteúdo (regex)"))
     dashboard["templating"] = {"list": variables}
     dashboard["description"] = (
-        "Logs pesquisáveis por aplicação OTel ou aplicação/container Docker, ambiente, host, stream e conteúdo."
+        "Logs pesquisáveis por fonte, aplicação/container Docker, ambiente, host, stream e conteúdo."
     )
     panels = panels_by_id(dashboard)
-    otel = '{service_name=~"$application"} |~ "$search"'
     docker = (
-        '{job="docker-container",deployment_environment=~"$environment",host_name=~"$host",'
+        '{job=~"$log_source",deployment_environment=~"$environment",host_name=~"$host",'
         'filename=~".*/$container_id/.*",stream=~"$stream"} |~ "$search"'
+    )
+    other = (
+        '{job=~"$log_source",job!="docker-container",deployment_environment=~"$environment",'
+        'host_name=~"$host"} |~ "$search"'
     )
     set_panel(
         panels,
         1,
         [
-            loki_target(f"sum(count_over_time({otel} [$__range]))", "A"),
-            loki_target(f"sum(count_over_time({docker} [$__range]))", "B"),
+            loki_target(f"sum(count_over_time({docker} [$__range]))", "A"),
+            loki_target(f"sum(count_over_time({other} [$__range]))", "B"),
         ],
         datasource=LOKI,
         title="Eventos no período",
@@ -420,8 +428,8 @@ def apply_logs(dashboard: dict[str, object]) -> None:
         panels,
         2,
         [
-            loki_target(f"sum by (service_name) (count_over_time({otel} [$__interval]))", "A", "{{service_name}}"),
-            loki_target(f"sum by (host_name, container_id) (count_over_time({docker} [$__interval]))", "B", "{{host_name}} · {{container_id}}"),
+            loki_target(f"sum by (host_name, filename) (count_over_time({docker} [$__interval]))", "A", "{{host_name}} · {{filename}}"),
+            loki_target(f"sum by (job, host_name) (count_over_time({other} [$__interval]))", "B", "{{job}} · {{host_name}}"),
         ],
         datasource=LOKI,
         title="Volume de logs por aplicação/container",
@@ -430,8 +438,8 @@ def apply_logs(dashboard: dict[str, object]) -> None:
         panels,
         3,
         [
-            loki_target(f"sum(count_over_time({otel} |~ \"(?i)error|exception|fatal\" [$__interval]))", "A"),
-            loki_target(f"sum(count_over_time({docker} |~ \"(?i)error|exception|fatal\" [$__interval]))", "B"),
+            loki_target(f"sum(count_over_time({docker} |~ \"(?i)error|exception|fatal\" [$__interval]))", "A"),
+            loki_target(f"sum(count_over_time({other} |~ \"(?i)error|exception|fatal\" [$__interval]))", "B"),
         ],
         datasource=LOKI,
         title="Erros por intervalo",
@@ -439,7 +447,7 @@ def apply_logs(dashboard: dict[str, object]) -> None:
     set_panel(
         panels,
         4,
-        [loki_target(otel, "A"), loki_target(docker, "B")],
+        [loki_target(docker, "A"), loki_target(other, "B")],
         datasource=LOKI,
         title="Logs filtrados",
         panel_type="logs",
@@ -448,8 +456,8 @@ def apply_logs(dashboard: dict[str, object]) -> None:
         panels,
         5,
         [
-            loki_target(f"sum(count_over_time({otel} |~ \"(?i)error|exception|fatal\" [$__range]))", "A"),
-            loki_target(f"sum(count_over_time({docker} |~ \"(?i)error|exception|fatal\" [$__range]))", "B"),
+            loki_target(f"sum(count_over_time({docker} |~ \"(?i)error|exception|fatal\" [$__range]))", "A"),
+            loki_target(f"sum(count_over_time({other} |~ \"(?i)error|exception|fatal\" [$__range]))", "B"),
         ],
         datasource=LOKI,
         title="Erros no período",

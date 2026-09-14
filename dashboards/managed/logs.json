@@ -40,11 +40,11 @@
       },
       "targets": [
         {
-          "expr": "sum(count_over_time({service_name=~\"$application\"} |~ \"$search\" [$__range]))",
+          "expr": "sum(count_over_time({job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\",stream=~\"$stream\"} |~ \"$search\" [$__range]))",
           "refId": "A"
         },
         {
-          "expr": "sum(count_over_time({job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\",stream=~\"$stream\"} |~ \"$search\" [$__range]))",
+          "expr": "sum(count_over_time({job=~\"$log_source\",job!=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\"} |~ \"$search\" [$__range]))",
           "refId": "B"
         }
       ]
@@ -65,14 +65,14 @@
       },
       "targets": [
         {
-          "expr": "sum by (service_name) (count_over_time({service_name=~\"$application\"} |~ \"$search\" [$__interval]))",
+          "expr": "sum by (host_name, filename) (count_over_time({job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\",stream=~\"$stream\"} |~ \"$search\" [$__interval]))",
           "refId": "A",
-          "legendFormat": "{{service_name}}"
+          "legendFormat": "{{host_name}} · {{filename}}"
         },
         {
-          "expr": "sum by (host_name, container_id) (count_over_time({job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\",stream=~\"$stream\"} |~ \"$search\" [$__interval]))",
+          "expr": "sum by (job, host_name) (count_over_time({job=~\"$log_source\",job!=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\"} |~ \"$search\" [$__interval]))",
           "refId": "B",
-          "legendFormat": "{{host_name}} · {{container_id}}"
+          "legendFormat": "{{job}} · {{host_name}}"
         }
       ]
     },
@@ -92,11 +92,11 @@
       },
       "targets": [
         {
-          "expr": "sum(count_over_time({service_name=~\"$application\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__interval]))",
+          "expr": "sum(count_over_time({job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\",stream=~\"$stream\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__interval]))",
           "refId": "A"
         },
         {
-          "expr": "sum(count_over_time({job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\",stream=~\"$stream\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__interval]))",
+          "expr": "sum(count_over_time({job=~\"$log_source\",job!=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__interval]))",
           "refId": "B"
         }
       ]
@@ -117,11 +117,11 @@
       },
       "targets": [
         {
-          "expr": "{service_name=~\"$application\"} |~ \"$search\"",
+          "expr": "{job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\",stream=~\"$stream\"} |~ \"$search\"",
           "refId": "A"
         },
         {
-          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\",stream=~\"$stream\"} |~ \"$search\"",
+          "expr": "{job=~\"$log_source\",job!=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\"} |~ \"$search\"",
           "refId": "B"
         }
       ]
@@ -142,11 +142,11 @@
       },
       "targets": [
         {
-          "expr": "sum(count_over_time({service_name=~\"$application\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__range]))",
+          "expr": "sum(count_over_time({job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\",stream=~\"$stream\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__range]))",
           "refId": "A"
         },
         {
-          "expr": "sum(count_over_time({job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\",stream=~\"$stream\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__range]))",
+          "expr": "sum(count_over_time({job=~\"$log_source\",job!=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__range]))",
           "refId": "B"
         }
       ]
@@ -162,16 +162,16 @@
   "templating": {
     "list": [
       {
-        "name": "application",
-        "label": "Aplicação OTel",
+        "name": "log_source",
+        "label": "Fonte de logs",
         "type": "query",
         "datasource": {
           "type": "loki",
           "uid": "loki"
         },
         "query": {
-          "query": "label_values({service_name=~\".+\"}, service_name)",
-          "refId": "var-application"
+          "query": "label_values({job=~\".+\"}, job)",
+          "refId": "var-log_source"
         },
         "includeAll": true,
         "allValue": ".+",
@@ -179,8 +179,8 @@
         "refresh": 1,
         "current": {
           "selected": true,
-          "text": "All",
-          "value": "$__all"
+          "text": "docker-container",
+          "value": "docker-container"
         },
         "hide": 0
       },
@@ -320,5 +320,5 @@
   "title": "Logs",
   "uid": "sentinel-logs",
   "version": 3,
-  "description": "Logs pesquisáveis por aplicação OTel ou aplicação/container Docker, ambiente, host, stream e conteúdo."
+  "description": "Logs pesquisáveis por fonte, aplicação/container Docker, ambiente, host, stream e conteúdo."
 }
