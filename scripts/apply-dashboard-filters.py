@@ -519,9 +519,9 @@ def apply_noc(dashboard: dict[str, object]) -> None:
         panel(9, "Top aplicações por erro 5xx", "table", PROMETHEUS,
               [{"expr": 'topk(10, (100 * sum by (job) (rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m])) / clamp_min(sum by (job) (rate(http_server_request_duration_seconds_count[5m])), 0.000001)) > 0)', "format": "table", "instant": True, "refId": "A"}],
               12, 11, 12, 7, "Até 10 aplicações com maior taxa de 5xx; use a dashboard APM para investigar."),
-        panel(10, "Erros recentes de aplicações", "logs", LOKI,
-              [loki_target('{job="docker-container",deployment_environment=~"$environment",host_name=~"$host"} |~ "(?i)error|exception|fatal|panic"')],
-              0, 18, 24, 9, "Somente logs de containers; eventos de kernel permanecem na dashboard Linux."),
+        panel(10, "Volume de erros recentes por host", "timeseries", LOKI,
+              [loki_target('topk(5, sum by (host_name) (count_over_time({job="docker-container",deployment_environment=~"$environment",host_name=~"$host"} |~ "(?i)error|exception|fatal|panic" [$__interval])))', legend="{{host_name}}")],
+              0, 18, 24, 9, "Contagem sem conteúdo sensível. Investigue as linhas na dashboard Logs com acesso restrito."),
     ]
     dashboard["time"] = {"from": "now-1h", "to": "now"}
     dashboard["refresh"] = "30s"

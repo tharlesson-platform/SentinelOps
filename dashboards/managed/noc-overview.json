@@ -589,17 +589,18 @@
     },
     {
       "id": 10,
-      "title": "Erros recentes de aplicações",
-      "type": "logs",
+      "title": "Volume de erros recentes por host",
+      "type": "timeseries",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
       "targets": [
         {
-          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\"} |~ \"(?i)error|exception|fatal|panic\"",
+          "expr": "topk(5, sum by (host_name) (count_over_time({job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\"} |~ \"(?i)error|exception|fatal|panic\" [$__interval])))",
           "refId": "A",
-          "maxLines": 200
+          "legendFormat": "{{host_name}}",
+          "maxDataPoints": 600
         }
       ],
       "gridPos": {
@@ -608,16 +609,63 @@
         "w": 24,
         "h": 9
       },
-      "description": "Somente logs de containers; eventos de kernel permanecem na dashboard Linux.",
+      "description": "Contagem sem conteúdo sensível. Investigue as linhas na dashboard Logs com acesso restrito.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
       "options": {
-        "showTime": true,
-        "showLabels": false,
-        "showCommonLabels": false,
-        "wrapLogMessage": true,
-        "prettifyLogMessage": false,
-        "enableLogDetails": true,
-        "sortOrder": "Descending",
-        "dedupStrategy": "none"
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
       }
     }
   ],

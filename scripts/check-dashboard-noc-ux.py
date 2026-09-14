@@ -134,6 +134,10 @@ def validate(path: Path) -> list[str]:
         http_5xx = noc_panels.get(6, {}).get("fieldConfig", {}).get("defaults", {})
         if http_5xx.get("unit") != "percent":
             errors.append("Taxa HTTP 5xx deve usar unidade percent")
+        if any(panel.get("type") == "logs" for panel in noc_panels.values()):
+            errors.append("landing NOC não deve expor conteúdo bruto potencialmente sensível")
+        if noc_panels.get(10, {}).get("title") != "Volume de erros recentes por host":
+            errors.append("landing NOC deve resumir erros por host sem exibir o payload")
     if path.name in {"apm.json", "application-overview.json"}:
         apm_panels = {panel.get("id"): panel for panel in dashboard.get("panels", [])}
         expected_units = {
