@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, Box, Boxes, ChevronRight, Container, Cpu, Database, FileText, Gauge, MemoryStick, Network, Search, Server, TriangleAlert, Waves } from 'lucide-react'
+import { Activity, Box, Boxes, ChevronRight, Container, Cpu, Database, FileText, Gauge, MemoryStick, Search, TriangleAlert, Waves } from 'lucide-react'
 import { API, APMService, ContainerDetails, ContainerSummary, HostDetails, HostSummary, LogEntry, SourceStatus, TelemetrySeries, TraceSummary } from './api'
 
 export type ObservabilityPage = 'hosts' | 'docker' | 'logs' | 'metrics' | 'apm' | 'traces' | 'profiles'
