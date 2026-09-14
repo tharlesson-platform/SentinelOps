@@ -381,7 +381,7 @@
     },
     {
       "type": "traces",
-      "title": "APM — traces distribuídos",
+      "title": "APM — traces por aplicação e host",
       "description": "Traces OpenTelemetry por namespace do host.",
       "id": 14,
       "gridPos": {
@@ -396,7 +396,7 @@
       },
       "targets": [
         {
-          "query": "{ resource.service.namespace =~ \"$host\" && resource.service.name =~ \"$application\" && span.http.route =~ \"$route\" }",
+          "query": "{ resource.service.namespace =~ \"$host\" && resource.service.name =~ \"$application\" }",
           "queryType": "traceql",
           "refId": "A"
         }

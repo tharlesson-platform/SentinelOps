@@ -278,8 +278,9 @@ def apply_application(dashboard: dict[str, object]) -> None:
         set_panel(
             panels,
             5,
-            [trace_target('{ resource.service.name =~ "$application" && span.http.route =~ "$route" }')],
+            [trace_target('{ resource.service.name =~ "$application" }')],
             datasource=TEMPO,
+            title="Traces da aplicação selecionada",
         )
         return
 
@@ -327,8 +328,9 @@ def apply_application(dashboard: dict[str, object]) -> None:
     set_panel(
         panels,
         10,
-        [trace_target('{ resource.service.name =~ "$application" && span.http.route =~ "$route" }')],
+        [trace_target('{ resource.service.name =~ "$application" }')],
         datasource=TEMPO,
+        title="Traces da aplicação selecionada",
     )
     set_panel(
         panels,
@@ -762,8 +764,9 @@ def apply_tqi(dashboard: dict[str, object]) -> None:
     set_panel(
         panels,
         14,
-        [trace_target('{ resource.service.namespace =~ "$host" && resource.service.name =~ "$application" && span.http.route =~ "$route" }')],
+        [trace_target('{ resource.service.namespace =~ "$host" && resource.service.name =~ "$application" }')],
         datasource=TEMPO,
+        title="APM — traces por aplicação e host",
     )
     set_panel(
         panels,

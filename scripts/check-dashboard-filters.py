@@ -94,6 +94,14 @@ def validate(path: Path) -> list[str]:
             errors.append(f"{path}: filtro de rotas não limita cardinalidade")
         if any(variable.get("allValue") for variable in route_variables):
             errors.append(f"{path}: All de rotas ignora o conjunto top-200")
+        trace_queries = [
+            target.get("query", "")
+            for panel in dashboard.get("panels", [])
+            for target in panel.get("targets", [])
+            if target.get("queryType") == "traceql"
+        ]
+        if any("$route" in query for query in trace_queries):
+            errors.append(f"{path}: TraceQL recebe expansão excessiva do top-200 de rotas")
     if path.name in CONTAINER_DASHBOARDS and "container" not in declared:
         errors.append(f"{path}: dashboard Docker/log sem filtro de aplicação/container")
     if path.name == "logs.json" and not {"log_source", "container_id", "stream", "search"}.issubset(declared):

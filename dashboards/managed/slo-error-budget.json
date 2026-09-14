@@ -116,7 +116,7 @@
     },
     {
       "type": "traces",
-      "title": "Traços distribuídos",
+      "title": "Traces da aplicação selecionada",
       "id": 5,
       "gridPos": {
         "h": 9,
@@ -130,7 +130,7 @@
       },
       "targets": [
         {
-          "query": "{ resource.service.name =~ \"$application\" && span.http.route =~ \"$route\" }",
+          "query": "{ resource.service.name =~ \"$application\" }",
           "queryType": "traceql",
           "refId": "A"
         }
