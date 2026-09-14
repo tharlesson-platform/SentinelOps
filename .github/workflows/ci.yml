@@ -73,8 +73,10 @@ jobs:
           digest=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           helm template sentinelops deploy/helm/sentinelops -f deploy/helm/sentinelops/values-small-production.yaml \
             --set global.oidcIssuerURL=https://id.example.com/realms/platform \
+            --set global.oidcAPIAudience=api://sentinelops \
             --set global.allowedOrigin=https://sentinelops.example.com \
             --set 'global.releaseValidationAllowedHosts[0]=api.example.internal' \
+            --set 'global.syntheticAllowedTargets[0]=api.example.internal@10.30.0.0/24' \
             --set global.prometheusURL=https://prometheus.observability.svc \
             --set global.lokiURL=https://loki.observability.svc \
             --set global.tempoURL=https://tempo.observability.svc \
@@ -120,8 +122,10 @@ jobs:
           global:
             requireImageDigests: true
             oidcIssuerURL: https://id.example.com/realms/platform
+            oidcAPIAudience: api://sentinelops
             allowedOrigin: https://sentinelops.example.com
             releaseValidationAllowedHosts: [api.example.internal]
+            syntheticAllowedTargets: [api.example.internal@10.30.0.0/24]
             prometheusURL: https://prometheus.observability.svc
             lokiURL: https://loki.observability.svc
             tempoURL: https://tempo.observability.svc
