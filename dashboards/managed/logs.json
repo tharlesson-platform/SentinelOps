@@ -164,25 +164,17 @@
       {
         "name": "log_source",
         "label": "Fonte de logs",
-        "type": "query",
-        "datasource": {
-          "type": "loki",
-          "uid": "loki"
-        },
-        "query": {
-          "query": "label_values({job=~\".+\"}, job)",
-          "refId": "var-log_source"
-        },
+        "type": "custom",
+        "query": "Aplicações Docker : docker-container,Sistema Linux : linux-system",
         "includeAll": true,
         "allValue": ".+",
         "multi": true,
-        "refresh": 1,
         "current": {
           "selected": true,
-          "text": "docker-container",
+          "text": "Aplicações Docker",
           "value": "docker-container"
         },
-        "hide": 0
+        "options": []
       },
       {
         "name": "environment",

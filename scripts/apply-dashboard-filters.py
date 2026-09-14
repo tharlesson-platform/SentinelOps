@@ -95,6 +95,32 @@ def textbox_variable(name: str, label: str) -> dict[str, object]:
     }
 
 
+def custom_variable(
+    name: str,
+    label: str,
+    values: str,
+    *,
+    current_text: str,
+    current_value: str,
+    all_value: str = ".+",
+) -> dict[str, object]:
+    return {
+        "name": name,
+        "label": label,
+        "type": "custom",
+        "query": values,
+        "includeAll": True,
+        "allValue": all_value,
+        "multi": True,
+        "current": {
+            "selected": True,
+            "text": current_text,
+            "value": current_value,
+        },
+        "options": [],
+    }
+
+
 def prometheus_target(expr: str, ref_id: str = "A", legend: str | None = None) -> dict[str, object]:
     target: dict[str, object] = {"expr": expr, "refId": ref_id}
     if legend:
@@ -377,20 +403,13 @@ def apply_synthetic(dashboard: dict[str, object]) -> None:
 
 def apply_logs(dashboard: dict[str, object]) -> None:
     variables = infrastructure_variables()
-    log_source = query_variable(
+    log_source = custom_variable(
         "log_source",
         "Fonte de logs",
-        LOKI,
-        'label_values({job=~".+"}, job)',
-        all_value=".+",
+        "Aplicações Docker : docker-container,Sistema Linux : linux-system",
+        current_text="Aplicações Docker",
+        current_value="docker-container",
     )
-    # O foco operacional padrão é a aplicação/container. As demais fontes
-    # continuam disponíveis no seletor, inclusive a opção All.
-    log_source["current"] = {
-        "selected": True,
-        "text": "docker-container",
-        "value": "docker-container",
-    }
     variables.insert(0, log_source)
     variables.append(
         query_variable(
