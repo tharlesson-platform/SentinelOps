@@ -23,7 +23,7 @@ import (
 	"github.com/sentinelops/sentinelops/internal/events"
 )
 
-const webhookTestSecret = "0123456789abcdef0123456789abcdef"
+var webhookTestSecret = strings.Repeat("test-only-", 4)
 
 func TestPostgresSignedWebhookIsDeliveredAndReplayedBySSE(t *testing.T) {
 	migrationURL, runtimeURL := os.Getenv("SENTINELOPS_TEST_DATABASE_MIGRATION_URL"), os.Getenv("SENTINELOPS_TEST_DATABASE_URL")
