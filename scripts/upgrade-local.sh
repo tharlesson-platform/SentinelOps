@@ -12,7 +12,7 @@ MANIFEST=""
 CONFIRM=""
 SIMULATE_FAILURE=false
 PROJECT_NAME=sentinelops
-SERVICES="api worker agent web demo-api"
+SERVICES="api worker agent web"
 
 usage() {
   cat <<'EOF'

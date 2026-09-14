@@ -12,30 +12,16 @@ x-app-env: &app-env
     ALLOWED_ORIGIN: http://localhost:3000
     MTLS_PROXY_SHARED_SECRET: ${MTLS_PROXY_SHARED_SECRET:-local-development-mtls-proxy-secret}
     OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
+    PROMETHEUS_URL: http://prometheus:9090
+    LOKI_URL: http://loki:3100
+    TEMPO_URL: http://tempo:3200
+    PYROSCOPE_URL: http://pyroscope:4040
 
 x-security: &security
   security_opt:
     - no-new-privileges:true
   cap_drop:
     - ALL
-
-x-demo-service: &demo-service
-  image: ${SENTINEL_DEMO_IMAGE:-sentinelops-demo-api:0.2.0-local}
-  build:
-    context: ../..
-    dockerfile: Dockerfile.demo
-  <<: *security
-  networks: [telemetry, control]
-  read_only: true
-  tmpfs: [/tmp]
-  restart: unless-stopped
-
-x-demo-env: &demo-env
-  SERVICE_VERSION: 1.1.0
-  DEPLOYMENT_ENVIRONMENT: local-demo
-  SERVICE_TEAM: platform
-  SERVICE_OWNER: sentinelops
-  OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
 
 services:
   local-scope-guard:
@@ -131,12 +117,12 @@ services:
       temporal:
         condition: service_healthy
     ports:
-      - "127.0.0.1:8088:8080"
+      - "${SENTINEL_TEMPORAL_UI_BIND_ADDRESS:-127.0.0.1}:8088:8080"
     networks: [control]
     restart: unless-stopped
 
   minio:
-    image: mirror.gcr.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
     command: server /data --console-address :9001
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -155,7 +141,7 @@ services:
     restart: unless-stopped
 
   minio-init:
-    image: mirror.gcr.io/minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
     entrypoint: ["/bin/sh", "-ec"]
     command: ["mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD && mc mb --ignore-existing local/sentinel-artifacts && mc anonymous set none local/sentinel-artifacts"]
     environment:
@@ -182,8 +168,6 @@ services:
       interval: 5s
       timeout: 3s
       retries: 30
-    ports:
-      - "127.0.0.1:8080:8080"
     networks: [control, telemetry]
     read_only: true
     tmpfs: [/tmp]
@@ -206,16 +190,17 @@ services:
       SENTINEL_ENV: development
       JWT_SECRET: ${JWT_SECRET}
       LOCAL_ADMIN_PASSWORD_HASH: ${LOCAL_ADMIN_PASSWORD_HASH}
-      DEMO_BASE_URL: http://demo-api:8090
-      SYNTHETIC_ALLOWED_HOSTS: demo-api
-      RELEASE_VALIDATION_ALLOWED_HOSTS: demo-api
+      # hostname@CIDR: a private target is reachable only when both values
+      # match. Production must configure at least one explicit site entry.
+      SYNTHETIC_ALLOWED_TARGETS: ${SYNTHETIC_ALLOWED_TARGETS:?SYNTHETIC_ALLOWED_TARGETS is required}
+      RELEASE_VALIDATION_ALLOWED_HOSTS: ${RELEASE_VALIDATION_ALLOWED_HOSTS:?RELEASE_VALIDATION_ALLOWED_HOSTS is required}
+      RELEASE_VALIDATION_BASE_URL: ${RELEASE_VALIDATION_BASE_URL:?RELEASE_VALIDATION_BASE_URL is required}
       PROMETHEUS_URL: http://prometheus:9090
       LOKI_URL: http://loki:3100
       TEMPO_URL: http://tempo:3200
     depends_on:
       api: { condition: service_healthy }
       temporal: { condition: service_healthy }
-      demo-api: { condition: service_healthy }
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8081/readyz"]
       interval: 5s
@@ -280,73 +265,6 @@ services:
       - /var/run:uid=101,gid=101,mode=0755
     restart: unless-stopped
 
-  demo-api:
-    <<: *demo-service
-    environment:
-      <<: *demo-env
-      SERVICE_NAME: sentinel-demo-api
-      SERVICE_ROLE: storefront
-      DEMO_DOWNSTREAM_URL: http://demo-orders:8090/api/orders
-    ports:
-      - "127.0.0.1:8090:8090"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8090/ready"]
-      interval: 5s
-      timeout: 3s
-      retries: 30
-    depends_on:
-      demo-orders: { condition: service_healthy }
-
-  demo-orders:
-    <<: *demo-service
-    environment:
-      <<: *demo-env
-      SERVICE_NAME: sentinel-demo-orders
-      SERVICE_ROLE: orders
-      DEMO_DOWNSTREAM_URL: http://demo-payments:8090/api/payments
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8090/ready"]
-      interval: 5s
-      timeout: 3s
-      retries: 30
-    depends_on:
-      demo-payments: { condition: service_healthy }
-
-  demo-payments:
-    <<: *demo-service
-    environment:
-      <<: *demo-env
-      SERVICE_NAME: sentinel-demo-payments
-      SERVICE_ROLE: payments
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8090/ready"]
-      interval: 5s
-      timeout: 3s
-      retries: 30
-
-  demo-linux-host:
-    <<: *demo-service
-    environment:
-      <<: *demo-env
-      SERVICE_NAME: sentinel-demo-linux
-      SERVICE_ROLE: linux-host
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8090/ready"]
-      interval: 5s
-      timeout: 3s
-      retries: 30
-
-  demo-traffic:
-    <<: *demo-service
-    environment:
-      <<: *demo-env
-      SERVICE_NAME: sentinel-demo-traffic
-      SERVICE_ROLE: traffic-generator
-      DEMO_TRAFFIC_TARGET: http://demo-api:8090/api/checkout
-      DEMO_TRAFFIC_INTERVAL: 2s
-    depends_on:
-      demo-api: { condition: service_healthy }
-
   prometheus:
     image: mirror.gcr.io/prom/prometheus:v3.13.2@sha256:508729e0e2d18e11fd742a5a5ca70e557b940a93948c3c95fd0123a6fd538b69
     command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus", "--storage.tsdb.retention.time=7d", "--web.enable-remote-write-receiver", "--web.enable-otlp-receiver", "--enable-feature=exemplar-storage", "--enable-feature=native-histograms"]
@@ -357,6 +275,68 @@ services:
     ports:
       - "${SENTINEL_PROMETHEUS_BIND_ADDRESS:-127.0.0.1}:9090:9090"
     networks: [telemetry]
+    restart: unless-stopped
+
+  vmware-exporter:
+    image: ${SENTINEL_VMWARE_EXPORTER_IMAGE:-sentinelops-vmware-exporter:0.1.0-local}
+    build:
+      context: ../..
+      dockerfile: Dockerfile.app
+      args: { APP: vmwareexporter }
+    profiles: [vmware]
+    environment:
+      VMWARE_ENDPOINT: ${VMWARE_ENDPOINT:-}
+      VMWARE_USERNAME: ${VMWARE_USERNAME:-}
+      VMWARE_PASSWORD_FILE: /run/sentinelops/vmware-password
+      VMWARE_TLS_THUMBPRINT: ${VMWARE_TLS_THUMBPRINT:-}
+      VMWARE_SCRAPE_INTERVAL: ${VMWARE_SCRAPE_INTERVAL:-60s}
+      VMWARE_EXPORTER_ADDRESS: 0.0.0.0:9472
+      VMWARE_ALLOW_CONTAINER_BIND: "true"
+    volumes:
+      - ${SENTINEL_VMWARE_PASSWORD_FILE:-/dev/null}:/run/sentinelops/vmware-password:ro
+    ports:
+      - "127.0.0.1:9472:9472"
+    networks: [telemetry]
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9472/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+    <<: *security
+    restart: unless-stopped
+
+  postgres-exporter:
+    image: ${SENTINEL_POSTGRES_EXPORTER_IMAGE:-sentinelops-postgres-exporter:0.1.0-local}
+    build:
+      context: ../..
+      dockerfile: Dockerfile.app
+      args: { APP: postgresexporter }
+    profiles: [database-monitor]
+    environment:
+      POSTGRES_MONITOR_DSN_FILE: /run/sentinelops/postgres-monitor.dsn
+      POSTGRES_EXPORTER_ADDRESS: 0.0.0.0:9187
+      POSTGRES_ALLOW_CONTAINER_BIND: "true"
+      POSTGRES_SCRAPE_INTERVAL: ${POSTGRES_SCRAPE_INTERVAL:-30s}
+      POSTGRES_MONITOR_ASSET_ID: ${POSTGRES_MONITOR_ASSET_ID:-}
+      POSTGRES_MONITOR_TEAM: ${POSTGRES_MONITOR_TEAM:-}
+      POSTGRES_MONITOR_ENVIRONMENT: ${POSTGRES_MONITOR_ENVIRONMENT:-}
+    volumes:
+      - ${SENTINEL_POSTGRES_MONITOR_DSN_FILE:-/dev/null}:/run/sentinelops/postgres-monitor.dsn:ro
+    ports:
+      - "127.0.0.1:${SENTINEL_POSTGRES_EXPORTER_PORT:-9187}:9187"
+    networks: [telemetry, control]
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9187/-/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+    <<: *security
     restart: unless-stopped
 
   loki-init:
@@ -392,7 +372,7 @@ services:
       - ../tempo/tempo.yaml:/etc/tempo/tempo.yaml:ro
       - tempo-data:/var/tempo
     ports:
-      - "127.0.0.1:3200:3200"
+      - "${SENTINEL_TEMPO_BIND_ADDRESS:-127.0.0.1}:3200:3200"
     networks: [telemetry]
     restart: unless-stopped
 
@@ -402,7 +382,7 @@ services:
     volumes:
       - pyroscope-data:/data
     ports:
-      - "127.0.0.1:4040:4040"
+      - "${SENTINEL_PYROSCOPE_BIND_ADDRESS:-127.0.0.1}:4040:4040"
     networks: [telemetry]
     restart: unless-stopped
 
@@ -491,6 +471,7 @@ services:
       - gateway-certs:/certs:ro
     ports:
       - "${SENTINEL_INGEST_BIND_ADDRESS:-127.0.0.1}:${SENTINEL_INGEST_HTTPS_PORT:-8443}:8443"
+      - "127.0.0.1:${SENTINEL_QUERY_GATEWAY_PORT:-8444}:8444"
       - "${SENTINEL_INGEST_BIND_ADDRESS:-127.0.0.1}:${SENTINEL_INGEST_GRPC_PORT:-44317}:4317"
     depends_on:
       ingest-gateway-init: { condition: service_completed_successfully }
@@ -522,7 +503,7 @@ services:
       - ../grafana/provisioning:/etc/grafana/provisioning:ro
       - ../../dashboards/managed:/var/lib/grafana/dashboards:ro
     ports:
-      - "127.0.0.1:3001:3000"
+      - "${SENTINEL_GRAFANA_BIND_ADDRESS:-127.0.0.1}:3001:3000"
     depends_on:
       prometheus: { condition: service_started }
       loki: { condition: service_started }
@@ -538,7 +519,7 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
     ports:
-      - "127.0.0.1:8081:8080"
+      - "${SENTINEL_KEYCLOAK_BIND_ADDRESS:-127.0.0.1}:8081:8080"
     networks: [control]
     restart: unless-stopped
 
@@ -574,12 +555,12 @@ services:
   k6:
     image: mirror.gcr.io/grafana/k6:2.2.0@sha256:9bd01d6941fca969cb61bb57d2da5ee9b385fe2aa8881df3798c196564d6ace6
     command: ["run", "/tests/smoke.js"]
-    environment: { DEMO_URL: "http://demo-api:8090" }
+    environment: { SENTINELOPS_API_URL: "http://api:8080" }
     volumes:
       - ../../tests/k6:/tests:ro
       - ../../artifacts/k6:/artifacts
     depends_on:
-      demo-api: { condition: service_healthy }
+      api: { condition: service_healthy }
     networks: [control, telemetry]
     profiles: [test]
     <<: *security

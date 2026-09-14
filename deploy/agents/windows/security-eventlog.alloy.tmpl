@@ -1,0 +1,17 @@
+loki.source.windowsevent "security" {
+  eventlog_name          = "Security"
+  bookmark_path          = "C:/ProgramData/SentinelOps/Alloy/bookmarks/security.xml"
+  exclude_event_data     = true
+  exclude_event_message  = true
+  exclude_user_data      = true
+  use_incoming_timestamp = true
+  labels = {
+    job                    = "windows-eventlog",
+    event_log              = "Security",
+    host_name              = "__HOST_NAME__",
+    deployment_environment = "__ENVIRONMENT__",
+    team                   = "__TEAM__",
+    location               = "__LOCATION__",
+  }
+  forward_to = [loki.process.redact_windows_events.receiver]
+}

@@ -1,7 +1,7 @@
 # Instalação faseada em servidor Linux
 
 Para o fluxo único do zero ao ambiente funcional, incluindo Docker, PKI,
-migrações, mocks e provas, consulte
+migrações e provas com fontes reais, consulte
 [Bootstrap Linux do zero](bootstrap-zero-to-running.md) e execute
 sudo ./bootstrap-linux.sh.
 
@@ -72,7 +72,6 @@ Cada fase é idempotente e pode ser repetida após correção do problema.
 ./scripts/install-linux-server.sh --phase runtime
 ./scripts/install-linux-server.sh --phase configure
 ./scripts/install-linux-server.sh --phase deploy
-./scripts/install-linux-server.sh --phase seed
 ./scripts/install-linux-server.sh --phase verify
 ```
 
@@ -112,7 +111,6 @@ somente dos coletores e publique a Web por um reverse proxy TLS corporativo.
 | `runtime` | opcionalmente instala pacotes | Docker e Compose respondem |
 | `configure` | gera `.env`, CA criptografada, certificado e dashboards | secrets 0600 e PKI validada |
 | `deploy` | build, lock SHA256 e `compose --profile secure-ingest` com API/worker duplicados | configuração Compose válida e imagens próprias imutáveis |
-| `seed` | catálogo e cenário demo idempotentes | dados iniciais registrados |
 | `verify` | consultas HTTP/readiness | API, Web e backends ready |
 | `service` | unit systemd, quando disponível | serviço habilitado no boot |
 
@@ -130,18 +128,14 @@ make credentials
 ```
 
 Antes de uso compartilhado, troque autenticação local por OIDC validado, ajuste
-`ALLOWED_ORIGIN`, use TLS e remova Keycloak/Mailpit/demo do perfil publicado.
+`ALLOWED_ORIGIN`, use TLS e remova Keycloak/Mailpit do perfil publicado.
 
 ## Prova funcional pós-deploy
 
 ```bash
 make doctor
-make seed
-make prove-local
+make prove-dashboards
 make prove-ha
-make prove-resilience
-./scripts/prove-gates.sh
-./scripts/prove-observational-gates.sh
 ./scripts/prove-secure-agent.sh # após emitir um certificado de prova
 docker compose --env-file .env -f deploy/compose/docker-compose.yml --profile secure-ingest ps
 ```
@@ -150,11 +144,9 @@ Critérios mínimos de aceite do single-node:
 
 - todos os serviços persistentes `running` e health checks verdes;
 - API `/readyz`, Web `/healthz` e backends respondendo;
-- seed repetido sem duplicação;
-- release saudável `PASS`, política ausente `INCONCLUSIVE` e limite excedido `FAIL`;
 - cliente sem certificado recusado, token de agente não reutilizável e fingerprint/tenant vinculados;
-- os três mocks localizados e correlacionados em Prometheus, Loki, Tempo e
-  Pyroscope, com evidência JSON emitida por `make prove-local`;
+- hosts e aplicações reais visíveis em Prometheus, Loki e Tempo, com ausências
+  apresentadas como `Sem dados`;
 - uma réplica de API pode ser interrompida e restaurada por `make prove-ha`,
   sem confundir essa tolerância de processo com HA contra perda do host;
 - cold start do Pyroscope respeita o orçamento de 240 segundos e o guard de

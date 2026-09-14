@@ -1,28 +1,819 @@
 {
-  "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": true, "hide": true, "name": "Deployments", "type": "dashboard"}]},
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "name": "Deployments",
+        "type": "dashboard"
+      }
+    ]
+  },
   "editable": false,
   "graphTooltip": 1,
-  "links": [{"title": "SentinelOps", "type": "link", "url": "http://localhost:3000"}],
+  "links": [
+    {
+      "title": "SentinelOps",
+      "type": "link",
+      "url": "http://localhost:3000"
+    }
+  ],
   "panels": [
-    {"type":"stat","title":"Telemetria ativa","id":1,"gridPos":{"h":4,"w":4,"x":0,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum(up{job=\"sentinel-demo-apps\",service_name=~\"$service\"}) or clamp_max(count(sentinelops_apm_bootstrap{job=~\"$service\"} or http_server_request_duration_seconds_count{job=~\"$service\"}), 1)","refId":"A"}]},
-    {"type":"stat","title":"Requests/s","id":2,"gridPos":{"h":4,"w":4,"x":4,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum(rate(demo_pipeline_requests_total{service=~\"$service\"}[5m])) or sum(rate(http_server_request_duration_seconds_count{job=~\"$service\"}[5m]))","refId":"A"}]},
-    {"type":"stat","title":"Taxa de erro","id":3,"gridPos":{"h":4,"w":4,"x":8,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum(rate(demo_pipeline_requests_total{service=~\"$service\",status=~\"5..\"}[5m])) / clamp_min(sum(rate(demo_pipeline_requests_total{service=~\"$service\"}[5m])), 0.000001) * 100 or sum(rate(http_server_request_duration_seconds_count{job=~\"$service\",http_response_status_code=~\"5..\"}[5m])) / clamp_min(sum(rate(http_server_request_duration_seconds_count{job=~\"$service\"}[5m])), 0.000001) * 100","refId":"A"}]},
-    {"type":"stat","title":"Latência p95","id":4,"gridPos":{"h":4,"w":4,"x":12,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"histogram_quantile(0.95, sum by (le) (rate(demo_pipeline_request_duration_seconds_bucket{service=~\"$service\"}[5m]))) or histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{job=~\"$service\"}[5m])))","refId":"A"}]},
-    {"type":"stat","title":"Erros downstream/s","id":5,"gridPos":{"h":4,"w":4,"x":16,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum(rate(demo_pipeline_downstream_errors_total{service=~\"$service\"}[5m]))","refId":"A"}]},
-    {"type":"stat","title":"SLO disponibilidade","id":6,"gridPos":{"h":4,"w":4,"x":20,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"1 - sum(rate(demo_pipeline_requests_total{service=~\"$service\",status=~\"5..\"}[30m])) / clamp_min(sum(rate(demo_pipeline_requests_total{service=~\"$service\"}[30m])), 0.000001) or 1 - sum(rate(http_server_request_duration_seconds_count{job=~\"$service\",http_response_status_code=~\"5..\"}[30m])) / clamp_min(sum(rate(http_server_request_duration_seconds_count{job=~\"$service\"}[30m])), 0.000001)","refId":"A"}]},
-    {"type":"timeseries","title":"RED - volume por serviço e rota","id":7,"gridPos":{"h":8,"w":12,"x":0,"y":4},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum by (service,route) (rate(demo_pipeline_requests_total{service=~\"$service\"}[5m]))","legendFormat":"{{service}} · {{route}}","refId":"A"},{"expr":"sum by (job,http_route) (rate(http_server_request_duration_seconds_count{job=~\"$service\"}[5m]))","legendFormat":"{{job}} · {{http_route}}","refId":"B"}]},
-    {"type":"timeseries","title":"RED - latência p50/p95/p99","id":8,"gridPos":{"h":8,"w":12,"x":12,"y":4},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"histogram_quantile(0.50, sum by (le,service) (rate(demo_pipeline_request_duration_seconds_bucket{service=~\"$service\"}[5m])))","legendFormat":"{{service}} p50","refId":"A"},{"expr":"histogram_quantile(0.95, sum by (le,service) (rate(demo_pipeline_request_duration_seconds_bucket{service=~\"$service\"}[5m])))","legendFormat":"{{service}} p95","refId":"B"},{"expr":"histogram_quantile(0.99, sum by (le,service) (rate(demo_pipeline_request_duration_seconds_bucket{service=~\"$service\"}[5m])))","legendFormat":"{{service}} p99","refId":"C"},{"expr":"histogram_quantile(0.95, sum by (le,job) (rate(http_server_request_duration_seconds_bucket{job=~\"$service\"}[5m])))","legendFormat":"{{job}} p95 OTel","refId":"D"}]},
-    {"type":"logs","title":"Logs da aplicação","id":9,"gridPos":{"h":9,"w":12,"x":0,"y":12},"datasource":{"type":"loki","uid":"loki"},"targets":[{"expr":"{service_name=~\"$service\"}","refId":"A"}]},
-    {"type":"traces","title":"Traces distribuídos","id":10,"gridPos":{"h":9,"w":12,"x":12,"y":12},"datasource":{"type":"tempo","uid":"tempo"},"targets":[{"query":"{ resource.service.name =~ \"$service\" }","queryType":"traceql","refId":"A"}]},
-    {"type":"timeseries","title":"CPU profiles","id":11,"gridPos":{"h":9,"w":24,"x":0,"y":21},"datasource":{"type":"grafana-pyroscope-datasource","uid":"pyroscope"},"targets":[{"queryType":"profile","profileTypeId":"process_cpu:cpu:nanoseconds:cpu:nanoseconds","labelSelector":"{service_name=~\"$service\"}","refId":"A"}]}
+    {
+      "type": "stat",
+      "title": "Aplicações selecionadas com métricas",
+      "id": 1,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "count(count by (job) (http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route=~\"$route\"}))",
+          "refId": "A"
+        }
+      ],
+      "description": "Aplicações selecionadas com métricas. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Requisições por segundo",
+      "id": 2,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route=~\"$route\"}[5m]))",
+          "refId": "A"
+        }
+      ],
+      "description": "Requisições por segundo. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "decimals": 2,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Latência p95",
+      "id": 3,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{job=~\"(.*/)?$application\",http_route=~\"$route\"}[5m])))",
+          "refId": "A"
+        }
+      ],
+      "description": "Latência p95. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 3,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Logs da aplicação nos últimos 5 minutos",
+      "id": 4,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 0
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "expr": "sum(count_over_time({job=\"docker-container\",filename=~\".*/(${container_id:regex})/.*\",host_name=~\"$host\",deployment_environment=~\"$environment\"} [5m]))",
+          "refId": "A"
+        }
+      ],
+      "description": "Logs da aplicação nos últimos 5 minutos. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Erros HTTP 5xx por segundo",
+      "id": 5,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route=~\"$route\",http_response_status_code=~\"5..\"}[5m]))",
+          "refId": "A"
+        }
+      ],
+      "description": "Erros HTTP 5xx. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "decimals": 2,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
+    },
+    {
+      "type": "stat",
+      "title": "SLO de disponibilidade",
+      "id": 6,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "1 - sum(rate(http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route=~\"$route\",http_response_status_code=~\"5..\"}[30m])) / clamp_min(sum(rate(http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route=~\"$route\"}[30m])), 0.000001)",
+          "refId": "A"
+        }
+      ],
+      "description": "SLO de disponibilidade. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.99
+              },
+              {
+                "color": "green",
+                "value": 0.999
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "RED - volume por serviço e rota",
+      "id": 7,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "topk(10, (sum by (job, http_route) (rate(http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route=~\"$route\"}[5m]))) > 0)",
+          "refId": "A",
+          "legendFormat": "{{job}} · {{http_route}}",
+          "maxDataPoints": 600
+        }
+      ],
+      "description": "RED - volume por serviço e rota. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "RED - latência p50/p95/p99",
+      "id": 8,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le, job) (rate(http_server_request_duration_seconds_bucket{job=~\"(.*/)?$application\",http_route=~\"$route\"}[5m])))",
+          "refId": "A",
+          "legendFormat": "p50 · {{job}}",
+          "maxDataPoints": 600
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, job) (rate(http_server_request_duration_seconds_bucket{job=~\"(.*/)?$application\",http_route=~\"$route\"}[5m])))",
+          "refId": "B",
+          "legendFormat": "p95 · {{job}}",
+          "maxDataPoints": 600
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, job) (rate(http_server_request_duration_seconds_bucket{job=~\"(.*/)?$application\",http_route=~\"$route\"}[5m])))",
+          "refId": "C",
+          "legendFormat": "p99 · {{job}}",
+          "maxDataPoints": 600
+        }
+      ],
+      "description": "RED - latência p50/p95/p99. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 3,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
+    },
+    {
+      "type": "logs",
+      "title": "Logs da aplicação selecionada",
+      "id": 9,
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "expr": "{job=\"docker-container\",filename=~\".*/(${container_id:regex})/.*\",host_name=~\"$host\",deployment_environment=~\"$environment\"}",
+          "refId": "A",
+          "maxLines": 200
+        }
+      ],
+      "description": "Logs da aplicação selecionada. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
+    },
+    {
+      "type": "traces",
+      "title": "Traces da aplicação selecionada",
+      "id": 10,
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "targets": [
+        {
+          "query": "{ resource.service.name =~ \"$application\" }",
+          "queryType": "traceql",
+          "refId": "A"
+        }
+      ],
+      "description": "Traces da aplicação selecionada. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados."
+    },
+    {
+      "type": "stat",
+      "title": "Profiling: agente real disponível",
+      "id": 11,
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "max(up{job=\"sentinel-pyroscope-agent\"})",
+          "refId": "A"
+        }
+      ],
+      "description": "Profiling: agente real disponível. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
+    }
   ],
   "refresh": "15s",
   "schemaVersion": 42,
-  "tags": ["sentinelops", "managed", "application"],
-  "templating": {"list": [{"name":"service","label":"Aplicação","type":"query","datasource":{"type":"prometheus","uid":"prometheus"},"query":{"query":"query_result(count by (service) (demo_pipeline_requests_total) or label_replace(count by (job) (sentinelops_apm_bootstrap{job!=\"alloy\"} or http_server_request_duration_seconds_count{job!=\"alloy\"}), \"service\", \"$1\", \"job\", \"(.*)\"))","refId":"service"},"regex":"/service=\"([^\"]+)\"/","includeAll":true,"allValue":".*","refresh":1}]},
-  "time": {"from": "now-30m", "to": "now"},
+  "tags": [
+    "application",
+    "managed",
+    "noc-ready",
+    "sentinelops"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "application",
+        "label": "Aplicação APM (service.name)",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(http_server_request_duration_seconds_count, job)",
+          "refId": "var-application"
+        },
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "route",
+        "label": "Rota APM (regex; padrão: todas)",
+        "type": "textbox",
+        "query": ".*",
+        "current": {
+          "selected": true,
+          "text": ".*",
+          "value": ".*"
+        }
+      },
+      {
+        "name": "environment",
+        "label": "Ambiente",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(up{job=\"linux-node\"}, deployment_environment)",
+          "refId": "var-environment"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": false,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "production",
+          "value": "production"
+        },
+        "hide": 0
+      },
+      {
+        "name": "host",
+        "label": "Host (logs/containers)",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(node_uname_info{deployment_environment=~\"$environment\"}, instance)",
+          "refId": "var-host"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "container",
+        "label": "Container Docker",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\"}, name)",
+          "refId": "var-container"
+        },
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "container_id",
+        "label": "Container ID",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\"}, id)",
+          "refId": "var-container_id"
+        },
+        "includeAll": true,
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 2,
+        "regex": "/.*(?:\\/|docker-)([a-f0-9]{64})(?:\\.scope)?$/"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
   "timezone": "browser",
   "title": "Application Overview",
   "uid": "sentinel-application-overview",
-  "version": 2
+  "version": 3,
+  "description": "Telemetria real com filtros encadeados de aplicação, rota, ambiente, host e container."
 }

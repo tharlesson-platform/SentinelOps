@@ -65,14 +65,17 @@ func (m *Manager) ParseAuthorization(_ context.Context, value string) (Claims, e
 	return *claims, nil
 }
 
-type OIDCAuthenticator struct{ verifier *oidc.IDTokenVerifier }
+type OIDCAuthenticator struct {
+	verifier      *oidc.IDTokenVerifier
+	requiredScope string
+}
 
-func NewOIDC(ctx context.Context, issuer, clientID string) (*OIDCAuthenticator, error) {
+func NewOIDC(ctx context.Context, issuer, audience, requiredScope string) (*OIDCAuthenticator, error) {
 	provider, err := oidc.NewProvider(ctx, issuer)
 	if err != nil {
 		return nil, err
 	}
-	return &OIDCAuthenticator{verifier: provider.Verifier(&oidc.Config{ClientID: clientID})}, nil
+	return &OIDCAuthenticator{verifier: provider.Verifier(&oidc.Config{ClientID: audience}), requiredScope: requiredScope}, nil
 }
 func (o *OIDCAuthenticator) ParseAuthorization(ctx context.Context, value string) (Claims, error) {
 	parts := strings.SplitN(value, " ", 2)
@@ -84,27 +87,42 @@ func (o *OIDCAuthenticator) ParseAuthorization(ctx context.Context, value string
 		return Claims{}, errors.New("invalid or expired OIDC token")
 	}
 	var raw struct {
-		Email       string   `json:"email"`
 		Roles       []string `json:"sentinelops_roles"`
 		Groups      []string `json:"groups"`
 		RealmAccess struct {
 			Roles []string `json:"roles"`
 		} `json:"realm_access"`
-		Organization string `json:"organization"`
+		Organization string   `json:"organization"`
+		Scope        string   `json:"scope"`
+		Scopes       []string `json:"scp"`
 	}
 	if err := token.Claims(&raw); err != nil {
 		return Claims{}, err
+	}
+	if !hasScope(raw.Scope, raw.Scopes, o.requiredScope) {
+		return Claims{}, errors.New("OIDC token lacks required API scope")
 	}
 	role := selectRole(append(append(raw.Roles, raw.Groups...), raw.RealmAccess.Roles...))
 	if role == "" {
 		role = "Viewer"
 	}
-	subject := token.Subject
-	if raw.Email != "" {
-		subject = raw.Email
+	if token.Subject == "" || raw.Organization == "" {
+		return Claims{}, errors.New("OIDC token requires stable sub and organization claim")
 	}
-	return Claims{Role: role, Organization: raw.Organization, RegisteredClaims: jwt.RegisteredClaims{Subject: subject, Issuer: token.Issuer, Audience: token.Audience, ExpiresAt: jwt.NewNumericDate(token.Expiry)}}, nil
+	return Claims{Role: role, Organization: raw.Organization, RegisteredClaims: jwt.RegisteredClaims{Subject: token.Subject, Issuer: token.Issuer, Audience: token.Audience, ExpiresAt: jwt.NewNumericDate(token.Expiry)}}, nil
 }
+func hasScope(scope string, scopes []string, wanted string) bool {
+	if wanted == "" {
+		return false
+	}
+	for _, candidate := range append(strings.Fields(scope), scopes...) {
+		if candidate == wanted {
+			return true
+		}
+	}
+	return false
+}
+
 func selectRole(values []string) string {
 	order := []string{"Platform Administrator", "SRE Administrator", "SRE Operator", "Application Owner", "Developer", "Auditor", "Viewer"}
 	for _, wanted := range order {
@@ -119,15 +137,21 @@ func selectRole(values []string) string {
 }
 
 func Can(role, permission string) bool {
+	// Requests that can lead to data export or erasure remain restricted even
+	// for otherwise read-only audit roles. The Platform Administrator is the
+	// sole role allowed to create, inspect or approve this control plane flow.
+	if strings.HasPrefix(permission, "data-lifecycle:") {
+		return role == "Platform Administrator"
+	}
 	if role == "Platform Administrator" {
 		return true
 	}
 	grants := map[string][]string{
-		"SRE Administrator": {"service:", "scenario:", "validation:", "agent:", "release:"},
-		"SRE Operator":      {"service:read", "scenario:", "validation:", "agent:read", "release:"},
-		"Developer":         {"service:read", "scenario:read", "validation:read", "release:create"},
-		"Application Owner": {"service:read", "scenario:", "validation:", "release:"},
-		"Auditor":           {":read"}, "Viewer": {"service:read", "scenario:read", "validation:read"},
+		"SRE Administrator": {"service:", "asset:", "scenario:", "validation:", "agent:", "release:", "incident:", "alert-route:", "telemetry:read"},
+		"SRE Operator":      {"service:read", "asset:", "scenario:", "validation:", "agent:read", "release:", "incident:", "alert-route:", "telemetry:read"},
+		"Developer":         {"service:read", "asset:read", "scenario:read", "validation:read", "release:create", "telemetry:read"},
+		"Application Owner": {"service:read", "asset:read", "scenario:", "validation:", "release:", "incident:read", "telemetry:read"},
+		"Auditor":           {":read"}, "Viewer": {"service:read", "asset:read", "scenario:read", "validation:read", "telemetry:read"},
 	}
 	for _, g := range grants[role] {
 		if strings.HasSuffix(g, ":") && strings.HasPrefix(permission, g) || strings.HasPrefix(g, ":") && strings.HasSuffix(permission, g) || g == permission {

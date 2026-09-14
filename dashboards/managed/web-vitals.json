@@ -1,22 +1,468 @@
 {
-  "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": true, "hide": true, "name": "Deployments", "type": "dashboard"}]},
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "name": "Deployments",
+        "type": "dashboard"
+      }
+    ]
+  },
   "editable": false,
   "graphTooltip": 1,
-  "links": [{"title": "SentinelOps", "type": "link", "url": "http://localhost:3000"}],
+  "links": [
+    {
+      "title": "SentinelOps",
+      "type": "link",
+      "url": "http://localhost:3000"
+    }
+  ],
   "panels": [
-    {"type":"stat","title":"Disponibilidade","id":1,"gridPos":{"h":5,"w":6,"x":0,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"min(up{job=\"sentinel-demo-apps\"})","refId":"A"}]},
-    {"type":"timeseries","title":"Requests por segundo","id":2,"gridPos":{"h":8,"w":9,"x":6,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum by (service, route) (rate(demo_pipeline_requests_total[5m]))","legendFormat":"{{service}} · {{route}}","refId":"A"}]},
-    {"type":"timeseries","title":"Latência p95","id":3,"gridPos":{"h":8,"w":9,"x":15,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"histogram_quantile(0.95, sum by (le, service, route) (rate(demo_pipeline_request_duration_seconds_bucket[5m])))","legendFormat":"{{service}} · {{route}}","refId":"A"}]},
-    {"type":"logs","title":"Logs correlacionados","id":4,"gridPos":{"h":9,"w":12,"x":0,"y":8},"datasource":{"type":"loki","uid":"loki"},"targets":[{"expr":"{service_namespace=\"sentinel-demo\"}","refId":"A"}]},
-    {"type":"traces","title":"Traces distribuídos","id":5,"gridPos":{"h":9,"w":12,"x":12,"y":8},"datasource":{"type":"tempo","uid":"tempo"},"targets":[{"query":"{ resource.service.namespace = \"sentinel-demo\" }","queryType":"traceql","refId":"A"}]}
+    {
+      "type": "stat",
+      "title": "Frontends observados em Docker",
+      "id": 1,
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "count(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\",name=~\".*(frontend|web).*\"})",
+          "refId": "A"
+        }
+      ],
+      "description": "Frontends observados em Docker. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU dos frontends",
+      "id": 2,
+      "gridPos": {
+        "h": 8,
+        "w": 9,
+        "x": 6,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum by (instance, name) (rate(container_cpu_usage_seconds_total{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\",name=~\".*(frontend|web).*\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{instance}} · {{name}}",
+          "maxDataPoints": 600
+        }
+      ],
+      "description": "CPU dos frontends. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Memória dos frontends",
+      "id": 3,
+      "gridPos": {
+        "h": 8,
+        "w": 9,
+        "x": 15,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum by (instance, name) (container_memory_working_set_bytes{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\",name=~\".*(frontend|web).*\"})",
+          "refId": "A",
+          "legendFormat": "{{instance}} · {{name}}",
+          "maxDataPoints": 600
+        }
+      ],
+      "description": "Memória dos frontends. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
+    },
+    {
+      "type": "logs",
+      "title": "Logs reais de frontend",
+      "id": 4,
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/(${container_id:regex})/.*\"}",
+          "refId": "A",
+          "maxLines": 200
+        }
+      ],
+      "description": "Logs reais de frontend. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "RUM/Web Vitals instrumentado",
+      "id": 5,
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "count(web_vitals_lcp_seconds)",
+          "refId": "A"
+        }
+      ],
+      "description": "RUM/Web Vitals instrumentado. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
+    }
   ],
   "refresh": "15s",
   "schemaVersion": 42,
-  "tags": ["sentinelops", "managed", "web-vitals"],
-  "templating": {"list": [{"name":"environment","label":"Ambiente","type":"custom","query":"local-demo,development,staging,production","current":{"text":"local-demo","value":"local-demo"}}]},
-  "time": {"from": "now-30m", "to": "now"},
+  "tags": [
+    "managed",
+    "noc-ready",
+    "sentinelops",
+    "web-vitals"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "environment",
+        "label": "Ambiente",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(up{job=\"linux-node\"}, deployment_environment)",
+          "refId": "var-environment"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": false,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "production",
+          "value": "production"
+        },
+        "hide": 0
+      },
+      {
+        "name": "host",
+        "label": "Host",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(node_uname_info{deployment_environment=~\"$environment\"}, instance)",
+          "refId": "var-host"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "container",
+        "label": "Container Docker",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\"}, name)",
+          "refId": "var-container"
+        },
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "container_id",
+        "label": "Container ID",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\"}, id)",
+          "refId": "var-container_id"
+        },
+        "includeAll": true,
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 2,
+        "regex": "/.*(?:\\/|docker-)([a-f0-9]{64})(?:\\.scope)?$/"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
   "timezone": "browser",
   "title": "Web Vitals",
   "uid": "sentinel-web-vitals",
-  "version": 2
+  "version": 3,
+  "description": "Frontends filtráveis por ambiente, host e aplicação/container."
 }

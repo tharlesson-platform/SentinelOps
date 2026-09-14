@@ -1,0 +1,6 @@
+{
+  "context": "sentinelops-hml",
+  "namespaces": ["applications-hml", "observability"],
+  "environment": "hml",
+  "ownerTeam": "platform"
+}

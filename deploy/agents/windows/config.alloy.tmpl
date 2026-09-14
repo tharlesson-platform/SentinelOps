@@ -1,0 +1,112 @@
+// Renderizado por scripts/install-windows-collector.ps1. Não edite o arquivo
+// instalado diretamente: a atualização preserva a última configuração válida.
+
+prometheus.exporter.windows "host" {
+  enabled_collectors = [__WINDOWS_COLLECTORS__]
+}
+
+discovery.relabel "host" {
+  targets = prometheus.exporter.windows.host.targets
+  rule {
+    target_label = "job"
+    replacement  = "windows-node"
+  }
+  rule {
+    target_label = "instance"
+    replacement  = "__HOST_NAME__"
+  }
+  rule {
+    target_label = "deployment_environment"
+    replacement  = "__ENVIRONMENT__"
+  }
+  rule {
+    target_label = "team"
+    replacement  = "__TEAM__"
+  }
+  rule {
+    target_label = "location"
+    replacement  = "__LOCATION__"
+  }
+}
+
+prometheus.scrape "host" {
+  targets         = discovery.relabel.host.output
+  scrape_interval = "15s"
+  forward_to      = [prometheus.remote_write.sentinel.receiver]
+}
+
+prometheus.remote_write "sentinel" {
+  endpoint {
+    url = "__METRICS_ENDPOINT__"
+    tls_config {
+      ca_file     = "C:/ProgramData/SentinelOps/Alloy/certs/ca.crt"
+      cert_file   = "C:/ProgramData/SentinelOps/Alloy/certs/client.crt"
+      key_file    = "C:/ProgramData/SentinelOps/Alloy/certs/client.key"
+      server_name = "__TLS_SERVER_NAME__"
+      min_version = "TLS12"
+    }
+  }
+  wal {
+    truncate_frequency = "2h"
+    min_keepalive_time = "5m"
+    max_keepalive_time = "8h"
+  }
+}
+
+loki.process "redact_windows_events" {
+  stage.drop {
+    expression          = "(?i)(authorization|cookie|password|passwd|secret|token)="
+    drop_counter_reason = "possible_secret"
+  }
+  forward_to = [loki.write.sentinel.receiver]
+}
+
+loki.source.windowsevent "application" {
+  eventlog_name         = "Application"
+  bookmark_path         = "C:/ProgramData/SentinelOps/Alloy/bookmarks/application.xml"
+  exclude_event_data    = true
+  exclude_user_data     = true
+  use_incoming_timestamp = true
+  labels = {
+    job                    = "windows-eventlog",
+    event_log              = "Application",
+    host_name              = "__HOST_NAME__",
+    deployment_environment = "__ENVIRONMENT__",
+    team                   = "__TEAM__",
+    location               = "__LOCATION__",
+  }
+  forward_to = [loki.process.redact_windows_events.receiver]
+}
+
+loki.source.windowsevent "system" {
+  eventlog_name         = "System"
+  bookmark_path         = "C:/ProgramData/SentinelOps/Alloy/bookmarks/system.xml"
+  exclude_event_data    = true
+  exclude_user_data     = true
+  use_incoming_timestamp = true
+  labels = {
+    job                    = "windows-eventlog",
+    event_log              = "System",
+    host_name              = "__HOST_NAME__",
+    deployment_environment = "__ENVIRONMENT__",
+    team                   = "__TEAM__",
+    location               = "__LOCATION__",
+  }
+  forward_to = [loki.process.redact_windows_events.receiver]
+}
+
+__SECURITY_EVENTLOG_BLOCK__
+
+loki.write "sentinel" {
+  endpoint {
+    url = "__LOGS_ENDPOINT__"
+    tls_config {
+      ca_file     = "C:/ProgramData/SentinelOps/Alloy/certs/ca.crt"
+      cert_file   = "C:/ProgramData/SentinelOps/Alloy/certs/client.crt"
+      key_file    = "C:/ProgramData/SentinelOps/Alloy/certs/client.key"
+      server_name = "__TLS_SERVER_NAME__"
+      min_version = "TLS12"
+    }
+  }
+  external_labels = { source = "sentinelops-windows-collector" }
+}

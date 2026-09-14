@@ -12,7 +12,7 @@ from urllib.parse import unquote, urlsplit
 REPOSITORY = Path(__file__).resolve().parent.parent
 LINK = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
 SCHEMES = {"http", "https", "mailto", "tel", "data"}
-EXCLUDED_DIRECTORIES = {".git", ".terraform", "node_modules", "artifacts"}
+EXCLUDED_DIRECTORIES = {".cache", ".git", ".terraform", ".venv", "node_modules", "artifacts"}
 
 
 def markdown_files() -> list[Path]:

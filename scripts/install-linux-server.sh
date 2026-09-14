@@ -10,8 +10,8 @@ INSTALL_RUNTIME=false
 WEB_BIND_ADDRESS=127.0.0.1
 INGEST_BIND_ADDRESS=127.0.0.1
 INGEST_SERVER_NAME=ingest.local
+INGEST_SERVER_IP=""
 ALLOW_PUBLIC_INGEST=false
-SEED_DATA=true
 ENABLE_SERVICE=false
 
 usage() {
@@ -23,8 +23,8 @@ Uso: ./scripts/install-linux-server.sh [opções]
   --web-bind ADDRESS             bind da interface Web (padrão 127.0.0.1)
   --ingest-bind ADDRESS          bind do gateway mTLS (padrão 127.0.0.1)
   --ingest-server-name DNS       nome TLS do gateway (padrão ingest.local)
+  --ingest-server-ip IP          IP privado incluído no certificado TLS do gateway
   --allow-public-ingest          aceita ingest-bind 0.0.0.0 ou :: conscientemente
-  --without-seed                 não cria os dados demonstrativos
   --enable-service               instala uma unit systemd ao final
   --help
 
@@ -40,8 +40,8 @@ while [ "$#" -gt 0 ]; do
     --web-bind) [ "$#" -ge 2 ] || die "--web-bind requer valor"; WEB_BIND_ADDRESS=$2; shift 2 ;;
     --ingest-bind) [ "$#" -ge 2 ] || die "--ingest-bind requer valor"; INGEST_BIND_ADDRESS=$2; shift 2 ;;
     --ingest-server-name) [ "$#" -ge 2 ] || die "--ingest-server-name requer valor"; INGEST_SERVER_NAME=$2; shift 2 ;;
+    --ingest-server-ip) [ "$#" -ge 2 ] || die "--ingest-server-ip requer valor"; INGEST_SERVER_IP=$2; shift 2 ;;
     --allow-public-ingest) ALLOW_PUBLIC_INGEST=true; shift ;;
-    --without-seed) SEED_DATA=false; shift ;;
     --enable-service) ENABLE_SERVICE=true; shift ;;
     --help|-h) usage; exit 0 ;;
     *) die "Opção desconhecida: $1" ;;
@@ -49,11 +49,16 @@ while [ "$#" -gt 0 ]; do
 done
 
 case "$PHASE" in
-  preflight|runtime|configure|deploy|seed|verify|service|all) ;;
+  preflight|runtime|configure|deploy|verify|service|all) ;;
   *) die "Fase inválida: $PHASE" ;;
 esac
 validate_bind_address "$WEB_BIND_ADDRESS"
 validate_bind_address "$INGEST_BIND_ADDRESS"
+[ -n "$INGEST_SERVER_IP" ] || INGEST_SERVER_IP=$INGEST_BIND_ADDRESS
+validate_bind_address "$INGEST_SERVER_IP"
+case "$INGEST_SERVER_IP" in
+  0.0.0.0|::) die "--ingest-server-ip deve ser um IP unicast, não um endereço de bind" ;;
+esac
 if { [ "$INGEST_BIND_ADDRESS" = "0.0.0.0" ] || [ "$INGEST_BIND_ADDRESS" = "::" ]; } && [ "$ALLOW_PUBLIC_INGEST" != true ]; then
   die "Bind público de ingestão recusado. Use IP privado ou --allow-public-ingest após configurar firewall/TLS."
 fi
@@ -83,7 +88,7 @@ phase_configure() {
   chmod +x "$ROOT"/scripts/*.sh "$ROOT"/scripts/lib/*.sh
   "$ROOT/scripts/bootstrap.sh"
   "$ROOT/scripts/generate-dashboards.sh"
-  "$ROOT/scripts/bootstrap-secure-ingest.sh" --server-name "$INGEST_SERVER_NAME" --server-ip "$INGEST_BIND_ADDRESS"
+  "$ROOT/scripts/bootstrap-secure-ingest.sh" --server-name "$INGEST_SERVER_NAME" --server-ip "$INGEST_SERVER_IP"
   set_env_value "$ROOT/.env" SENTINEL_WEB_BIND_ADDRESS "$WEB_BIND_ADDRESS"
   set_env_value "$ROOT/.env" SENTINEL_OTLP_BIND_ADDRESS 127.0.0.1
   set_env_value "$ROOT/.env" SENTINEL_PROMETHEUS_BIND_ADDRESS 127.0.0.1
@@ -103,15 +108,6 @@ phase_deploy() {
   $compose --profile secure-ingest up -d --no-build --scale api=2 --scale worker=2 --remove-orphans
 }
 
-phase_seed() {
-  log "Fase 40/60: configuração inicial"
-  if [ "$SEED_DATA" = true ]; then
-    "$ROOT/scripts/seed.sh"
-  else
-    log "Seed omitido por opção."
-  fi
-}
-
 phase_verify() {
   log "Fase 50/60: verificação"
   "$ROOT/scripts/doctor.sh"
@@ -119,7 +115,7 @@ phase_verify() {
   # shellcheck disable=SC2086
   $compose ps
   log "Interface: http://$WEB_BIND_ADDRESS:${SENTINEL_WEB_PORT:-3000}"
-  log "Use 'make credentials' localmente e execute './scripts/prove-gates.sh' para a prova funcional."
+  log "Use 'make credentials' localmente e execute './scripts/prove-dashboards.sh' para validar as fontes reais."
 }
 
 phase_service() {
@@ -174,7 +170,6 @@ phase_selected preflight && phase_preflight
 phase_selected runtime && phase_runtime
 phase_selected configure && phase_configure
 phase_selected deploy && phase_deploy
-phase_selected seed && phase_seed
 phase_selected verify && phase_verify
 if [ "$PHASE" = service ] || { [ "$PHASE" = all ] && [ "$ENABLE_SERVICE" = true ]; }; then
   phase_service

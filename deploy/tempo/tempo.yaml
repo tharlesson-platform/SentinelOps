@@ -10,7 +10,7 @@ distributor:
         http: { endpoint: "tempo:4318" }
 metrics_generator:
   registry:
-    external_labels: { source: tempo, cluster: local-demo }
+    external_labels: { source: tempo, cluster: sentinelops-production }
   storage:
     path: /var/tempo/generator/wal
     remote_write:
@@ -28,4 +28,3 @@ overrides:
       generate_native_histograms: both
 usage_report:
   reporting_enabled: false
-

@@ -4,6 +4,10 @@ Em um host com o collector, aplicações enviam OTLP para
 http://127.0.0.1:4318; o collector aplica redaction, fila e retry e encaminha
 os três sinais pelo gateway mTLS.
 
+Por segurança, o bootstrap aceita HTTP apenas para `localhost`/IP loopback.
+Qualquer destino remoto exige HTTPS e não pode carregar credencial, query ou
+fragmento na URL; `--tls-resolve-address` aceita somente IP literal unicast.
+
 Exemplo executável:
 
     ./scripts/bootstrap-apm.sh \
@@ -130,8 +134,16 @@ Por esse motivo, o bootstrap React exige um endpoint Faro HTTPS explícito:
 
 ```bash
 ./scripts/bootstrap-apm.sh --language react --service-name portal-web \
-  --environment staging --faro-endpoint https://faro.example.net/collect
+  --environment staging --faro-endpoint https://faro.example.net/collect \
+  --rum-sampling-rate 0.1
 ```
+
+O kit não habilita Session Replay. Ele define `sessionTracking.samplingRate`,
+ignora o URL do collector e usa `beforeSend` para remover credencial, query e
+fragmento da URL de página antes do envio. Revise também atributos e logs
+customizados da aplicação: o SDK não pode inferir quais campos de domínio são
+dados pessoais. Somente aumente o sampling após medir volume, overhead e o
+fluxo de consentimento aplicável.
 
 ## Critério de aceite
 

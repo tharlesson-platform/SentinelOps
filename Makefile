@@ -8,7 +8,7 @@ GO_IMAGE := golang:1.26.6-alpine3.23@sha256:e57c41c1d5864341031181b0db34b9a537bb
 GO_TEST_IMAGE := golang:1.26.6-bookworm@sha256:116d58cbd88c1297624acc6e967a060012422bacf9930927e23fb719189c6f36
 NODE_IMAGE := node:26.7.0-alpine3.23@sha256:ce3cc39fe3b8b2602d3b1c4d63d301e46b48c550ecb627869853ddcdda418b63
 
-.PHONY: bootstrap prepare-images up local-demo prove-local prove-ha prove-ha-manifests prove-resilience prove-dashboards prove-apm validate-release down reset seed test test-synthetics check logs doctor credentials generate lint build install-server install-collector bootstrap-apm collector-bundle
+.PHONY: bootstrap prepare-images up prove-ha prove-ha-manifests prove-dashboards prove-apm validate-release down reset test test-synthetics check dashboard-filters no-nonprod-telemetry logs doctor credentials generate lint build install-server install-collector bootstrap-apm collector-bundle harness-doctor harness-validate-specs harness-check harness-integration harness-integration-compose harness-e2e harness-eval-ai harness-release harness-production
 
 bootstrap:
 	@chmod +x scripts/*.sh
@@ -18,26 +18,18 @@ bootstrap:
 prepare-images: bootstrap
 	@docker image inspect sentinelops-alloy:1.18.1-patched.2 >/dev/null 2>&1 || ./scripts/build-patched-alloy.sh
 	@docker image inspect sentinelops-caddy:2.11.4-patched.1 >/dev/null 2>&1 || ./scripts/build-patched-caddy.sh
-	$(COMPOSE) build migrate api worker agent web demo-api
+	$(COMPOSE) build migrate api worker agent web vmware-exporter postgres-exporter
 	@./scripts/lock-local-images.sh
 
 up: prepare-images
 	$(COMPOSE_RUNTIME) up -d --no-build --scale api=2 --scale worker=2
-	@echo "SentinelOps: http://localhost:3000 | Demo: http://localhost:8090 | Grafana: http://localhost:3001 | Temporal: http://localhost:8088"
-
-local-demo: up seed prove-local prove-ha
-
-prove-local:
-	@./scripts/prove-local-pipeline.sh
+	@echo "SentinelOps: http://localhost:3000 | Grafana: http://localhost:3001 | Temporal: http://localhost:8088"
 
 prove-ha:
 	@./scripts/prove-local-ha.sh
 
 prove-ha-manifests:
 	@./scripts/prove-ha-manifests.sh
-
-prove-resilience:
-	@./scripts/prove-pyroscope-recovery.sh
 
 prove-dashboards:
 	@./scripts/prove-dashboards.sh
@@ -56,9 +48,6 @@ reset:
 	@echo "Removendo somente volumes locais do projeto sentinelops..."
 	$(COMPOSE) down --volumes --remove-orphans
 
-seed:
-	@./scripts/seed.sh
-
 test:
 	docker run --rm -v $(ROOT):/src -w /src $(GO_TEST_IMAGE) sh -ec 'go test -race ./...'
 	docker run --rm -v $(ROOT)/apps/web:/app -w /app $(NODE_IMAGE) sh -ec 'npm ci --ignore-scripts --no-audit --no-fund && npm test && npm run build'
@@ -70,14 +59,20 @@ test-synthetics:
 	$(COMPOSE_RUNTIME) --profile test rm -f playwright k6
 
 lint:
-	docker run --rm -v $(ROOT):/src -w /src $(GO_IMAGE) sh -ec 'gofmt -w $$(find apps internal demo -name "*.go") && go vet ./...'
+	docker run --rm -v $(ROOT):/src -w /src $(GO_IMAGE) sh -ec 'gofmt -w $$(find apps internal -name "*.go") && go vet ./...'
 	$(COMPOSE) config --quiet
 	$(COMPOSE_HA) config --quiet
 
 build:
-	$(COMPOSE) build migrate api worker agent web demo-api
+	$(COMPOSE) build migrate api worker agent web vmware-exporter postgres-exporter
 
-check: test lint
+check: test lint dashboard-filters no-nonprod-telemetry
+
+dashboard-filters:
+	@python3 scripts/check-dashboard-filters.py
+
+no-nonprod-telemetry:
+	@./scripts/check-no-nonprod-telemetry.sh
 
 logs:
 	@test -f $(IMAGE_LOCK) || { echo "Execute make prepare-images primeiro" >&2; exit 2; }
@@ -113,3 +108,31 @@ collector-bundle:
 	@test -n "$(GATEWAY_URL)" || { echo "GATEWAY_URL é obrigatório" >&2; exit 2; }
 	@test -n "$(TLS_SERVER_NAME)" || { echo "TLS_SERVER_NAME é obrigatório" >&2; exit 2; }
 	@./scripts/create-linux-collector-bundle.sh --organization "$(ORGANIZATION)" --collector-name "$(COLLECTOR)" --gateway-url "$(GATEWAY_URL)" --tls-server-name "$(TLS_SERVER_NAME)"
+
+harness-doctor:
+	@./scripts/harness/doctor.sh
+
+harness-validate-specs:
+	@python3 scripts/harness/validate_specs.py
+
+harness-check: harness-validate-specs
+	@./scripts/harness/check.sh
+
+harness-integration:
+	@./scripts/harness/integration.sh
+
+harness-integration-compose:
+	@./scripts/harness/integration-postgres-compose.sh
+
+harness-e2e:
+	@./scripts/harness/e2e.sh
+
+harness-eval-ai:
+	@./scripts/harness/eval_ai.sh
+
+harness-release:
+	@./scripts/harness/release.sh
+
+harness-production:
+	@test -n "$(TARGET)" || { echo "BLOCKED: use make harness-production TARGET=<alvo-autorizado>" >&2; exit 2; }
+	@./scripts/harness/production.sh "$(TARGET)"

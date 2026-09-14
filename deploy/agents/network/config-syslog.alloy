@@ -1,0 +1,53 @@
+// Syslog fica em um perfil separado do polling SNMP. O firewall do site deve
+// permitir somente os emissores aprovados para a porta configurada deste host.
+loki.source.syslog "network_udp" {
+  listener {
+    address  = "0.0.0.0:1514"
+    protocol = "udp"
+    labels = {
+      job                    = "network-syslog",
+      host_name              = sys.env("SENTINEL_HOST_NAME"),
+      deployment_environment = sys.env("SENTINEL_ENVIRONMENT"),
+      team                   = sys.env("SENTINEL_TEAM"),
+    }
+  }
+  forward_to = [loki.process.network_syslog.receiver]
+}
+
+loki.source.syslog "network_tcp" {
+  listener {
+    address  = "0.0.0.0:1514"
+    protocol = "tcp"
+    labels = {
+      job                    = "network-syslog",
+      host_name              = sys.env("SENTINEL_HOST_NAME"),
+      deployment_environment = sys.env("SENTINEL_ENVIRONMENT"),
+      team                   = sys.env("SENTINEL_TEAM"),
+    }
+  }
+  forward_to = [loki.process.network_syslog.receiver]
+}
+
+loki.process "network_syslog" {
+  // Network events can contain copied credentials. Do not forward an apparent
+  // secret merely because the device was an approved syslog sender.
+  stage.drop {
+    expression          = "(?i)(authorization|cookie|password|passwd|secret|token)="
+    drop_counter_reason = "possible_secret"
+  }
+  forward_to = [loki.write.sentinel.receiver]
+}
+
+loki.write "sentinel" {
+  endpoint {
+    url = sys.env("SENTINEL_LOGS_ENDPOINT")
+    tls_config {
+      ca_file     = "/etc/sentinelops/certs/ca.crt"
+      cert_file   = "/etc/sentinelops/certs/client.crt"
+      key_file    = "/etc/sentinelops/certs/client.key"
+      server_name = sys.env("SENTINEL_TLS_SERVER_NAME")
+      min_version = "TLS12"
+    }
+  }
+  external_labels = { source = "sentinelops-network-syslog" }
+}

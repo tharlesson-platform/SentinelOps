@@ -1,8 +1,8 @@
 # Bootstrap Linux do zero ao ambiente funcional
 
 Este fluxo instala todas as dependências, cria secrets e PKI, constrói imagens
-fixadas, aplica migrações, sobe a plataforma com duas APIs e dois workers,
-carrega a demonstração e comprova coleta, ingestão, persistência e dashboards.
+fixadas, aplica migrações, sobe a plataforma com duas APIs e dois workers e
+comprova coleta, ingestão, persistência e dashboards usando fontes reais.
 
 ## Distribuições e capacidade
 
@@ -43,7 +43,6 @@ O resultado funcional fica em:
 - SentinelOps Web: porta 3000;
 - Grafana: porta 3001;
 - API edge: porta 8080;
-- aplicação mock: porta 8090;
 - gateway de ingestão mTLS: porta 8443;
 - Temporal UI: porta 8088.
 
@@ -57,7 +56,6 @@ make credentials.
     ./scripts/install-linux-server.sh --phase runtime --install-runtime
     ./scripts/install-linux-server.sh --phase configure
     ./scripts/install-linux-server.sh --phase deploy
-    ./scripts/install-linux-server.sh --phase seed
     ./scripts/install-linux-server.sh --phase verify
     ./scripts/install-linux-server.sh --phase service
 
@@ -67,11 +65,11 @@ manual necessária.
 
 ## Critérios de aceite
 
-    make prove-local
     make prove-dashboards
     make prove-apm
     make prove-ha
     make test-synthetics
 
 Os dashboards Linux Hosts, Application Overview, APM e Docker devem aparecer
-provisionados e apresentar o host e as aplicações controladas do laboratório.
+provisionados e apresentar somente hosts e aplicações reais. Integrações sem
+fonte devem informar `Sem dados`.

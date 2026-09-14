@@ -14,7 +14,7 @@ flowchart TD
   Source --> Secrets[Secrets locais e PKI com permissões restritas]
   Secrets --> Build[Build e trava das imagens por SHA256]
   Build --> Migrate[Migrações com role dedicada]
-  Migrate --> Stack[Control plane, backends, mocks e gateway]
+  Migrate --> Stack[Control plane, backends e gateway]
   Stack --> Service[Systemd ou OpenRC]
   Service --> Doctor[Health e readiness]
   Doctor --> E2E[Prova métrica, log, trace, profile e gates]

@@ -1,0 +1,26 @@
+name: sentinelops-edge
+
+services:
+  traefik:
+    image: traefik:v3.5.6@sha256:16acb89c6db341182970d6fdafece31303b0a380a8ed7aa51682e225229bf1d2
+    network_mode: host
+    command:
+      - --api.dashboard=false
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --entrypoints.web.address=:80
+      - --entrypoints.grafana.address=:3301
+      - --entrypoints.temporal.address=:8188
+      - --log.level=INFO
+      - --accesslog=true
+    volumes:
+      - ./dynamic.yml:/etc/traefik/dynamic.yml:ro
+    read_only: true
+    tmpfs:
+      - /tmp:uid=65532,gid=65532,mode=0700
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped

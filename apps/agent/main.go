@@ -25,6 +25,12 @@ func main() {
 	agentID := os.Getenv("SENTINEL_AGENT_ID")
 	token := os.Getenv("SENTINEL_AGENT_TOKEN")
 	credentialFile := env("SENTINEL_AGENT_CREDENTIAL_FILE", "/var/lib/sentinelops-agent/credentials.json")
+	inventoryFile := os.Getenv("SENTINEL_INVENTORY_FILE")
+	inventoryMaxAge, err := optionalDuration("SENTINEL_INVENTORY_MAX_AGE")
+	if err != nil {
+		logger.Error("inventory freshness configuration invalid", "error", err)
+		os.Exit(1)
+	}
 	if agentID == "" || token == "" {
 		var stored struct {
 			ID    string `json:"id"`
@@ -79,6 +85,16 @@ func main() {
 		} else {
 			logger.Info("heartbeat accepted", "agent_id", agentID)
 		}
+		if inventoryFile != "" {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			err := publishInventoryWithMaxAge(ctx, client, agentID, token, inventoryFile, inventoryMaxAge)
+			cancel()
+			if err != nil {
+				logger.Warn("inventory reconciliation failed", "error", err)
+			} else {
+				logger.Info("inventory reconciled", "agent_id", agentID)
+			}
+		}
 		select {
 		case <-ticker.C:
 			continue
@@ -86,6 +102,51 @@ func main() {
 			return
 		}
 	}
+}
+
+func publishInventory(ctx context.Context, client *apiclient.Client, agentID, token, path string) error {
+	return publishInventoryWithMaxAge(ctx, client, agentID, token, path, 0)
+}
+
+func publishInventoryWithMaxAge(ctx context.Context, client *apiclient.Client, agentID, token, path string, maxAge time.Duration) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("stat inventory file: %w", err)
+	}
+	if info.Size() > 4<<20 {
+		return fmt.Errorf("inventory file exceeds 4 MiB")
+	}
+	if maxAge > 0 && time.Since(info.ModTime()) > maxAge {
+		return fmt.Errorf("inventory file is older than configured maximum age %s", maxAge)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read inventory file: %w", err)
+	}
+	var snapshot struct {
+		ObservedAt time.Time      `json:"observedAt"`
+		Complete   bool           `json:"complete"`
+		Assets     []domain.Asset `json:"assets"`
+	}
+	if err := json.Unmarshal(data, &snapshot); err != nil {
+		return fmt.Errorf("decode inventory file: %w", err)
+	}
+	if !snapshot.Complete {
+		return fmt.Errorf("inventory snapshot requires complete=true")
+	}
+	return client.Do(ctx, "POST", "/api/v1/agents/"+agentID+"/inventory-reconcile", snapshot, map[string]string{"X-Agent-Token": token}, nil)
+}
+
+func optionalDuration(key string) (time.Duration, error) {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return 0, nil
+	}
+	duration, err := time.ParseDuration(raw)
+	if err != nil || duration <= 0 {
+		return 0, fmt.Errorf("%s must be a positive duration", key)
+	}
+	return duration, nil
 }
 
 func configureMTLS(client *apiclient.Client, baseURL string) error {

@@ -1,0 +1,15 @@
+[Unit]
+Description=TQI Platform OpenTelemetry instrumentation overlay
+Requires=docker.service
+After=docker.service network-online.target sentinelops-collector.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/tqi-platform
+ExecStart=/usr/bin/docker compose -f /opt/tqi-platform/docker-compose.yml -f /opt/tqi-platform/docker-compose.apm.yml up -d --no-deps worklog-backend scale-management-backend
+ExecStop=/usr/bin/docker compose -f /opt/tqi-platform/docker-compose.yml -f /opt/tqi-platform/docker-compose.apm.yml stop worklog-backend scale-management-backend
+
+[Install]
+WantedBy=multi-user.target

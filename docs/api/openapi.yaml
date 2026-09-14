@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: SentinelOps API
   version: 0.2.0
-  description: API multi-tenant. Em produção, OIDC e role_bindings persistidos são autoritativos.
+  description: API multi-tenant. Em produção, OIDC e role_bindings persistidos são autoritativos. Rotas autenticadas podem responder 429 tenant_quota_exceeded com Retry-After quando o teto da organização é atingido.
   license: { name: MIT, identifier: MIT }
 servers: [{ url: "/" }]
 security: [{ bearerAuth: [] }]
@@ -34,6 +34,35 @@ paths:
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Service' } } } }
       responses: { '200': { description: Serviço salvo }, '422': { $ref: '#/components/responses/Error' } }
     delete: { operationId: deleteService, summary: Remove serviço logicamente, responses: { '204': { description: Removido }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/assets:
+    get: { operationId: listAssets, summary: Lista ativos tenant-scoped, responses: { '200': { description: Inventário }, '401': { $ref: '#/components/responses/Error' } } }
+    post:
+      operationId: upsertAsset
+      summary: Cria ou reconcilia ativo pelo assetId estável
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Asset' } } } }
+      responses: { '200': { description: Ativo salvo }, '422': { $ref: '#/components/responses/Error' } }
+  /api/v1/assets/search:
+    get:
+      operationId: searchAssets
+      summary: Pesquisa paginada de ativos tenant-scoped para UI e MCP
+      parameters:
+        - { in: query, name: q, schema: { type: string, maxLength: 128 } }
+        - { in: query, name: cursor, schema: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$' } }
+        - { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+      responses: { '200': { description: Página de ativos e cursor opcional }, '400': { $ref: '#/components/responses/Error' }, '401': { $ref: '#/components/responses/Error' } }
+  /api/v1/assets/{assetId}:
+    get:
+      operationId: getAsset
+      summary: Obtém ativo tenant-scoped pelo assetId estável
+      parameters: [{ in: path, name: assetId, required: true, schema: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$' } }]
+      responses: { '200': { description: Ativo }, '404': { $ref: '#/components/responses/Error' } }
+  /api/v1/assets/reconcile:
+    post:
+      operationId: reconcileAssets
+      summary: Reconcilia snapshot completo de uma fonte read-only
+      description: Ativos ausentes da fonte são marcados stale somente após persistência atômica do snapshot.
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [source, complete, assets], properties: { source: { type: string }, complete: { const: true }, observedAt: { type: string, format: date-time }, assets: { type: array, maxItems: 1000, items: { $ref: '#/components/schemas/Asset' } } } } } } }
+      responses: { '200': { description: Snapshot reconciliado }, '422': { $ref: '#/components/responses/Error' } }
   /api/v1/releases:
     post:
       operationId: createRelease
@@ -89,6 +118,21 @@ paths:
       parameters: [{ $ref: '#/components/parameters/ID' }]
       requestBody: { content: { application/json: { schema: { type: object, additionalProperties: true } } } }
       responses: { '200': { description: Aceito }, '401': { $ref: '#/components/responses/Error' } }
+  /api/v1/agents/{id}/inventory-reconcile:
+    post:
+      operationId: reconcileAgentInventory
+      security: [{ agentToken: [], mutualTLS: [] }]
+      summary: Reconcilia snapshot completo de inventário a partir de agente autorizado
+      description: Exige capability inventory:write; tenant e source são derivados da identidade do agente.
+      parameters: [{ $ref: '#/components/parameters/ID' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [complete, assets], properties: { complete: { const: true }, observedAt: { type: string, format: date-time }, assets: { type: array, maxItems: 1000, items: { $ref: '#/components/schemas/Asset' } } } } } } }
+      responses: { '200': { description: Snapshot reconciliado }, '401': { $ref: '#/components/responses/Error' }, '422': { $ref: '#/components/responses/Error' } }
+  /api/v1/agents/{id}/revoke:
+    post:
+      operationId: revokeAgent
+      summary: Revoga credencial de agente tenant-scoped
+      parameters: [{ $ref: '#/components/parameters/ID' }]
+      responses: { '200': { description: Agente revogado }, '404': { $ref: '#/components/responses/Error' } }
   /api/v1/agents:
     get: { operationId: listAgents, summary: Lista agentes da organização, responses: { '200': { description: Fleet }, '401': { $ref: '#/components/responses/Error' } } }
   /api/v1/scenarios:
@@ -98,11 +142,109 @@ paths:
       summary: Aplica nova versão de cenário
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Scenario' } } } }
       responses: { '200': { description: Cenário versionado }, '422': { $ref: '#/components/responses/Error' } }
+  /api/v1/data-lifecycle-requests:
+    get:
+      operationId: listDataLifecycleRequests
+      summary: Lista solicitações de exportação ou exclusão da organização
+      description: Exclusivo para Platform Administrator. A lista e cada registro são tenant-scoped; nenhuma ação de dados é executada por esta rota.
+      responses: { '200': { description: Solicitações, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/DataLifecycleRequest' } } } } }, '401': { $ref: '#/components/responses/Error' }, '403': { $ref: '#/components/responses/Error' } }
+    post:
+      operationId: createDataLifecycleRequest
+      summary: Registra uma solicitação de exportação ou exclusão para aprovação independente
+      description: Exclusivo para Platform Administrator. A operação não exporta nem exclui dados; ela cria um registro solicitado e auditado.
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/DataLifecycleRequestInput' } } } }
+      responses: { '201': { description: Solicitação registrada, content: { application/json: { schema: { $ref: '#/components/schemas/DataLifecycleRequest' } } } }, '422': { $ref: '#/components/responses/Error' } }
+  /api/v1/data-lifecycle-requests/{id}/approve:
+    post:
+      operationId: approveDataLifecycleRequest
+      summary: Aprova uma solicitação por segundo administrador
+      description: Exclusivo para Platform Administrator. O solicitante não pode aprovar a própria solicitação; aprovado ainda não executa exportação ou exclusão.
+      parameters: [{ $ref: '#/components/parameters/ID' }]
+      responses: { '200': { description: Solicitação aprovada, content: { application/json: { schema: { $ref: '#/components/schemas/DataLifecycleRequest' } } } }, '409': { $ref: '#/components/responses/Error' }, '422': { $ref: '#/components/responses/Error' } }
+  /api/v1/data-lifecycle-requests/{id}/execute:
+    post:
+      operationId: executeDataLifecycleRequest
+      summary: Executa erasure restrito de identidade do control plane
+      description: Exclusivo para Platform Administrator. Requer solicitação aprovada de erasure com domínio exclusivo control-plane-metadata e confirmação literal. Redige perfil de usuário e remove role bindings; exportação e outros backends não são executados por esta rota.
+      parameters: [{ $ref: '#/components/parameters/ID' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/DataLifecycleExecuteInput' } } } }
+      responses: { '200': { description: Erasure concluído, content: { application/json: { schema: { $ref: '#/components/schemas/DataLifecycleRequest' } } } }, '409': { $ref: '#/components/responses/Error' }, '422': { $ref: '#/components/responses/Error' } }
   /api/v1/events:
     get:
       operationId: streamEvents
       summary: Stream SSE de eventos da organização
       responses: { '200': { description: Stream, content: { text/event-stream: { schema: { type: string } } } }, '401': { $ref: '#/components/responses/Error' } }
+  /api/v1/observability/overview:
+    get:
+      operationId: observabilityOverview
+      summary: Retorna contagens operacionais reais com estado explícito da fonte
+      responses: { '200': { description: Valores podem ser null quando não há evidência }, '429': { $ref: '#/components/responses/Error' } }
+  /api/v1/observability/hosts:
+    get:
+      operationId: listObservedHosts
+      summary: Lista hosts descobertos no Prometheus/Mimir
+      parameters: [{ in: query, name: environment, schema: { type: string, maxLength: 256 } }]
+      responses: { '200': { description: Hosts e source status }, '429': { $ref: '#/components/responses/Error' } }
+  /api/v1/observability/hosts/{host}:
+    get:
+      operationId: observedHostDetails
+      summary: Séries allowlisted de CPU, memória, disco, rede e load do host
+      parameters:
+        - { in: path, name: host, required: true, schema: { type: string, maxLength: 256 } }
+        - { $ref: '#/components/parameters/TelemetryStart' }
+        - { $ref: '#/components/parameters/TelemetryEnd' }
+      responses: { '200': { description: Séries e source status }, '400': { $ref: '#/components/responses/Error' } }
+  /api/v1/observability/containers:
+    get:
+      operationId: listObservedContainers
+      summary: Lista containers e sinais atuais do cAdvisor
+      parameters:
+        - { in: query, name: host, schema: { type: string, maxLength: 256 } }
+        - { in: query, name: service, schema: { type: string, maxLength: 256 } }
+      responses: { '200': { description: Containers e source status } }
+  /api/v1/observability/containers/{container}:
+    get:
+      operationId: observedContainerDetails
+      summary: Séries allowlisted de recursos do container
+      parameters:
+        - { in: path, name: container, required: true, schema: { type: string, maxLength: 256 } }
+        - { in: query, name: host, schema: { type: string, maxLength: 256 } }
+        - { $ref: '#/components/parameters/TelemetryStart' }
+        - { $ref: '#/components/parameters/TelemetryEnd' }
+      responses: { '200': { description: Séries e source status }, '400': { $ref: '#/components/responses/Error' } }
+  /api/v1/observability/logs:
+    get:
+      operationId: searchObservedLogs
+      summary: Consulta LogQL construída pelo servidor com filtros allowlisted
+      parameters:
+        - { in: query, name: host, schema: { type: string, maxLength: 256 } }
+        - { in: query, name: containerId, schema: { type: string, maxLength: 256 } }
+        - { in: query, name: service, schema: { type: string, maxLength: 256 } }
+        - { in: query, name: severity, schema: { type: string, enum: [DEBUG, INFO, WARN, ERROR] } }
+        - { in: query, name: search, schema: { type: string, maxLength: 256 } }
+        - { $ref: '#/components/parameters/TelemetryStart' }
+        - { $ref: '#/components/parameters/TelemetryEnd' }
+      responses: { '200': { description: Logs e source status; falha do Loki não derruba outras fontes } }
+  /api/v1/observability/apm:
+    get: { operationId: observedAPM, summary: RED e p95/p99 por service.name, responses: { '200': { description: Serviços APM e source status } } }
+  /api/v1/observability/traces:
+    get:
+      operationId: searchObservedTraces
+      summary: Busca traces no Tempo com TraceQL construído pelo servidor
+      parameters:
+        - { in: query, name: host, schema: { type: string, maxLength: 256 } }
+        - { in: query, name: container, schema: { type: string, maxLength: 256 } }
+        - { in: query, name: service, schema: { type: string, maxLength: 256 } }
+        - { in: query, name: error, schema: { type: boolean } }
+        - { $ref: '#/components/parameters/TelemetryStart' }
+        - { $ref: '#/components/parameters/TelemetryEnd' }
+      responses: { '200': { description: Traces e source status } }
+  /api/v1/incidents/{id}/escalations:
+    get:
+      operationId: listIncidentEscalations
+      summary: Lista escalonamentos duráveis do incidente tenant-scoped
+      parameters: [{ $ref: '#/components/parameters/ID' }]
+      responses: { '200': { description: Agenda de escalonamento }, '401': { $ref: '#/components/responses/Error' } }
   /api/v1/webhooks/{provider}:
     post:
       operationId: ingestWebhook
@@ -126,6 +268,8 @@ components:
   parameters:
     ID: { in: path, name: id, required: true, schema: { type: string, format: uuid } }
     ServiceName: { in: path, name: name, required: true, schema: { type: string, pattern: '^[a-z0-9][a-z0-9-]{1,62}$' } }
+    TelemetryStart: { in: query, name: start, schema: { oneOf: [{ type: string, format: date-time }, { type: integer }], description: RFC3339 ou Unix seconds; padrão 15 minutos atrás } }
+    TelemetryEnd: { in: query, name: end, schema: { oneOf: [{ type: string, format: date-time }, { type: integer }], description: RFC3339 ou Unix seconds; padrão agora } }
     IdempotencyKey: { in: header, name: Idempotency-Key, required: true, schema: { type: string, maxLength: 128 } }
   responses:
     Error: { description: Erro com requestId, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
@@ -146,6 +290,22 @@ components:
         ownerTeam: { type: string }
         tier: { type: string }
         labels: { type: object, additionalProperties: { type: string } }
+    Asset:
+      type: object
+      additionalProperties: false
+      required: [assetId, name, kind, source]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        assetId: { type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$' }
+        name: { type: string }
+        kind: { type: string }
+        site: { type: string }
+        ownerTeam: { type: string }
+        environment: { type: string }
+        lifecycle: { type: string, enum: [active, stale, retired], default: active }
+        source: { type: string }
+        lastSeen: { type: string, format: date-time }
+        labels: { type: object, additionalProperties: { type: string } }
     Release:
       type: object
       required: [service, environment, version]
@@ -161,7 +321,7 @@ components:
         labels:
           type: object
           additionalProperties: { type: string }
-          description: health_url e políticas gate_promql*, gate_logql*, gate_slo_promql* e gate_traceql*.
+          description: health_url; gates *_promql/_logql com query, max, min_samples, window, max_age e step; TraceQL com query de erro e coverage_query.
     ValidationRequest:
       type: object
       additionalProperties: false
@@ -196,6 +356,41 @@ components:
         type: { type: string, enum: [http, browser, k6] }
         schedule: { type: object, additionalProperties: true }
         spec: { type: object, additionalProperties: true }
+    DataLifecycleRequestInput:
+      type: object
+      additionalProperties: false
+      required: [requestType, reason, scope]
+      properties:
+        requestType: { type: string, enum: [export, erasure] }
+        reason: { type: string, minLength: 1, maxLength: 1024 }
+        scope:
+          type: object
+          additionalProperties: false
+          required: [subjectRef, domains]
+          properties:
+            subjectRef: { type: string, minLength: 1, maxLength: 128, description: Referência pseudônima do titular ou sistema; não envie dados pessoais brutos. }
+            domains: { type: array, minItems: 1, uniqueItems: true, items: { type: string, enum: [control-plane-metadata, operational-evidence, telemetry-references] } }
+    DataLifecycleRequest:
+      type: object
+      required: [id, requestType, status, requestedBy, reason, scope, evidence, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        requestType: { type: string, enum: [export, erasure] }
+        status: { type: string, enum: [requested, approved, running, completed, rejected, failed] }
+        requestedBy: { type: string, readOnly: true }
+        approvedBy: { type: string, readOnly: true }
+        reason: { type: string }
+        scope: { $ref: '#/components/schemas/DataLifecycleRequestInput/properties/scope' }
+        evidence: { type: object, additionalProperties: true, readOnly: true }
+        createdAt: { type: string, format: date-time, readOnly: true }
+        updatedAt: { type: string, format: date-time, readOnly: true }
+        completedAt: { type: string, format: date-time, readOnly: true }
+    DataLifecycleExecuteInput:
+      type: object
+      additionalProperties: false
+      required: [confirm]
+      properties:
+        confirm: { type: string, const: ERASE_CONTROL_PLANE_METADATA }
     ErrorEnvelope:
       type: object
       properties:

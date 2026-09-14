@@ -1,22 +1,150 @@
 {
-  "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": true, "hide": true, "name": "Deployments", "type": "dashboard"}]},
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "name": "Deployments",
+        "type": "dashboard"
+      }
+    ]
+  },
   "editable": false,
   "graphTooltip": 1,
-  "links": [{"title": "SentinelOps", "type": "link", "url": "http://localhost:3000"}],
+  "links": [
+    {
+      "title": "SentinelOps",
+      "type": "link",
+      "url": "http://localhost:3000"
+    }
+  ],
   "panels": [
-    {"type":"stat","title":"Disponibilidade","id":1,"gridPos":{"h":5,"w":6,"x":0,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"min(up{job=\"sentinel-demo-apps\"})","refId":"A"}]},
-    {"type":"timeseries","title":"Requests por segundo","id":2,"gridPos":{"h":8,"w":9,"x":6,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum by (service, route) (rate(demo_pipeline_requests_total[5m]))","legendFormat":"{{service}} · {{route}}","refId":"A"}]},
-    {"type":"timeseries","title":"Latência p95","id":3,"gridPos":{"h":8,"w":9,"x":15,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"histogram_quantile(0.95, sum by (le, service, route) (rate(demo_pipeline_request_duration_seconds_bucket[5m])))","legendFormat":"{{service}} · {{route}}","refId":"A"}]},
-    {"type":"logs","title":"Logs correlacionados","id":4,"gridPos":{"h":9,"w":12,"x":0,"y":8},"datasource":{"type":"loki","uid":"loki"},"targets":[{"expr":"{service_namespace=\"sentinel-demo\"}","refId":"A"}]},
-    {"type":"traces","title":"Traces distribuídos","id":5,"gridPos":{"h":9,"w":12,"x":12,"y":8},"datasource":{"type":"tempo","uid":"tempo"},"targets":[{"query":"{ resource.service.namespace = \"sentinel-demo\" }","queryType":"traceql","refId":"A"}]}
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Collector Continuous Profiling",
+      "description": "1 = disponível; 0 = indisponível; Sem dados = integração ainda não cadastrada.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "max(up{job=\"sentinel-pyroscope-agent\",instance=~\"$collector_instance\"})",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 2,
+      "type": "text",
+      "title": "Integração pendente",
+      "description": "Orientação operacional; não é dado de monitoramento.",
+      "options": {
+        "mode": "markdown",
+        "content": "### Sem fonte real configurada\n\nEsta dashboard não reutiliza métricas, logs ou traces de outro domínio. Conclua o onboarding do collector e valide identidade, freshness e alertas antes de habilitar o uso pelo NOC."
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 18,
+        "h": 5
+      }
+    }
   ],
   "refresh": "15s",
   "schemaVersion": 42,
-  "tags": ["sentinelops", "managed", "continuous-profiling"],
-  "templating": {"list": [{"name":"environment","label":"Ambiente","type":"custom","query":"local-demo,development,staging,production","current":{"text":"local-demo","value":"local-demo"}}]},
-  "time": {"from": "now-30m", "to": "now"},
+  "tags": [
+    "continuous-profiling",
+    "managed",
+    "noc-ready",
+    "sentinelops"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "collector_instance",
+        "label": "Instância do collector",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(up{job=\"sentinel-pyroscope-agent\"}, instance)",
+          "refId": "var-collector_instance"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      }
+    ]
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
   "timezone": "browser",
   "title": "Continuous Profiling",
   "uid": "sentinel-continuous-profiling",
-  "version": 2
+  "version": 3,
+  "description": "Status de onboarding de Continuous Profiling. Não apresenta KPIs substitutos: sem collector real, exibe Sem dados."
 }

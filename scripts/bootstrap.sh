@@ -4,8 +4,32 @@ set -eu
 ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 ENV_FILE="$ROOT/.env"
 
+ensure_default() {
+  key=$1
+  value=$2
+  grep -q "^${key}=" "$ENV_FILE" || printf '%s=%s\n' "$key" "$value" >> "$ENV_FILE"
+}
+
 if [ -f "$ENV_FILE" ]; then
-  echo "SentinelOps já possui .env; nenhum secret foi sobrescrito."
+  # Existing installations can predate new non-secret runtime settings. Keep
+  # every secret byte intact and append only missing documented defaults.
+  umask 077
+  ensure_default OIDC_API_AUDIENCE sentinelops-api
+  ensure_default OIDC_REQUIRED_SCOPE sentinelops.api
+  ensure_default TENANT_REQUESTS_PER_MINUTE 600
+  ensure_default CATALOG_QUERIES_PER_MINUTE 120
+  ensure_default NOTIFICATION_WEBHOOK_URLS '{}'
+  ensure_default NOTIFICATION_ALLOWED_HOSTS ''
+  ensure_default SENTINEL_GRAFANA_BIND_ADDRESS 127.0.0.1
+  ensure_default SENTINEL_KEYCLOAK_BIND_ADDRESS 127.0.0.1
+  ensure_default SENTINEL_TEMPORAL_UI_BIND_ADDRESS 127.0.0.1
+  ensure_default SENTINEL_TEMPO_BIND_ADDRESS 127.0.0.1
+  ensure_default SENTINEL_PYROSCOPE_BIND_ADDRESS 127.0.0.1
+  ensure_default SYNTHETIC_ALLOWED_TARGETS 'app.example.com@203.0.113.10/32'
+  ensure_default RELEASE_VALIDATION_ALLOWED_HOSTS app.example.com
+  ensure_default RELEASE_VALIDATION_BASE_URL https://app.example.com
+  chmod 600 "$ENV_FILE"
+  echo "SentinelOps já possui .env; defaults ausentes foram reconciliados sem sobrescrever secrets."
   exit 0
 fi
 

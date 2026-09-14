@@ -19,7 +19,7 @@ Escolha somente um caminho:
 
 | Objetivo | Caminho recomendado | Resultado |
 |---|---|---|
-| Conhecer a ferramenta no computador | `make local-demo` | Plataforma, três apps mock, tráfego e telemetria ponta a ponta |
+| Executar o control plane local | `make up` | Plataforma pronta para receber exclusivamente fontes reais |
 | Instalar tudo em um servidor Linux vazio | `sudo ./bootstrap-linux.sh` | Perfil single-node com serviço do sistema e validação automática |
 | Monitorar outro servidor Linux | `scripts/create-linux-collector-bundle.sh` | Collector mTLS sem transportar a chave da CA |
 | Instrumentar uma aplicação | `make bootstrap-apm LANGUAGE=<runtime>` | Kit inicial de OpenTelemetry para o runtime escolhido |
@@ -40,10 +40,10 @@ O [portal de documentação](docs/README.md) organiza os guias por perfil e obje
   Agent Fleet e conteúdo didático.
 - Prometheus, Loki, Tempo, Pyroscope, Grafana, Alloy corrigido, Blackbox e
   MinIO reais; gateway TLS/mTLS com identidade SPIFFE por organização.
-- Ecossistema mock instrumentado (`storefront → orders → payments`) com tráfego
-  contínuo, métricas via Alloy, logs/traces OTLP, pprof/profiles e falhas
-  controladas; Playwright, k6 e prova E2E correlacionada.
-- 35 dashboards Grafana gerenciados, alertas de self-monitoring e drill-down de
+- Coleta de hosts e aplicações reais via Alloy, com métricas, logs, traces e
+  profiles apresentados somente quando a fonte correspondente está ativa.
+- 37 dashboards Grafana gerenciados, alertas de self-monitoring, filtros
+  encadeados por aplicação/host/container e drill-down de
   metric/exemplar → trace → logs → profile configurado.
 - Helm hardened, External Secrets/Argo CD, Terraform para storage/PostgreSQL e
   exemplos de GitHub, GitLab, Jenkins, Azure DevOps, CodePipeline e Rollouts.
@@ -64,7 +64,7 @@ flowchart LR
   API --> PG[(PostgreSQL)]
   API --> Temporal[Temporal]
   Temporal --> Worker[Workers e agentes]
-  Apps[Apps, hosts e mocks] -->|métricas, logs, traces e profiles| Alloy[Grafana Alloy]
+  Apps[Apps e hosts reais] -->|métricas, logs, traces e profiles| Alloy[Grafana Alloy]
   Alloy --> Prom[Prometheus / Mimir]
   Alloy --> Loki[Loki]
   Alloy --> Tempo[Tempo]
@@ -84,8 +84,8 @@ promoção GitOps está em [fluxos do sistema](docs/architecture/system-flows.md
 
 ## Instalação Linux do zero
 
-Para instalar tudo em um servidor Linux vazio, com runtime, PKI, migrações,
-aplicações mock e prova funcional:
+Para instalar tudo em um servidor Linux vazio, com runtime, PKI, migrações e
+validação das fontes reais:
 
     sudo ./bootstrap-linux.sh
 
@@ -94,24 +94,22 @@ Guia completo: [bootstrap Linux do zero](docs/installation/bootstrap-zero-to-run
 ## Quickstart
 
 ```bash
-make local-demo
+make up
+make doctor
+make prove-dashboards
 ```
 
-Esse alvo gera os secrets locais, constrói e trava todas as imagens próprias
-pelos respectivos IDs SHA256, inicia duas réplicas de API e worker, cadastra os
-três mocks e executa as provas fail-closed de telemetria e failover de API.
-Para repetir somente a validação sem reconstruir o ambiente:
+Esses alvos geram os secrets locais, constroem e travam as imagens próprias,
+iniciam duas réplicas de API e worker e validam backends e dashboards contra as
+fontes configuradas. Ausência de integração permanece `Sem dados`.
 
 ```bash
-make prove-local
+make prove-dashboards
 ```
 
-A saída contém um `trace_id` único e grava evidência JSON com permissão `0600`
-em `artifacts/local-e2e/`. A prova exige os três serviços em Prometheus, Loki,
-Tempo, Pyroscope e Catálogo, além dos resultados esperados dos quality gates.
-`make prove-ha` interrompe uma réplica de API, mede a convergência, executa 50
-probes e restaura as duas réplicas. `make prove-resilience` reinicia o
-Pyroscope com volume retido e valida seu orçamento de startup.
+A prova exige dados reais de host e aplicação no Prometheus e confirma o
+provisionamento das dashboards. `make prove-ha` interrompe uma réplica de API,
+mede a convergência, executa probes e restaura as duas réplicas.
 
 `make bootstrap` gera secrets e a senha local em `.env` com modo `0600` sem
 imprimir o valor; para recuperá-la conscientemente:
@@ -182,24 +180,20 @@ make bootstrap-apm LANGUAGE=spring SERVICE=pedidos-api ENVIRONMENT=staging
 | Tempo | <http://localhost:3200> | loopback |
 | Pyroscope | <http://localhost:4040> | loopback |
 | Alloy | <http://localhost:12345> | loopback |
-| Demo Storefront | <http://localhost:8090/api/checkout> | loopback |
 | OTLP gRPC/HTTP | `4317`, `4318` | loopback |
 
 ## Operação local
 
 ```bash
 make up              # build e start idempotente
-make local-demo      # instala, carrega mocks e prova todo o pipeline
 make down            # para, preservando volumes
 make reset           # remove somente volumes do projeto local
-make seed             # registra demo e cenário HTTP
 make test             # Go race tests, web tests e build
 make test-synthetics  # Playwright e k6 reais
 make logs             # logs agregados do Compose
 make doctor           # health/readiness ponta a ponta
-make prove-local      # prova métricas, logs, traces, perfis e gates
+make prove-dashboards # prova dashboards contra as fontes reais
 make prove-ha         # prova failover e restauração das réplicas locais
-make prove-resilience # prova cold start/readiness do Pyroscope
 make validate-release # Helm HA, actionlint, digest e assinatura local
 ```
 
@@ -219,7 +213,6 @@ Em hosts com Go:
 go run ./apps/cli --output json doctor
 SENTINEL_PASSWORD='<senha>' go run ./apps/cli login
 go run ./apps/cli service list
-go run ./apps/cli scenario apply -f examples/scenarios/demo-health.json
 ```
 
 Códigos: `0` sucesso, `2` gate FAIL, `3` erro de execução, `4`
@@ -245,7 +238,7 @@ sentinelctl service apply -f service.yaml
 
 ```bash
 sentinelctl release register \
-  --service sentinel-demo-api --environment development \
+  --service minha-aplicacao --environment production \
   --version 1.0.0 --commit-sha "$GIT_SHA" --image-digest "$IMAGE_DIGEST"
 
 sentinelctl release validate --release-id "$RELEASE_ID" --mode standard
@@ -255,18 +248,6 @@ sentinelctl validation wait "$VALIDATION_ID"
 Exemplos completos estão em [examples/integrations](examples/integrations/).
 O rollback automático é desabilitado; qualquer adapter exige política,
 escopo, auditoria, dry-run e aprovação explícita.
-
-## Falhas controladas da demo
-
-Somente os mocks aceitam `?fault=latency|timeout|error|cpu|exception` ou o
-header `X-Demo-Fault`. Use `fault_service=storefront|orders|payments` para
-aplicar a falha em apenas um salto. Não há operações destrutivas. Exemplos:
-
-```bash
-curl 'http://localhost:8090/api/checkout?fault=latency&fault_service=orders'
-curl -H 'X-Demo-Fault: error' \
-  'http://localhost:8090/api/checkout?fault_service=payments'
-```
 
 ## Produção
 
@@ -283,6 +264,8 @@ curl -H 'X-Demo-Fault: error' \
   [Terraform faseado](infra/terraform/README.md),
   [backup/restore/upgrade](docs/operations/lifecycle.md) e
   [runbooks](docs/runbooks/operational-response.md).
+- Para selecionar aplicações sem consolidar toda a frota, consulte o
+  [runbook de observabilidade Docker](docs/runbooks/docker-observability.md#filtros-das-dashboards).
 - O bootstrap Linux é um perfil single-node para laboratório/piloto; não é o
   perfil `small-production`. As duas réplicas toleram falha de processo, mas
   permanecem no mesmo host e não comprovam falha física, DR ou IdP externo.
@@ -314,7 +297,6 @@ curl -H 'X-Demo-Fault: error' \
 .
 ├── apps/                  # API, worker, web, CLI e utilitários
 ├── dashboards/            # dashboards Grafana gerenciados
-├── demo/                   # ecossistema mock instrumentado
 ├── deploy/                 # Compose, Helm, Argo CD, gateway e observabilidade
 ├── docs/                   # arquitetura, instalação, operação e segurança
 ├── examples/               # cenários, serviços e integrações CI/CD

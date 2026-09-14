@@ -12,12 +12,21 @@ global:
   upstreamCABundleKey: ca-bundle.crt
   oidcIssuerURL: ""
   oidcClientID: sentinelops
+  oidcAPIAudience: ""
+  oidcRequiredScope: sentinelops.api
+  oidcScope: "openid profile sentinelops.api"
   allowedOrigin: ""
   temporalAddress: temporal-frontend.temporal.svc:7233
   prometheusURL: http://prometheus.observability.svc:9090
   lokiURL: http://loki.observability.svc:3100
   tempoURL: http://tempo.observability.svc:3200
+  telemetryQueryGatewayURL: https://sentinelops-gateway:8444
+  telemetryQueryClientTLSSecretName: sentinelops-release-validator-tls
+  telemetryQueryClientTLSCertKey: tls.crt
+  telemetryQueryClientTLSKeyKey: tls.key
+  telemetryQueryAPIClientTLSSecretName: sentinelops-control-plane-api-tls
   releaseValidationAllowedHosts: []
+  syntheticAllowedTargets: []
   requireImageDigests: false
 
 api:
@@ -71,6 +80,7 @@ gateway:
     type: ClusterIP
     annotations: {}
     httpsPort: 8443
+    queryPort: 8444
     grpcPort: 4317
   resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: 500m, memory: 512Mi } }
 

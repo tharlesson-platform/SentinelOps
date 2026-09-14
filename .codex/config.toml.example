@@ -1,0 +1,10 @@
+# Copie os valores para a configuracao local do cliente MCP. Nunca versione o
+# token; injete-o pelo gerenciador de segredos ou pelo ambiente do processo.
+[mcp_servers.sentinelops]
+command = "sentinelops-mcp"
+
+[mcp_servers.sentinelops.env]
+SENTINEL_API_URL = "https://sentinelops.exemplo.interno"
+# SENTINEL_API_TOKEN deve ter somente a permissao asset:read e ser injetado fora deste arquivo.
+# Para gateway com mTLS, injete tambem caminhos somente-leitura fora do repositorio:
+# SENTINEL_API_CA_FILE, SENTINEL_API_CLIENT_CERT_FILE e SENTINEL_API_CLIENT_KEY_FILE.

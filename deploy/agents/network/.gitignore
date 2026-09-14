@@ -1,0 +1,5 @@
+.env
+certs/
+snmp-auth.yml
+targets.json
+targets.generated.alloy

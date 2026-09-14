@@ -36,6 +36,8 @@ services:
 
   alloy:
     image: ${SENTINEL_ALLOY_IMAGE:-sentinelops-alloy:1.18.1-patched.2}
+    group_add:
+      - "${SENTINEL_LOG_READ_GID:-4}"
     command:
       - run
       - /etc/alloy/config.alloy
@@ -56,19 +58,22 @@ services:
       - "127.0.0.1:${SENTINEL_COLLECTOR_ADMIN_PORT:-12345}:12345"
       - "127.0.0.1:${SENTINEL_COLLECTOR_OTLP_GRPC_PORT:-4317}:4317"
       - "127.0.0.1:${SENTINEL_COLLECTOR_OTLP_HTTP_PORT:-4318}:4318"
+      # Exclusivo para aplicações em contêiner no mesmo host. O padrão é um
+      # loopback alternativo, portanto não há exposição fora do host até que
+      # o instalador informe explicitamente o gateway da bridge Docker.
+      - "${SENTINEL_COLLECTOR_DOCKER_BRIDGE_ADDRESS:-127.0.0.2}:${SENTINEL_COLLECTOR_OTLP_HTTP_PORT:-4318}:4318"
     depends_on:
       alloy-init: { condition: service_completed_successfully }
       collector-certs-init: { condition: service_completed_successfully }
     networks: [collector]
     <<: *security
-    user: "473:473"
     read_only: true
     tmpfs: [/tmp]
     restart: unless-stopped
 
   container-metrics:
     image: ${SENTINEL_ALLOY_IMAGE:-sentinelops-alloy:1.18.1-patched.2}
-    profiles: [containers]
+    profiles: [cadvisor]
     command:
       - run
       - /etc/alloy/config-cadvisor.alloy
@@ -88,10 +93,63 @@ services:
     depends_on:
       collector-certs-init: { condition: service_completed_successfully }
     networks: [collector]
+    # O cAdvisor consulta o socket Docker montado como root:root. Este perfil
+    # já é opt-in e privilegiado; os demais coletores permanecem em UID 473.
+    user: "0:0"
     read_only: true
     tmpfs:
       - /tmp
-      - /var/lib/alloy/data
+      - /var/lib/alloy/data:uid=473,gid=473,mode=0750
+    restart: unless-stopped
+
+  container-logs:
+    image: ${SENTINEL_ALLOY_IMAGE:-sentinelops-alloy:1.18.1-patched.2}
+    profiles: [containers]
+    command:
+      - run
+      - /etc/alloy/config-docker-logs.alloy
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=0.0.0.0:12346
+    env_file: [.env]
+    volumes:
+      - ./config-docker-logs.alloy:/etc/alloy/config-docker-logs.alloy:ro
+      - ${SENTINEL_DOCKER_LOG_ROOT:-/var/lib/docker/containers}:/host/docker-containers:ro
+      - alloy-data:/var/lib/alloy/data
+      - collector-certs:/etc/sentinelops/certs:ro
+    depends_on:
+      alloy-init: { condition: service_completed_successfully }
+      collector-certs-init: { condition: service_completed_successfully }
+    networks: [collector]
+    <<: *security
+    # Docker protege o diretório de logs como root:root 0710. A capability é
+    # limitada a esta leitura; não há socket Docker e o mount é somente leitura.
+    cap_add: [DAC_OVERRIDE]
+    user: "0:0"
+    read_only: true
+    tmpfs: [/tmp]
+    restart: unless-stopped
+
+  # Auto-instrumenta processos HTTP/gRPC em contêiner sem alterar a imagem ou
+  # o comando das aplicações. Este perfil é separado porque eBPF exige PID e
+  # rede do host, além de privilégios de kernel.
+  beyla:
+    image: ${SENTINEL_BEYLA_IMAGE:-grafana/beyla:3.15.0@sha256:8ff0dcb4aa31fab39ba0b40715d0c0441d4522b43fb7886768ec280cc401dd69}
+    profiles: [beyla]
+    pid: host
+    network_mode: host
+    # Capacidades mínimas para observabilidade de aplicações eBPF; evita
+    # conceder o conjunto irrestrito de privilégios de `privileged: true`.
+    cap_drop: [ALL]
+    cap_add: [BPF, DAC_READ_SEARCH, CHECKPOINT_RESTORE, PERFMON, NET_RAW, SYS_PTRACE, SYS_ADMIN]
+    environment:
+      BEYLA_CONFIG_PATH: /etc/beyla/config.yml
+    volumes:
+      - ./beyla.yml:/etc/beyla/config.yml:ro
+      - /sys/kernel/security:/sys/kernel/security:ro
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - /sys/kernel/tracing:/sys/kernel/tracing:ro
+    read_only: true
+    tmpfs: [/tmp]
     restart: unless-stopped
 
 networks:

@@ -6,7 +6,7 @@ Data da avaliação: 2026-08-24.
 
 | Tema | Estado atual | Evidência/condição |
 |---|---|---|
-| Plataforma local e mocks | Completo e provado | `make local-demo`; imagens próprias por ID SHA256, API/worker duplicados, failover e storefront → orders → payments correlacionados nos quatro backends |
+| Plataforma single-node | Completo e provado | `make up`; imagens próprias por ID SHA256, API/worker duplicados, health checks e failover de processo |
 | Quickstart e Linux faseado | Completo para single-node | bootstrap do zero com download HTTPS+SHA, Systemd/OpenRC; seis famílias no preflight e Docker/Compose instalados no Rocky Minimal |
 | Ingestão remota | Completo para piloto seguro | TLS 1.2/1.3, mTLS, SAN SPIFFE tenant/nome, autenticação API-gateway e receivers diretos em loopback |
 | Coleta geral Linux | Completo e provado | bundle autocontido sem chave da CA; identidade SPIFFE mTLS; Unix exporter, logs, OTLP local; série real persistida no Prometheus; cAdvisor opt-in |
@@ -33,11 +33,10 @@ receber APM de forma segura. Ele continua sem HA por definição. O perfil
 Kubernetes renderiza somente API/worker/web e depende de PostgreSQL, Temporal,
 Mimir/Prometheus, Loki, Tempo e IdP operados externamente.
 
-No perfil local, `make prove-local` comprova a cadeia de três aplicações desde
-a chamada sintética, coleta e processamento no Alloy até Prometheus, Loki,
-Tempo e Pyroscope. A mesma execução cadastra os mocks no control plane e prova
-os estados PASS, INCONCLUSIVE e FAIL dos gates. Isso é aceite local reproduzível,
-não evidência de produção externa.
+No perfil single-node, `make prove-dashboards` comprova o provisionamento e
+exige séries de hosts e aplicações reais. Uma integração ausente produz
+`Sem dados`, nunca saúde ilustrativa. Isso é aceite do runtime, não substitui
+homologação externa de HA, IdP, retenção ou disaster recovery.
 
 O perfil local padrão executa duas réplicas de API/worker e uma borda com DNS
 dinâmico. `make prove-ha` interrompe uma API, exige estabilidade e restaura as

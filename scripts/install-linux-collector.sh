@@ -18,6 +18,10 @@ LOGS_ENDPOINT=""
 OTLP_ENDPOINT=""
 WITH_CONTAINERS=false
 WITH_CONTAINERS_SET=false
+WITH_CADVISOR=false
+WITH_CADVISOR_SET=false
+WITH_BEYLA=false
+WITH_BEYLA_SET=false
 ENABLE_SERVICE=false
 ADMIN_PORT=""
 OTLP_GRPC_PORT=""
@@ -26,6 +30,7 @@ TLS_CA_FILE=""
 TLS_CERT_FILE=""
 TLS_KEY_FILE=""
 TLS_SERVER_NAME=""
+DOCKER_LOG_ROOT=""
 
 usage() {
   cat <<'EOF'
@@ -40,7 +45,10 @@ Uso: ./scripts/install-linux-collector.sh [opções]
   --metrics-endpoint URL       Prometheus remote write
   --logs-endpoint URL          Loki push API
   --otlp-endpoint URL          OTLP HTTP base
-  --with-containers            habilita cAdvisor com acesso privilegiado ao host
+  --with-containers            habilita logs JSON Docker por mount read-only
+  --with-cadvisor              habilita métricas cAdvisor privilegiadas; requer aprovação por host
+  --with-beyla                 habilita APM eBPF para processos em contêiner; requer kernel compatível e aprovação por host
+  --docker-log-root DIR        diretório de logs JSON do Docker; padrão: DockerRootDir/containers
   --admin-port PORT            porta local da UI/readiness Alloy
   --otlp-grpc-port PORT        receiver local para aplicações
   --otlp-http-port PORT        receiver local para aplicações
@@ -65,6 +73,9 @@ while [ "$#" -gt 0 ]; do
     --logs-endpoint) LOGS_ENDPOINT=$2; shift 2 ;;
     --otlp-endpoint) OTLP_ENDPOINT=$2; shift 2 ;;
     --with-containers) WITH_CONTAINERS=true; WITH_CONTAINERS_SET=true; shift ;;
+    --with-cadvisor) WITH_CADVISOR=true; WITH_CADVISOR_SET=true; shift ;;
+    --with-beyla) WITH_BEYLA=true; WITH_BEYLA_SET=true; shift ;;
+    --docker-log-root) DOCKER_LOG_ROOT=$2; shift 2 ;;
     --admin-port) ADMIN_PORT=$2; shift 2 ;;
     --otlp-grpc-port) OTLP_GRPC_PORT=$2; shift 2 ;;
     --otlp-http-port) OTLP_HTTP_PORT=$2; shift 2 ;;
@@ -101,6 +112,12 @@ else
   if [ "$WITH_CONTAINERS_SET" = false ] && [ "$(collector_env_value SENTINEL_COLLECT_CONTAINERS)" = true ]; then
     WITH_CONTAINERS=true
   fi
+  if [ "$WITH_CADVISOR_SET" = false ] && [ "$(collector_env_value SENTINEL_COLLECT_CADVISOR)" = true ]; then
+    WITH_CADVISOR=true
+  fi
+  if [ "$WITH_BEYLA_SET" = false ] && [ "$(collector_env_value SENTINEL_COLLECT_BEYLA)" = true ]; then
+    WITH_BEYLA=true
+  fi
 fi
 validate_name "$HOST_NAME" host-name
 validate_name "$ENVIRONMENT" environment
@@ -115,6 +132,13 @@ if [ "$PHASE" = configure ] || [ "$PHASE" = all ]; then
   done
   [ -n "$TLS_SERVER_NAME" ] || die "--tls-server-name é obrigatório"
   validate_name "$TLS_SERVER_NAME" tls-server-name
+  for endpoint in "$METRICS_ENDPOINT" "$LOGS_ENDPOINT" "$OTLP_ENDPOINT"; do
+    endpoint_authority=${endpoint#https://}
+    endpoint_host=${endpoint_authority%%/*}
+    endpoint_host=${endpoint_host%%:*}
+    [ "$endpoint_host" = "$TLS_SERVER_NAME" ] || \
+      die "O host de $endpoint deve ser igual a --tls-server-name ($TLS_SERVER_NAME); use DNS interno para evitar rejeição HTTP por SNI"
+  done
   for certificate_file in "$TLS_CA_FILE" "$TLS_CERT_FILE" "$TLS_KEY_FILE"; do
     [ -s "$certificate_file" ] || die "arquivo TLS ausente ou vazio: $certificate_file"
   done
@@ -130,13 +154,45 @@ phase_selected() { [ "$PHASE" = all ] || [ "$PHASE" = "$1" ]; }
 collector_compose() {
   docker_prefix=$(docker_command)
   profile_option=""
-  [ "$WITH_CONTAINERS" = true ] && profile_option="--profile containers"
+  [ "$WITH_CONTAINERS" = true ] && profile_option="$profile_option --profile containers"
+  [ "$WITH_CADVISOR" = true ] && profile_option="$profile_option --profile cadvisor"
+  [ "$WITH_BEYLA" = true ] && profile_option="$profile_option --profile beyla"
   printf '%s\n' "$docker_prefix compose --env-file $COLLECTOR_ROOT/.env -f $COLLECTOR_ROOT/docker-compose.yml $profile_option"
+}
+
+resolve_docker_log_root() {
+  if [ -n "$DOCKER_LOG_ROOT" ]; then
+    candidate=$DOCKER_LOG_ROOT
+  else
+    docker_prefix=$(docker_command)
+    docker_root=$($docker_prefix info --format '{{.DockerRootDir}}' 2>/dev/null || true)
+    [ -n "$docker_root" ] || die "não foi possível obter DockerRootDir; use --docker-log-root somente após validar o host Docker"
+    candidate=$docker_root/containers
+  fi
+  case "$candidate" in
+    /*) ;;
+    *) die "--docker-log-root deve ser caminho absoluto" ;;
+  esac
+  [ -d "$candidate" ] || die "diretório de logs Docker não existe: $candidate"
+  printf '%s\n' "$candidate"
 }
 
 phase_preflight() {
   log "Fase 00/50: preflight do collector"
   validate_linux_host 1 5
+  if [ "$WITH_BEYLA" = true ]; then
+    [ -r /sys/kernel/btf/vmlinux ] || die "Beyla requer BTF em /sys/kernel/btf/vmlinux; não habilite eBPF neste host."
+    [ -d /sys/fs/cgroup ] || die "Beyla requer cgroupfs em /sys/fs/cgroup."
+    [ -d /sys/kernel/tracing ] || die "Beyla requer tracefs em /sys/kernel/tracing; monte tracefs antes de habilitar eBPF."
+    lockdown=none
+    if [ -r /sys/kernel/security/lockdown ]; then
+      lockdown=$(cat /sys/kernel/security/lockdown 2>/dev/null || printf unknown)
+    fi
+    case "$lockdown" in
+      *"[none]"*) log "Beyla: kernel sem lockdown; propagação distribuída pode ser habilitada." ;;
+      *) warn "Beyla: kernel lockdown ausente/ativo; métricas e traces locais continuam disponíveis, mas propagação distribuída pode ficar indisponível." ;;
+    esac
+  fi
 }
 
 phase_runtime() {
@@ -161,6 +217,15 @@ phase_configure() {
   set_env_value "$COLLECTOR_ROOT/.env" SENTINEL_COLLECTOR_OTLP_GRPC_PORT "$OTLP_GRPC_PORT"
   set_env_value "$COLLECTOR_ROOT/.env" SENTINEL_COLLECTOR_OTLP_HTTP_PORT "$OTLP_HTTP_PORT"
   set_env_value "$COLLECTOR_ROOT/.env" SENTINEL_COLLECT_CONTAINERS "$WITH_CONTAINERS"
+  set_env_value "$COLLECTOR_ROOT/.env" SENTINEL_COLLECT_CADVISOR "$WITH_CADVISOR"
+  set_env_value "$COLLECTOR_ROOT/.env" SENTINEL_COLLECT_BEYLA "$WITH_BEYLA"
+  log_reader_gid=$(getent group adm 2>/dev/null | awk -F: 'NR == 1 && $3 ~ /^[0-9]+$/ { print $3 }')
+  [ -n "$log_reader_gid" ] || log_reader_gid=4
+  set_env_value "$COLLECTOR_ROOT/.env" SENTINEL_LOG_READ_GID "$log_reader_gid"
+  if [ "$WITH_CONTAINERS" = true ]; then
+    docker_log_root=$(resolve_docker_log_root)
+    set_env_value "$COLLECTOR_ROOT/.env" SENTINEL_DOCKER_LOG_ROOT "$docker_log_root"
+  fi
   mkdir -p "$COLLECTOR_ROOT/certs"
   copy_tls_file "$TLS_CA_FILE" "$COLLECTOR_ROOT/certs/ca.crt" 0644
   copy_tls_file "$TLS_CERT_FILE" "$COLLECTOR_ROOT/certs/client.crt" 0644
@@ -190,6 +255,17 @@ phase_deploy() {
   log "Fase 30/50: deploy do collector"
   docker_prefix=$(docker_command)
   if ! $docker_prefix image inspect sentinelops-alloy:1.18.1-patched.2 >/dev/null 2>&1; then
+    # A imagem corrigida é compilada a partir do fonte e seu cache transitório
+    # pode ser grande. Falhar antes do build protege hosts de aplicação de
+    # esgotar o filesystem Docker e interromper a escrita de logs existentes.
+    minimum_build_disk_gib=${SENTINEL_ALLOY_BUILD_MIN_FREE_GIB:-25}
+    available_build_disk_gib=$(df -Pk "$ROOT" | awk 'NR==2 {print int($4 / 1024 / 1024)}')
+    case "$minimum_build_disk_gib" in
+      ''|*[!0-9]*) die "SENTINEL_ALLOY_BUILD_MIN_FREE_GIB deve ser inteiro positivo" ;;
+    esac
+    [ "$minimum_build_disk_gib" -ge 1 ] || die "SENTINEL_ALLOY_BUILD_MIN_FREE_GIB deve ser maior que zero"
+    [ "$available_build_disk_gib" -ge "$minimum_build_disk_gib" ] || \
+      die "São necessários pelo menos ${minimum_build_disk_gib} GiB livres para construir Alloy corrigido; detectado: ${available_build_disk_gib} GiB. Publique uma imagem pré-construída ou amplie o disco antes de continuar."
     [ -f "$ROOT/deploy/alloy/Dockerfile.patched" ] || die "Imagem Alloy corrigida ausente e Dockerfile não incluído no bundle."
     log "Construindo Alloy corrigido e fixado; esta etapa pode levar alguns minutos."
     # shellcheck disable=SC2086
@@ -199,7 +275,9 @@ phase_deploy() {
   # shellcheck disable=SC2086
   $compose config --quiet
   # shellcheck disable=SC2086
-  $compose up -d --remove-orphans
+  # Não remova contêineres fora do projeto do collector. Hosts de aplicação
+  # podem ter stacks independentes no mesmo Docker daemon.
+  $compose up -d
 }
 
 phase_verify() {
@@ -222,15 +300,17 @@ phase_service() {
   log "Fase 50/50: integração com init"
   docker_binary=$(command -v docker)
   profile_option=""
-  [ "$WITH_CONTAINERS" = true ] && profile_option="--profile containers"
+  [ "$WITH_CONTAINERS" = true ] && profile_option="$profile_option --profile containers"
+  [ "$WITH_CADVISOR" = true ] && profile_option="$profile_option --profile cadvisor"
+  [ "$WITH_BEYLA" = true ] && profile_option="$profile_option --profile beyla"
   if command_exists rc-update; then
     openrc_file=$(mktemp)
     cat > "$openrc_file" <<EOF
 #!/sbin/openrc-run
 description="SentinelOps Linux collector"
 depend() { need docker; after net; }
-start() { $docker_binary compose --env-file $COLLECTOR_ROOT/.env -f $COLLECTOR_ROOT/docker-compose.yml $profile_option up -d --remove-orphans; }
-stop() { $docker_binary compose --env-file $COLLECTOR_ROOT/.env -f $COLLECTOR_ROOT/docker-compose.yml $profile_option down --remove-orphans; }
+start() { $docker_binary compose --env-file $COLLECTOR_ROOT/.env -f $COLLECTOR_ROOT/docker-compose.yml $profile_option up -d; }
+stop() { $docker_binary compose --env-file $COLLECTOR_ROOT/.env -f $COLLECTOR_ROOT/docker-compose.yml $profile_option down; }
 EOF
     run_as_root install -m 0755 "$openrc_file" /etc/init.d/sentinelops-collector
     rm -f "$openrc_file"
@@ -254,8 +334,8 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=$COLLECTOR_ROOT
-ExecStart=$docker_binary compose --env-file $COLLECTOR_ROOT/.env -f $COLLECTOR_ROOT/docker-compose.yml $profile_option up -d --remove-orphans
-ExecStop=$docker_binary compose --env-file $COLLECTOR_ROOT/.env -f $COLLECTOR_ROOT/docker-compose.yml $profile_option down --remove-orphans
+ExecStart=$docker_binary compose --env-file $COLLECTOR_ROOT/.env -f $COLLECTOR_ROOT/docker-compose.yml $profile_option up -d
+ExecStop=$docker_binary compose --env-file $COLLECTOR_ROOT/.env -f $COLLECTOR_ROOT/docker-compose.yml $profile_option down
 
 [Install]
 WantedBy=multi-user.target
@@ -263,7 +343,7 @@ EOF
   run_as_root install -m 0644 "$unit_file" /etc/systemd/system/sentinelops-collector.service
   rm -f "$unit_file"
   run_as_root systemctl daemon-reload
-  run_as_root systemctl enable sentinelops-collector.service
+  run_as_root systemctl enable --now sentinelops-collector.service
 }
 
 phase_selected preflight && phase_preflight

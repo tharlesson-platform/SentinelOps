@@ -1,0 +1,12 @@
+{
+  "targets": [
+    {
+      "asset_id": "fortigate-hml-01",
+      "address": "192.0.2.10",
+      "site": "lab",
+      "environment": "homologacao",
+      "team": "network",
+      "module": "if_mib"
+    }
+  ]
+}

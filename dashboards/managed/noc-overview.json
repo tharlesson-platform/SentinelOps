@@ -1,22 +1,739 @@
 {
-  "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": true, "hide": true, "name": "Deployments", "type": "dashboard"}]},
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "name": "Deployments",
+        "type": "dashboard"
+      }
+    ]
+  },
   "editable": false,
   "graphTooltip": 1,
-  "links": [{"title": "SentinelOps", "type": "link", "url": "http://localhost:3000"}],
-  "panels": [
-    {"type":"stat","title":"Disponibilidade","id":1,"gridPos":{"h":5,"w":6,"x":0,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"min(up{job=\"sentinel-demo-apps\"})","refId":"A"}]},
-    {"type":"timeseries","title":"Requests por segundo","id":2,"gridPos":{"h":8,"w":9,"x":6,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum by (service, route) (rate(demo_pipeline_requests_total[5m]))","legendFormat":"{{service}} · {{route}}","refId":"A"}]},
-    {"type":"timeseries","title":"Latência p95","id":3,"gridPos":{"h":8,"w":9,"x":15,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"histogram_quantile(0.95, sum by (le, service, route) (rate(demo_pipeline_request_duration_seconds_bucket[5m])))","legendFormat":"{{service}} · {{route}}","refId":"A"}]},
-    {"type":"logs","title":"Logs correlacionados","id":4,"gridPos":{"h":9,"w":12,"x":0,"y":8},"datasource":{"type":"loki","uid":"loki"},"targets":[{"expr":"{service_namespace=\"sentinel-demo\"}","refId":"A"}]},
-    {"type":"traces","title":"Traces distribuídos","id":5,"gridPos":{"h":9,"w":12,"x":12,"y":8},"datasource":{"type":"tempo","uid":"tempo"},"targets":[{"query":"{ resource.service.namespace = \"sentinel-demo\" }","queryType":"traceql","refId":"A"}]}
+  "links": [
+    {
+      "title": "SentinelOps",
+      "type": "link",
+      "url": "http://localhost:3000"
+    }
   ],
-  "refresh": "15s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Alertas ativos",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "count(ALERTS{alertstate=\"firing\"}) or vector(0)",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "description": "Todo alerta firing. Zero é o único estado saudável.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 2,
+      "title": "Alertas críticos",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "count(ALERTS{alertstate=\"firing\",severity=\"critical\"}) or vector(0)",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "description": "Incidentes críticos que exigem atuação imediata.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 3,
+      "title": "Hosts sem coleta (esperado: 3)",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "clamp_min(3 - count(up{job=\"linux-node\"} == 1), 0)",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "description": "Gate fail-closed: diferença entre os três hosts esperados e os scrapes Linux ativos.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 4,
+      "title": "Maior uso de memória",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "max(100 * (1 - node_memory_MemAvailable_bytes{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\"} / node_memory_MemTotal_bytes{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\"}))",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "description": "Pior utilização de memória entre os hosts selecionados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 5,
+      "title": "Maior uso de filesystem",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "max(100 * (1 - node_filesystem_avail_bytes{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\",fstype!~\"tmpfs|overlay|squashfs\"} / node_filesystem_size_bytes{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\",fstype!~\"tmpfs|overlay|squashfs\"}))",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "description": "Pior ocupação de filesystem persistente.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 6,
+      "title": "Taxa HTTP 5xx",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "100 * sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~\"5..\"}[5m])) / clamp_min(sum(rate(http_server_request_duration_seconds_count[5m])), 0.000001)",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "x": 20,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "description": "Percentual global de respostas 5xx nos últimos 5 minutos.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 7,
+      "title": "Fila de atuação — alertas firing",
+      "type": "table",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "ALERTS{alertstate=\"firing\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 7
+      },
+      "description": "Priorize critical, depois warning. A tabela preserva alertname, severity e rótulos de origem.",
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Sem dados"
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Memória por host",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "topk(5, 100 * (1 - node_memory_MemAvailable_bytes{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\"} / node_memory_MemTotal_bytes{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\"}))",
+          "refId": "A",
+          "legendFormat": "{{instance}}",
+          "maxDataPoints": 600
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 12,
+        "h": 7
+      },
+      "description": "Top 5 hosts por utilização de memória; warning a partir de 80%.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Top aplicações por erro 5xx",
+      "type": "table",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "topk(10, (100 * sum by (job) (rate(http_server_request_duration_seconds_count{http_response_status_code=~\"5..\"}[5m])) / clamp_min(sum by (job) (rate(http_server_request_duration_seconds_count[5m])), 0.000001)) > 0)",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "x": 12,
+        "y": 11,
+        "w": 12,
+        "h": 7
+      },
+      "description": "Até 10 aplicações com maior taxa de 5xx; use a dashboard APM para investigar.",
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Sem dados"
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Volume de erros recentes por host",
+      "type": "timeseries",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "expr": "topk(5, sum by (host_name) (count_over_time({job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\"} |~ \"(?i)error|exception|fatal|panic\" [$__interval])))",
+          "refId": "A",
+          "legendFormat": "{{host_name}}",
+          "maxDataPoints": 600
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 9
+      },
+      "description": "Contagem sem conteúdo sensível. Investigue as linhas na dashboard Logs com acesso restrito.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
+    }
+  ],
+  "refresh": "30s",
   "schemaVersion": 42,
-  "tags": ["sentinelops", "managed", "noc-overview"],
-  "templating": {"list": [{"name":"environment","label":"Ambiente","type":"custom","query":"local-demo,development,staging,production","current":{"text":"local-demo","value":"local-demo"}}]},
-  "time": {"from": "now-30m", "to": "now"},
+  "tags": [
+    "managed",
+    "noc-overview",
+    "noc-ready",
+    "sentinelops"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "environment",
+        "label": "Ambiente",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(up{job=\"linux-node\"}, deployment_environment)",
+          "refId": "var-environment"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": false,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "production",
+          "value": "production"
+        },
+        "hide": 0
+      },
+      {
+        "name": "host",
+        "label": "Host",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(node_uname_info{deployment_environment=~\"$environment\"}, instance)",
+          "refId": "var-host"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      }
+    ]
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
   "timezone": "browser",
   "title": "NOC Overview",
   "uid": "sentinel-noc-overview",
-  "version": 2
+  "version": 3,
+  "description": "Landing operacional failure-first: alertas e indisponibilidade nunca são ocultados pelos filtros; host e ambiente refinam somente capacidade e logs."
 }

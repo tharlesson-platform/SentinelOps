@@ -1,5 +1,36 @@
 # Backup, restore, upgrade e rollback
 
+## Solicitações de exportação e exclusão
+
+O control plane registra solicitações de ciclo de vida pela API, sempre
+tenant-scoped e somente para `Platform Administrator`. A criação exige
+`requestType` (`export` ou `erasure`), motivo, `subjectRef` pseudônimo e pelo
+menos um domínio permitido (`control-plane-metadata`,
+`operational-evidence` ou `telemetry-references`). Não inclua conteúdo pessoal
+bruto na referência ou no motivo.
+
+Uma pessoa diferente deve aprovar a solicitação; o banco impõe
+`requested_by <> approved_by`, a transição é atômica e ambos os passos gravam
+audit event no mesmo commit. `approved` **não** inicia exportação, retenção ou
+exclusão automaticamente. Isso evita uma exclusão acidental sem contrato por
+backend, política de retenção, revisão jurídica e evidência de escopo.
+
+Há uma exceção estritamente delimitada: uma solicitação `erasure` aprovada com
+domínio **exclusivo** `control-plane-metadata` pode receber a confirmação
+literal `ERASE_CONTROL_PLANE_METADATA`. O executor redige `email` e
+`display_name`, desabilita e substitui o subject do perfil local por referência
+irreversível, e remove os `role_bindings` ativos. Ele registra contagens sem o
+subject na evidência e não pode ser executado duas vezes. Auditoria histórica,
+exportação, telemetria, objetos e `operational-evidence`/`telemetry-references`
+continuam fora deste contrato e são recusados, não ignorados.
+
+Antes de conectar um executor, aprove em mudança explícita: owner do dado,
+fontes e destinos, prazo de retenção, criptografia/segregação do pacote de
+exportação, validação do escopo, rollback quando aplicável e evidência de
+conclusão. O executor deverá atualizar a solicitação somente depois de provar
+o resultado; até então `requested`/`approved` são registros de governança, não
+comprovantes de atendimento.
+
 ## Perfil Linux single-node
 
 Crie uma passphrase aleatória, guarde-a fora do diretório de backup e aplique
@@ -18,8 +49,9 @@ chmod 600 .sentinelops/secrets/backup-passphrase
 ```
 
 Um backup não conta para DR até ser restaurado. O restore só aceita um projeto
-novo terminado em `-restore`, remove binds de porta, autentica o pacote, valida
-checksums e deixa PostgreSQL/MinIO isolados para QA:
+novo terminado em `-restore` **sem containers ou volumes Compose preexistentes**,
+remove binds de porta, autentica o pacote, rejeita paths perigosos, valida o
+contrato v1/checksums e deixa PostgreSQL/MinIO isolados para QA:
 
 ```bash
 ./scripts/restore-local.sh \
@@ -29,8 +61,11 @@ checksums e deixa PostgreSQL/MinIO isolados para QA:
   --confirm RESTORE
 ```
 
-Registre duração, tamanho, contagens, RPO observado e evidência de leitura por
-tenant. Não remova o projeto restaurado antes da aprovação. Para desligá-lo
+Ao terminar, o script grava `artifacts/evidence/dr-restore-*/metadata.json` e
+`row-counts.txt`, contendo hash do archive, duração, metadados não secretos e
+contagens. Registre também tamanho, RPO observado e evidência de leitura por
+tenant. Esse arquivo só prova o restore Compose local; não prova RTO/RPO
+aprovado, PITR, recuperação de CA/segredos nem DR de produção. Não remova o projeto restaurado antes da aprovação. Para desligá-lo
 preservando volumes, use `docker compose -p sentinelops-dr-restore down` com o
 mesmo base/override utilizado pelo runbook da mudança; remoção de volumes exige
 autorização destrutiva separada.

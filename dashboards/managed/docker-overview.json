@@ -1,22 +1,526 @@
 {
-  "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": true, "hide": true, "name": "Deployments", "type": "dashboard"}]},
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "name": "Deployments",
+        "type": "dashboard"
+      }
+    ]
+  },
   "editable": false,
   "graphTooltip": 1,
-  "links": [{"title": "SentinelOps", "type": "link", "url": "http://localhost:3000"}],
+  "links": [
+    {
+      "title": "SentinelOps",
+      "type": "link",
+      "url": "http://localhost:3000"
+    }
+  ],
   "panels": [
-    {"type":"stat","title":"Containers observados","id":1,"gridPos":{"h":4,"w":6,"x":0,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"count(container_last_seen{name!=\"\"})","refId":"A"}]},
-    {"type":"timeseries","title":"CPU por container","id":2,"gridPos":{"h":8,"w":9,"x":6,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum by (instance,name) (rate(container_cpu_usage_seconds_total{name=~\"$container\"}[5m])) * 100","legendFormat":"{{instance}} · {{name}}","refId":"A"}]},
-    {"type":"timeseries","title":"Memória por container","id":3,"gridPos":{"h":8,"w":9,"x":15,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"container_memory_working_set_bytes{name=~\"$container\"}","legendFormat":"{{instance}} · {{name}}","refId":"A"}]},
-    {"type":"timeseries","title":"Rede por container","id":4,"gridPos":{"h":8,"w":12,"x":0,"y":8},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum by (instance,name) (rate(container_network_receive_bytes_total{name=~\"$container\"}[5m]))","legendFormat":"{{name}} RX","refId":"A"},{"expr":"sum by (instance,name) (rate(container_network_transmit_bytes_total{name=~\"$container\"}[5m]))","legendFormat":"{{name}} TX","refId":"B"}]},
-    {"type":"timeseries","title":"I/O de filesystem","id":5,"gridPos":{"h":8,"w":12,"x":12,"y":8},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum by (instance,name) (rate(container_fs_reads_bytes_total{name=~\"$container\"}[5m]) + rate(container_fs_writes_bytes_total{name=~\"$container\"}[5m]))","legendFormat":"{{instance}} · {{name}}","refId":"A"}]}
+    {
+      "type": "stat",
+      "title": "Containers observados",
+      "id": 1,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "count(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\",name=~\"$container\"})",
+          "refId": "A"
+        }
+      ],
+      "description": "Containers observados. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU por container",
+      "id": 2,
+      "gridPos": {
+        "h": 8,
+        "w": 9,
+        "x": 6,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (instance, name) (rate(container_cpu_usage_seconds_total{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\",name=~\"$container\"}[5m])) * 100)",
+          "refId": "A",
+          "legendFormat": "{{instance}} · {{name}}",
+          "maxDataPoints": 600
+        }
+      ],
+      "description": "CPU por container. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Memória por container",
+      "id": 3,
+      "gridPos": {
+        "h": 8,
+        "w": 9,
+        "x": 15,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (instance, name) (container_memory_working_set_bytes{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\",name=~\"$container\"}))",
+          "refId": "A",
+          "legendFormat": "{{instance}} · {{name}}",
+          "maxDataPoints": 600
+        }
+      ],
+      "description": "Memória por container. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Rede por container",
+      "id": 4,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (instance, name) (rate(container_network_receive_bytes_total{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\",name=~\"$container\"}[5m])))",
+          "refId": "A",
+          "legendFormat": "{{instance}} · {{name}} RX",
+          "maxDataPoints": 600
+        },
+        {
+          "expr": "topk(10, sum by (instance, name) (rate(container_network_transmit_bytes_total{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\",name=~\"$container\"}[5m])))",
+          "refId": "B",
+          "legendFormat": "{{instance}} · {{name}} TX",
+          "maxDataPoints": 600
+        }
+      ],
+      "description": "Rede por container. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "I/O de filesystem",
+      "id": 5,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (instance, name) (rate(container_fs_reads_bytes_total{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\",name=~\"$container\"}[5m]) + rate(container_fs_writes_bytes_total{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\",name=~\"$container\"}[5m])))",
+          "refId": "A",
+          "legendFormat": "{{instance}} · {{name}}",
+          "maxDataPoints": 600
+        }
+      ],
+      "description": "I/O de filesystem. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
+    }
   ],
   "refresh": "15s",
   "schemaVersion": 42,
-  "tags": ["sentinelops", "managed", "docker"],
-  "templating": {"list": [{"name":"container","label":"Container","type":"query","datasource":{"type":"prometheus","uid":"prometheus"},"query":{"query":"label_values(container_last_seen{name!=\"\"}, name)","refId":"container"},"includeAll":true,"allValue":".*","refresh":1}]},
-  "time": {"from": "now-30m", "to": "now"},
+  "tags": [
+    "docker",
+    "managed",
+    "noc-ready",
+    "sentinelops"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "environment",
+        "label": "Ambiente",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(up{job=\"linux-node\"}, deployment_environment)",
+          "refId": "var-environment"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": false,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "production",
+          "value": "production"
+        },
+        "hide": 0
+      },
+      {
+        "name": "host",
+        "label": "Host",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(node_uname_info{deployment_environment=~\"$environment\"}, instance)",
+          "refId": "var-host"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "container",
+        "label": "Container Docker",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\"}, name)",
+          "refId": "var-container"
+        },
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      }
+    ]
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
   "timezone": "browser",
   "title": "Docker Containers",
   "uid": "sentinel-docker-overview",
-  "version": 2
+  "version": 3,
+  "description": "Métricas Docker filtráveis por ambiente, host e aplicação/container."
 }

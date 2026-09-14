@@ -1,22 +1,173 @@
 {
-  "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": true, "hide": true, "name": "Deployments", "type": "dashboard"}]},
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "name": "Deployments",
+        "type": "dashboard"
+      }
+    ]
+  },
   "editable": false,
   "graphTooltip": 1,
-  "links": [{"title": "SentinelOps", "type": "link", "url": "http://localhost:3000"}],
+  "links": [
+    {
+      "title": "SentinelOps",
+      "type": "link",
+      "url": "http://localhost:3000"
+    }
+  ],
   "panels": [
-    {"type":"stat","title":"Disponibilidade","id":1,"gridPos":{"h":5,"w":6,"x":0,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"min(up{job=\"sentinel-demo-apps\"})","refId":"A"}]},
-    {"type":"timeseries","title":"Requests por segundo","id":2,"gridPos":{"h":8,"w":9,"x":6,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum by (service, route) (rate(demo_pipeline_requests_total[5m]))","legendFormat":"{{service}} · {{route}}","refId":"A"}]},
-    {"type":"timeseries","title":"Latência p95","id":3,"gridPos":{"h":8,"w":9,"x":15,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"histogram_quantile(0.95, sum by (le, service, route) (rate(demo_pipeline_request_duration_seconds_bucket[5m])))","legendFormat":"{{service}} · {{route}}","refId":"A"}]},
-    {"type":"logs","title":"Logs correlacionados","id":4,"gridPos":{"h":9,"w":12,"x":0,"y":8},"datasource":{"type":"loki","uid":"loki"},"targets":[{"expr":"{service_namespace=\"sentinel-demo\"}","refId":"A"}]},
-    {"type":"traces","title":"Traces distribuídos","id":5,"gridPos":{"h":9,"w":12,"x":12,"y":8},"datasource":{"type":"tempo","uid":"tempo"},"targets":[{"query":"{ resource.service.namespace = \"sentinel-demo\" }","queryType":"traceql","refId":"A"}]}
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Sonda real disponível",
+      "description": "Pior estado no escopo. Sem dados significa que nenhuma sonda real foi onboardada.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "min(probe_success{job=~\"$probe_job\",instance=~\"$target\"})",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 2,
+      "type": "text",
+      "title": "Onboarding de monitoramento sintético",
+      "description": "Orientação operacional, sem métricas substitutas.",
+      "options": {
+        "mode": "markdown",
+        "content": "### Sem sondas reais no escopo\n\nCadastre o alvo aprovado, valide TLS/DNS/HTTP e somente então habilite SLO e alertas. A ausência de dados não é tratada como sucesso."
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 18,
+        "h": 5
+      }
+    }
   ],
   "refresh": "15s",
   "schemaVersion": 42,
-  "tags": ["sentinelops", "managed", "incident-timeline"],
-  "templating": {"list": [{"name":"environment","label":"Ambiente","type":"custom","query":"local-demo,development,staging,production","current":{"text":"local-demo","value":"local-demo"}}]},
-  "time": {"from": "now-30m", "to": "now"},
+  "tags": [
+    "incident-timeline",
+    "managed",
+    "noc-ready",
+    "sentinelops"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "probe_job",
+        "label": "Grupo de sondas",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(probe_success{job=~\"blackbox-.+\"}, job)",
+          "refId": "var-probe_job"
+        },
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "target",
+        "label": "Alvo",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(probe_success{job=~\"$probe_job\"}, instance)",
+          "refId": "var-target"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      }
+    ]
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
   "timezone": "browser",
   "title": "Incident Timeline",
   "uid": "sentinel-incident-timeline",
-  "version": 2
+  "version": 3,
+  "description": "Status de onboarding de sondas reais. Sem probe_success, não apresenta disponibilidade fabricada."
 }

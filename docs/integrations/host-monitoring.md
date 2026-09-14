@@ -22,8 +22,13 @@ O bundle contém somente CA pública, certificado e chave do collector. Ele não
 contém chave da CA, passphrase ou credenciais administrativas. O certificado
 vale 30 dias; gere e distribua novo bundle antes da expiração.
 
-Para containers, acrescente --with-containers ao gerar o bundle. Esse perfil é
-privilegiado e deve ser aprovado por host; ele não é ativado por padrão.
+Para logs de containers, acrescente --with-containers ao gerar o bundle. Esse
+perfil monta somente os logs JSON em leitura e não precisa de docker.sock. Use
+--with-cadvisor separadamente para métricas de container: ele é privilegiado,
+deve ser aprovado por host e não é ativado por padrão. Na
+configuração, o instalador consulta o `DockerRootDir` local e monta somente
+`DockerRootDir/containers` para logs JSON. Use `--docker-log-root` apenas
+quando o runtime usa um caminho não convencional já conferido no host.
 
 O collector Linux usa Grafana Alloy com os componentes embutidos Unix Exporter
 (baseado em Node Exporter) e cAdvisor opcional. O host inicia conexões de saída
@@ -34,7 +39,8 @@ para o SentinelOps; nenhuma porta de exporter é publicada na rede.
 - Unix Exporter: CPU, load, memória, swap, filesystem, inodes, disco, rede,
   TCP, processos, file descriptors, clock, uptime e kernel.
 - Logs: arquivos `*.log` diretamente abaixo de `/var/log`, com descarte de
-  linhas que aparentem conter credenciais.
+  linhas que aparentem conter credenciais. Com `--with-containers`, inclui os
+  logs JSON do Docker por mount somente leitura, sem acesso ao socket Docker.
 - OTLP local: aplicações do host enviam métricas, logs e traces para
   `127.0.0.1:4317` ou `127.0.0.1:4318`.
 - cAdvisor opcional: CPU, memória, rede, I/O, estado e restarts de containers.
@@ -150,6 +156,7 @@ Com cAdvisor e systemd:
   --tls-key-file /etc/sentinelops/client.key \
   --tls-server-name ingest.example.net \
   --with-containers \
+  --with-cadvisor \
   --enable-service
 ```
 
