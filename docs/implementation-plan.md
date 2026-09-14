@@ -4,8 +4,7 @@ Data de referência: 2026-08-17. Timezone padrão: `America/Sao_Paulo`.
 
 ## Princípios
 
-- O caminho principal é funcional e não usa mocks. O perfil `local-demo` usa
-  serviços reais em contêineres e uma aplicação demonstrativa isolada.
+- Todo caminho operacional usa exclusivamente fontes de telemetria reais.
 - Nenhum `terraform apply`, alteração cloud, DNS ou deploy de produção é
   executado automaticamente.
 - Imagens, módulos e pacotes usam versões exatas. Secrets locais são gerados
@@ -24,7 +23,7 @@ Data de referência: 2026-08-17. Timezone padrão: `America/Sao_Paulo`.
 4. Synthetic: execução HTTP real, agendamento, evidências e Test Studio.
 5. Delivery assurance: releases, políticas versionadas, checks, PASS/FAIL/
    INCONCLUSIVE, webhooks idempotentes e integração CI.
-6. APM/SLO: demo instrumentada, dashboards, SLO e alertas.
+6. APM/SLO: aplicações reais instrumentadas, dashboards, SLO e alertas.
 7. Produção: Helm/Terraform validáveis, hardening, backup/restore e runbooks.
 8. Assistente: somente leitura e desabilitado por padrão; não faz parte do gate.
 
@@ -43,4 +42,3 @@ local comprovada de exemplos de produção apenas validados estaticamente.
 | Terraform | `terraform fmt -check`, `terraform validate` |
 | Segurança | secret scan, redaction e replay tests |
 | Gate | release saudável PASS e release degradada FAIL |
-

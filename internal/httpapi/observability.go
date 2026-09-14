@@ -81,7 +81,7 @@ func (s *Server) observabilityOverview(w http.ResponseWriter, r *http.Request) {
 		"hostsDown":      `count(up{job="linux-node"} == 0)`,
 		"containers":     `count(container_last_seen{name!=""})`,
 		"recentRestarts": `sum(changes(container_start_time_seconds{name!=""}[1h]))`,
-		"services":       `count(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_name!=""}[5m])) or label_replace(sum by (service) (rate(demo_pipeline_request_duration_seconds_count{service!=""}[5m])), "service_name", "$1", "service", "(.+)"))`,
+		"services":       `count(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_name!=""}[5m])))`,
 	}
 	results := s.instantQueries(r.Context(), getPrincipal(r.Context()).OrganizationID, queries)
 	values := map[string]*float64{}
@@ -280,14 +280,10 @@ func (s *Server) observedAPM(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	queries := map[string]string{
-		"rps": `sum by (service_name,deployment_environment,host_name) (rate(http_server_request_duration_seconds_count{service_name!=""}[5m]))
-or label_replace(sum by (service,deployment_environment) (rate(demo_pipeline_request_duration_seconds_count{service!=""}[5m])), "service_name", "$1", "service", "(.+)")`,
-		"errors": `100 * sum by (service_name) (rate(http_server_request_duration_seconds_count{service_name!="",http_response_status_code=~"5.."}[5m])) / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_name!=""}[5m])), 0.000001)
-or label_replace(100 * sum by (service) (rate(demo_pipeline_requests_total{service!="",status=~"5.."}[5m])) / clamp_min(sum by (service) (rate(demo_pipeline_requests_total{service!=""}[5m])), 0.000001), "service_name", "$1", "service", "(.+)")`,
-		"p95": `histogram_quantile(0.95, sum by (le,service_name) (rate(http_server_request_duration_seconds_bucket{service_name!=""}[5m])))
-or label_replace(histogram_quantile(0.95, sum by (le,service) (rate(demo_pipeline_request_duration_seconds_bucket{service!=""}[5m]))), "service_name", "$1", "service", "(.+)")`,
-		"p99": `histogram_quantile(0.99, sum by (le,service_name) (rate(http_server_request_duration_seconds_bucket{service_name!=""}[5m])))
-or label_replace(histogram_quantile(0.99, sum by (le,service) (rate(demo_pipeline_request_duration_seconds_bucket{service!=""}[5m]))), "service_name", "$1", "service", "(.+)")`,
+		"rps":    `sum by (service_name,deployment_environment,host_name) (rate(http_server_request_duration_seconds_count{service_name!=""}[5m]))`,
+		"errors": `100 * sum by (service_name) (rate(http_server_request_duration_seconds_count{service_name!="",http_response_status_code=~"5.."}[5m])) / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_name!=""}[5m])), 0.000001)`,
+		"p95":    `histogram_quantile(0.95, sum by (le,service_name) (rate(http_server_request_duration_seconds_bucket{service_name!=""}[5m])))`,
+		"p99":    `histogram_quantile(0.99, sum by (le,service_name) (rate(http_server_request_duration_seconds_bucket{service_name!=""}[5m])))`,
 	}
 	results := s.instantQueries(r.Context(), getPrincipal(r.Context()).OrganizationID, queries)
 	items := buildAPMServices(results)

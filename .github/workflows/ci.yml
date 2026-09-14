@@ -36,7 +36,7 @@ jobs:
             --entrypoint /opt/sentinelops/bootstrap-postgres-roles.sh \
             public.ecr.aws/docker/library/postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db
           DATABASE_MIGRATION_URL='postgres://sentinel:sentinel-ci-migration-password@127.0.0.1:5432/sentinel?sslmode=disable' go run ./apps/migrate
-      - run: find apps internal demo -name '*.go' -print0 | xargs -0 gofmt -d | tee /tmp/gofmt.diff && test ! -s /tmp/gofmt.diff
+      - run: find apps internal -name '*.go' -print0 | xargs -0 gofmt -d | tee /tmp/gofmt.diff && test ! -s /tmp/gofmt.diff
       - run: go vet ./...
       - run: go test -race -coverprofile=coverage-go.out ./...
         env:
@@ -185,7 +185,6 @@ jobs:
           - { name: cli, context: ., file: Dockerfile.app, build_args: APP=cli }
 
           - { name: vmware-exporter, context: ., file: Dockerfile.app, build_args: APP=vmwareexporter }
-          - { name: demo-api, context: ., file: Dockerfile.demo, build_args: '' }
           - { name: web, context: apps/web, file: apps/web/Dockerfile, build_args: '' }
           - { name: alloy, context: ., file: deploy/alloy/Dockerfile.patched, build_args: '' }
           - { name: caddy, context: ., file: deploy/caddy/Dockerfile.patched, build_args: '' }

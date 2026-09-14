@@ -48,10 +48,9 @@ Evidência: artefato modo `0600` mais recente em
 
 ## Cold start do Pyroscope
 
-`make prove-resilience` interrompeu o Pyroscope preservando o volume. O guard
-detectou a falha, o serviço voltou em 65 segundos dentro do SLO de 240 segundos,
-o guard retornou a `healthy` e os perfis dos três mocks permaneceram
-consultáveis.
+A evidência histórica de cold start permanece válida para o backend, mas não é
+usada como prova de cobertura. Profiles só serão considerados disponíveis após
+onboarding e validação de uma aplicação real.
 
 Evidência: `artifacts/resilience/pyroscope-recovery-20260824T134103Z.json`.
 

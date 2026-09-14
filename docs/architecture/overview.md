@@ -33,7 +33,8 @@ flowchart LR
 
 - OTLP gRPC/HTTP é o contrato de transporte.
 - Alloy recebe, remove atributos sensíveis, aplica limites e encaminha sinais.
-- `local-demo`: Prometheus, Loki monolítico, Tempo monolítico e Pyroscope.
+- `single-node`: Prometheus, Loki monolítico, Tempo monolítico e Pyroscope,
+  alimentados apenas por coletores e aplicações reais.
 - Produção distribuída: Mimir, Loki microservices, Tempo e Pyroscope com object
   storage. Simple Scalable Loki não é tratado como arquitetura final.
 
@@ -62,4 +63,3 @@ Agentes nunca recebem shell arbitrário. Secrets são referências resolvidas no
 ambiente de execução. Logs, traces, uploads e respostas externas são conteúdo
 não confiável. Assistentes opcionais só geram consultas allowlisted e nunca
 alteram o resultado do gate.
-

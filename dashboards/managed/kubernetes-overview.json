@@ -172,5 +172,5 @@
   "title": "Kubernetes Overview",
   "uid": "sentinel-kubernetes-overview",
   "version": 3,
-  "description": "Sem telemetria de demonstração. Este painel mostra o estado real da integração Kubernetes; habilite o coletor antes de tratá-lo como cobertura."
+  "description": "Estado real da integração Kubernetes. Sem fonte configurada, os painéis permanecem Sem dados até o onboarding do coletor."
 }

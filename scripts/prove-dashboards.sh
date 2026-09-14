@@ -16,7 +16,7 @@ linux="$ROOT/dashboards/managed/linux-overview.json"
 application="$ROOT/dashboards/managed/application-overview.json"
 docker="$ROOT/dashboards/managed/docker-overview.json"
 jq -e '[.. | objects | .expr? | select(type == "string")] | join(" ") | contains("node_cpu_seconds_total") and contains("node_memory_MemAvailable_bytes") and contains("node_filesystem_avail_bytes") and contains("linux-system")' "$linux" >/dev/null || die "Dashboard Linux não cobre CPU, memória, filesystem e logs."
-jq -e '[.. | objects | (.expr?, .query?, .labelSelector?) | select(type == "string")] | join(" ") | contains("demo_pipeline_requests_total") and contains("http_server_request_duration_seconds") and contains("sentinelops_apm_bootstrap") and contains("service_name") and contains("resource.service.name")' "$application" >/dev/null || die "Dashboard APM não cobre RED dos mocks e OpenTelemetry, logs, traces e profiles."
+jq -e '[.. | objects | (.expr?, .query?, .labelSelector?) | select(type == "string")] | join(" ") | contains("http_server_request_duration_seconds") and contains("service_name") and contains("resource.service.name")' "$application" >/dev/null || die "Dashboard APM não cobre RED OpenTelemetry, logs, traces e profiles."
 jq -e '[.. | objects | .expr? | select(type == "string")] | join(" ") | contains("container_cpu_usage_seconds_total") and contains("container_memory_working_set_bytes")' "$docker" >/dev/null || die "Dashboard Docker sem CPU e memória."
 
 prom_query() {
@@ -34,9 +34,9 @@ prom_query() {
   die "Prometheus não retornou dados para: $query"
 }
 
-host_up=$(prom_query 'up{job="linux-node",instance="sentinel-demo-linux"}')
-host_inventory=$(prom_query 'node_uname_info{instance="sentinel-demo-linux"}')
-app_requests=$(prom_query 'demo_pipeline_requests_total{service="sentinel-demo-api"}')
+host_up=$(prom_query 'up{job="linux-node",deployment_environment="production"} == 1')
+host_inventory=$(prom_query 'node_uname_info{deployment_environment="production"}')
+app_requests=$(prom_query 'http_server_request_duration_seconds_count')
 curl -fsS --max-time 10 "$GRAFANA_URL/api/health" | jq -e '.database == "ok"' >/dev/null || die "Grafana não está saudável."
 
 admin_user=$(awk -F= '$1=="GRAFANA_ADMIN_USER"{print substr($0,index($0,"=")+1)}' "$ROOT/.env")

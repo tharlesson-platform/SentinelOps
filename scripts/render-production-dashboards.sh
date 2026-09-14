@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Replaces the former demo-shaped managed dashboards with real-source queries.
+# Reconciles managed dashboards with real-source queries.
 # A dashboard for an integration that is not onboarded intentionally reports the
 # collector as absent; it must never borrow another domain's telemetry.
 root_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -114,7 +114,7 @@ for dashboard in "$dashboard_dir"/*.json; do
         vmware-overview.json) job=sentinel-vmware; label="VMware" ;;
       esac
       jq --arg job "$job" --arg label "$label" '
-        .description = ("Sem telemetria de demonstração. Este painel mostra o estado real da integração " + $label + "; habilite o coletor antes de tratá-lo como cobertura.")
+        .description = ("Estado real da integração " + $label + ". Sem fonte configurada, os painéis permanecem Sem dados até o onboarding do coletor.")
         | .templating.list |= map(if .name == "environment" then .query = "production" | .current = {text:"production", value:"production"} else . end)
         | .panels[] |= (.type = "stat" | .datasource = {type:"prometheus",uid:"prometheus"} | .targets = [{expr:("max(up{job=\"" + $job + "\"})"),refId:"A"}])
         | .panels[0].title = ("Coletor " + $label + " disponível")
@@ -131,7 +131,7 @@ for dashboard in "$dashboard_dir"/*.json; do
     apm.json|application-overview.json)
       tmp=$(mktemp)
       jq '
-        .description = "APM real das aplicações Java instrumentadas no tqi-platform; não há métricas demo."
+        .description = "APM real das aplicações instrumentadas nos hosts de produção."
         | (.templating.list[] | select(.name == "service").query.query) = "query_result(label_replace(count by (job) (http_server_request_duration_seconds_count{job=~\"tqi-platform/.+\"}), \"service\", \"$1\", \"job\", \"(.*)\"))"
         | (.panels[] | select(.id == 5)) |= (.title = "Erros HTTP 5xx" | .targets = [{expr:"sum by (job) (rate(http_server_request_duration_seconds_count{job=~\"$service\",http_response_status_code=~\"5..\"}[5m]))",refId:"A"}])
         | (.panels[] | select(.id == 6)) |= (.title = "SLO de disponibilidade" | .targets = [{expr:"1 - sum(rate(http_server_request_duration_seconds_count{job=~\"$service\",http_response_status_code=~\"5..\"}[30m])) / clamp_min(sum(rate(http_server_request_duration_seconds_count{job=~\"$service\"}[30m])), 0.000001)",refId:"A"}])

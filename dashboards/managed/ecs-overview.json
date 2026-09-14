@@ -172,5 +172,5 @@
   "title": "ECS Overview",
   "uid": "sentinel-ecs-overview",
   "version": 3,
-  "description": "Sem telemetria de demonstração. Este painel mostra o estado real da integração ECS; habilite o coletor antes de tratá-lo como cobertura."
+  "description": "Estado real da integração ECS. Sem fonte configurada, os painéis permanecem Sem dados até o onboarding do coletor."
 }

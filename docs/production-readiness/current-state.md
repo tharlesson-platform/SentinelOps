@@ -27,21 +27,11 @@ produção.
   existia em `mirror.gcr.io`. O mesmo tag e digest foram verificados em
   `quay.io/minio/minio` e `quay.io/minio/mc`; o registry foi corrigido sem mudar
   a versão.
-- O segundo `make up` iniciou o stack local com duas APIs, dois workers e os
-  backends saudáveis. O profile `demo` iniciou a cadeia API → Orders → Payments,
-  host Linux controlado e gerador de tráfego; o seed foi corrigido para o
-  contrato tipado de assertions.
-- O reviewer detectou e removeu uma mistura de provenance: o Prometheus do
-  Compose voltou a rotular `environment=local-demo` e o blackbox passou a mirar
-  somente `demo-api`; o laboratório não consulta nem rotula alvo externo como
-  produção.
-- A prova local integrada terminou em `PASS` para cadeia, métricas, logs, traces,
-  profiles e quality gate padrão; confirmou ainda `INCONCLUSIVE` para política
-  ausente e `FAIL` para threshold violado. Evidência:
-  `artifacts/local-e2e/20260914T125652Z.json`.
-- As APIs nativas retornaram 1 host, 3 serviços APM, 200 logs e 50 traces na
-  janela consultada; Docker retornou lista vazia com estado `no_data`, pois o
-  cAdvisor privilegiado não foi habilitado sem aprovação explícita.
+- O stack single-node iniciou com duas APIs, dois workers e backends saudáveis.
+  Todos os scrapes, dashboards e APIs de observabilidade foram reconciliados
+  para aceitar apenas coletores e aplicações reais.
+- A validação live confirmou `tqi-platform` e `easy-vm`, logs Docker/Linux,
+  métricas Beyla e traces reais. Integrações ausentes permanecem `Sem dados`.
 - `make harness-integration-compose` passou os testes PostgreSQL de database,
   events e HTTP API com runtime non-superuser. `make harness-e2e` passou 1 teste
   Playwright e k6 concluiu 150 iterações/450 checks, zero falhas e p95 2,62 ms.
@@ -73,7 +63,7 @@ produção.
 | RLS multi-tenant | PARTIAL | FORCE RLS e isolamento entre dois tenants passaram no PostgreSQL Compose | O banco produtivo e o pooler não foram homologados | Repetir no caminho produtivo completo |
 | Migrations | PARTIAL | Lock/checksum e arquivos `000001`–`000012` | Upgrade/rollback real não revalidado nesta execução | Testar banco vazio, upgrade N-1 e rollback compatível |
 | Dockerfiles | DONE | Imagens próprias constroem com usuários não-root e digests de base | Build local não é promoção assinada | Executar scan/SBOM/signature no SHA promovido |
-| Docker Compose local | DONE | Render, build, start, seed, pipeline local, HA, Playwright e k6 passaram | É laboratório local, não implantação produtiva | Manter determinístico e separado dos valores de produção |
+| Docker Compose single-node | DONE | Render, build, start, HA, Playwright e k6 passaram sem fontes artificiais | Não oferece HA contra perda do host | Manter determinístico e separado do perfil Kubernetes distribuído |
 | Bootstrap `.env` | DONE | `scripts/bootstrap.sh` reconcilia defaults sem sobrescrever secrets; Compose renderizou | Migração cobre apenas defaults conhecidos | Manter teste de upgrade de configuração |
 | Helm Chart | PARTIAL | Lint/template PASS; 27 recursos kubeconform PASS; Caddy validate PASS | API→gateway mTLS e políticas não foram homologados em cluster | Dry-run e teste positivo/negativo no cluster autorizado |
 | Terraform | NEEDS TESTING | Módulos para PostgreSQL e object storage, ambientes dev/stg/prod | Sem fmt/validate/plan atual e sem backend real informado | Rodar fmt/validate; plano somente em conta autorizada |
@@ -95,12 +85,12 @@ produção.
 | Container Details nativo | PARTIAL | CPU, throttling, memória, network e filesystem em range | Lifecycle/health/OOM precisa fonte adicional | Integrar inventory/event collector e testes E2E |
 | Logs por host | PARTIAL | API LogQL allowlisted e UI com janela, severidade e busca | Não validado contra Loki vivo nesta execução | Provar host real e comportamento Loki indisponível |
 | Logs por container | PARTIAL | Collector extrai `container_id` do filename sem docker.sock; UI preserva contexto | Deploy dos collectors antigos ainda não possui o novo label; nome exige join com cAdvisor | Fazer rollout versionado e confirmar cardinalidade/freshness |
-| Logs por service | PARTIAL | Filtro `service_name` retornou logs OTLP reais do demo pela API nativa | Docker JSON não conhece service.name por si só | Enrichment controlado por inventário, sem labels de alta cardinalidade |
+| Logs por service | PARTIAL | Filtros retornaram logs reais de aplicações e containers dos hosts Azure | Docker JSON não conhece service.name por si só | Enrichment controlado por inventário, sem labels de alta cardinalidade |
 | Live Tail | NOT IMPLEMENTED | Não há endpoint SSE/WebSocket de tail na UI nativa | Requisito final 8 está aberto | Implementar proxy Loki tail com cancelamento, limites e backpressure |
 | Metrics Explorer | PARTIAL | Visões allowlisted e charts nativos; range até 30 dias | Builder amigável e modo PromQL avançado autorizado ainda faltam | Criar AST/query builder e permissão separada para PromQL |
-| APM | PARTIAL | RED, errors, p95/p99 retornaram 3 serviços do demo pela API/UI nativa | Endpoints/topology e app representativa ainda faltam | Normalizar semantic conventions e endpoint analysis |
+| APM | PARTIAL | RED, errors, p95/p99 retornaram serviços reais via Beyla | Endpoints/topology e nomes específicos de algumas aplicações ainda faltam | Normalizar semantic conventions e endpoint analysis |
 | Distributed Tracing | PARTIAL | Busca TraceQL por service retornou traces distribuídos reais; UI lista e preserva contexto | Waterfall/span details e log correlation por trace_id faltam | Implementar detalhe de trace e surrounding logs |
-| Profiles/Pyroscope | PARTIAL | Scrape pprof local produziu profiles dos 3 serviços e flamegraph com amostras | API nativa não possui rota segura nem render de flamegraph | Definir rota allowlisted, modelo e flamegraph nativo |
+| Profiles/Pyroscope | NOT IMPLEMENTED | Backend saudável, sem agente real enviando profiles | API nativa e fonte real de profiling ausentes | Instalar agente real antes de habilitar a experiência |
 | Grafana dashboards | PARTIAL | 35+ JSON gerenciados e prova estrutural existente | Vários dashboards vieram de geração comum e não equivalem à UI nativa; alvo atual não revalidado | Manter para análise avançada e provar queries/freshness por painel |
 | Prometheus/Mimir | PARTIAL | `up=1` e freshness <13 s para dois hosts Azure; remote-write failures total 0 | `0.0.0.0:9090` está acessível sem gateway na rede privada; Mimir/HA não homologado | Restringir bind/firewall, testar remote_write, ruler, retenção e tenancy |
 | Loki | PARTIAL | Consultas retornaram 2.119/22.120 eventos Docker em 5 min e `/ready` recuperou 200 | Porta 3100 diretamente acessível; retenção, HA e restore não homologados | Restringir bind/firewall e provar perdas, retries, tail e restore |

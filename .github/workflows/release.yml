@@ -25,7 +25,6 @@ jobs:
           - { image: sentinelops-backupcrypt, context: ., dockerfile: Dockerfile.app, build_args: APP=backupcrypt }
           - { image: sentinelops-cli, context: ., dockerfile: Dockerfile.app, build_args: APP=cli }
           - { image: sentinelops-vmware-exporter, context: ., dockerfile: Dockerfile.app, build_args: APP=vmwareexporter }
-          - { image: sentinelops-demo-api, context: ., dockerfile: Dockerfile.demo, build_args: '' }
           - { image: sentinelops-web, context: apps/web, dockerfile: apps/web/Dockerfile, build_args: '' }
           - { image: sentinelops-alloy, context: ., dockerfile: deploy/alloy/Dockerfile.patched, build_args: '' }
           - { image: sentinelops-caddy, context: ., dockerfile: deploy/caddy/Dockerfile.patched, build_args: '' }
@@ -92,7 +91,6 @@ jobs:
           - { image: sentinelops-backupcrypt, context: ., dockerfile: Dockerfile.app, build_args: APP=backupcrypt }
           - { image: sentinelops-cli, context: ., dockerfile: Dockerfile.app, build_args: APP=cli }
           - { image: sentinelops-vmware-exporter, context: ., dockerfile: Dockerfile.app, build_args: APP=vmwareexporter }
-          - { image: sentinelops-demo-api, context: ., dockerfile: Dockerfile.demo, build_args: '' }
           - { image: sentinelops-web, context: apps/web, dockerfile: apps/web/Dockerfile, build_args: '' }
           - { image: sentinelops-alloy, context: ., dockerfile: deploy/alloy/Dockerfile.patched, build_args: '' }
           - { image: sentinelops-caddy, context: ., dockerfile: deploy/caddy/Dockerfile.patched, build_args: '' }
@@ -165,7 +163,7 @@ jobs:
           fi
           version=${GITHUB_REF_NAME#v}
           short_sha=$(printf '%s' "$GITHUB_SHA" | cut -c1-12)
-          images='sentinelops-api sentinelops-worker sentinelops-migrate sentinelops-agent sentinelops-backupcrypt sentinelops-cli sentinelops-demo-api sentinelops-web sentinelops-alloy sentinelops-caddy'
+          images='sentinelops-api sentinelops-worker sentinelops-migrate sentinelops-agent sentinelops-backupcrypt sentinelops-cli sentinelops-web sentinelops-alloy sentinelops-caddy'
           evidence_dir=$(mktemp -d)
           printf '[]\n' > "$evidence_dir/images.json"
           for name in $images; do

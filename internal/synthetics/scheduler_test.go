@@ -54,10 +54,10 @@ func TestExplicitTargetPolicyRequiresApprovedHostAndAddress(t *testing.T) {
 }
 
 func TestParseAllowedTargetsRejectsHostnameOnlyRule(t *testing.T) {
-	if _, err := ParseAllowedTargets("demo-api"); err == nil {
+	if _, err := ParseAllowedTargets("api.internal"); err == nil {
 		t.Fatal("hostname-only allowlist accepted")
 	}
-	if _, err := ParseAllowedTargets("demo-api@172.16.0.0/12"); err != nil {
+	if _, err := ParseAllowedTargets("api.internal@172.16.0.0/12"); err != nil {
 		t.Fatalf("valid explicit target rejected: %v", err)
 	}
 }

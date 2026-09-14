@@ -60,7 +60,7 @@ if [ "$worker_running" -ne 2 ] || [ "$worker_healthy" -ne 2 ]; then
 fi
 curl --max-time 5 -fsS "$API_URL/readyz" >/dev/null
 
-for service in api worker web demo-api alloy api-edge; do
+for service in api worker web alloy api-edge; do
   for container_id in $(compose ps -q "$service"); do
     configured_image=$(docker inspect "$container_id" --format '{{.Config.Image}}')
     case "$configured_image" in

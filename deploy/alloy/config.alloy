@@ -114,17 +114,6 @@ prometheus.remote_write "local" {
   }
 }
 
-// Local-only Compose targets. The production Helm deployment uses external
-// collectors and never resolves these demo service names.
-pyroscope.scrape "demo" {
-  targets = [
-    { "__address__" = "demo-api:8090", "service_name" = "sentinel-demo-api", "telemetry_scope" = "demo-only" },
-    { "__address__" = "demo-orders:8090", "service_name" = "sentinel-demo-orders", "telemetry_scope" = "demo-only" },
-    { "__address__" = "demo-payments:8090", "service_name" = "sentinel-demo-payments", "telemetry_scope" = "demo-only" },
-  ]
-  forward_to = [pyroscope.write.local.receiver]
-}
-
 pyroscope.write "local" {
   endpoint {
     url = "http://pyroscope:4040"

@@ -172,5 +172,5 @@
   "title": "Continuous Profiling",
   "uid": "sentinel-continuous-profiling",
   "version": 3,
-  "description": "Sem telemetria de demonstração. Este painel mostra o estado real da integração continuous-profiling; habilite o coletor antes de tratá-lo como cobertura."
+  "description": "Estado real da integração continuous-profiling. Sem fonte configurada, os painéis permanecem Sem dados até o onboarding do coletor."
 }

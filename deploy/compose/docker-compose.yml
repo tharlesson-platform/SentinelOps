@@ -23,24 +23,6 @@ x-security: &security
   cap_drop:
     - ALL
 
-x-demo-service: &demo-service
-  image: ${SENTINEL_DEMO_IMAGE:-sentinelops-demo-api:0.2.0-local}
-  build:
-    context: ../..
-    dockerfile: Dockerfile.demo
-  <<: *security
-  networks: [telemetry, control]
-  read_only: true
-  tmpfs: [/tmp]
-  restart: unless-stopped
-
-x-demo-env: &demo-env
-  SERVICE_VERSION: 1.1.0
-  DEPLOYMENT_ENVIRONMENT: local-demo
-  SERVICE_TEAM: platform
-  SERVICE_OWNER: sentinelops
-  OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
-
 services:
   local-scope-guard:
     image: public.ecr.aws/docker/library/alpine:3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
@@ -213,10 +195,6 @@ services:
       SYNTHETIC_ALLOWED_TARGETS: ${SYNTHETIC_ALLOWED_TARGETS:?SYNTHETIC_ALLOWED_TARGETS is required}
       RELEASE_VALIDATION_ALLOWED_HOSTS: ${RELEASE_VALIDATION_ALLOWED_HOSTS:?RELEASE_VALIDATION_ALLOWED_HOSTS is required}
       RELEASE_VALIDATION_BASE_URL: ${RELEASE_VALIDATION_BASE_URL:?RELEASE_VALIDATION_BASE_URL is required}
-      # Compatibilidade temporária com a imagem do worker anterior: recebe o
-      # mesmo endpoint real até que o artefato com RELEASE_VALIDATION_BASE_URL
-      # seja promovido. Não aponta para uma aplicação de demonstração.
-      DEMO_BASE_URL: ${RELEASE_VALIDATION_BASE_URL:?RELEASE_VALIDATION_BASE_URL is required}
       PROMETHEUS_URL: http://prometheus:9090
       LOKI_URL: http://loki:3100
       TEMPO_URL: http://tempo:3200
@@ -286,78 +264,6 @@ services:
       - /var/cache/nginx:uid=101,gid=101,mode=0755
       - /var/run:uid=101,gid=101,mode=0755
     restart: unless-stopped
-
-  demo-api:
-    <<: *demo-service
-    profiles: [demo]
-    environment:
-      <<: *demo-env
-      SERVICE_NAME: sentinel-demo-api
-      SERVICE_ROLE: storefront
-      DEMO_DOWNSTREAM_URL: http://demo-orders:8090/api/orders
-    ports:
-      - "127.0.0.1:8090:8090"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8090/ready"]
-      interval: 5s
-      timeout: 3s
-      retries: 30
-    depends_on:
-      demo-orders: { condition: service_healthy }
-
-  demo-orders:
-    <<: *demo-service
-    profiles: [demo]
-    environment:
-      <<: *demo-env
-      SERVICE_NAME: sentinel-demo-orders
-      SERVICE_ROLE: orders
-      DEMO_DOWNSTREAM_URL: http://demo-payments:8090/api/payments
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8090/ready"]
-      interval: 5s
-      timeout: 3s
-      retries: 30
-    depends_on:
-      demo-payments: { condition: service_healthy }
-
-  demo-payments:
-    <<: *demo-service
-    profiles: [demo]
-    environment:
-      <<: *demo-env
-      SERVICE_NAME: sentinel-demo-payments
-      SERVICE_ROLE: payments
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8090/ready"]
-      interval: 5s
-      timeout: 3s
-      retries: 30
-
-  demo-linux-host:
-    <<: *demo-service
-    profiles: [demo]
-    environment:
-      <<: *demo-env
-      SERVICE_NAME: sentinel-demo-linux
-      SERVICE_ROLE: linux-host
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8090/ready"]
-      interval: 5s
-      timeout: 3s
-      retries: 30
-
-  demo-traffic:
-    <<: *demo-service
-    profiles: [demo]
-    environment:
-      <<: *demo-env
-      SERVICE_NAME: sentinel-demo-traffic
-      SERVICE_ROLE: traffic-generator
-      DEMO_TRAFFIC_TARGET: http://demo-api:8090/api/checkout
-      DEMO_TRAFFIC_INTERVAL: 2s
-    depends_on:
-      demo-api: { condition: service_healthy }
 
   prometheus:
     image: mirror.gcr.io/prom/prometheus:v3.13.2@sha256:508729e0e2d18e11fd742a5a5ca70e557b940a93948c3c95fd0123a6fd538b69
@@ -649,12 +555,12 @@ services:
   k6:
     image: mirror.gcr.io/grafana/k6:2.2.0@sha256:9bd01d6941fca969cb61bb57d2da5ee9b385fe2aa8881df3798c196564d6ace6
     command: ["run", "/tests/smoke.js"]
-    environment: { DEMO_URL: "http://demo-api:8090" }
+    environment: { SENTINELOPS_API_URL: "http://api:8080" }
     volumes:
       - ../../tests/k6:/tests:ro
       - ../../artifacts/k6:/artifacts
     depends_on:
-      demo-api: { condition: service_healthy }
+      api: { condition: service_healthy }
     networks: [control, telemetry]
     profiles: [test]
     <<: *security
