@@ -20,7 +20,48 @@
           "expr": "max(sentinelops_vmware_performance_scrape_success{endpoint=~\"$endpoint\"})",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Coleta de desempenho VMware. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     },
     {
       "type": "stat",
@@ -41,7 +82,44 @@
           "expr": "sum(sentinelops_vmware_vm_power_state{endpoint=~\"$endpoint\",vm_name=~\"$vm\"})",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "VMs ligadas. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     },
     {
       "type": "stat",
@@ -62,7 +140,44 @@
           "expr": "sum(sentinelops_vmware_vm_tools_running{endpoint=~\"$endpoint\",vm_name=~\"$vm\"})",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "VMware Tools em execução. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     },
     {
       "type": "stat",
@@ -86,8 +201,40 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "bytes"
-        }
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Datastore livre. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
       }
     },
     {
@@ -109,17 +256,67 @@
         {
           "expr": "sentinelops_vmware_vm_network_receive_bytes_per_second{endpoint=~\"$endpoint\",vm_name=~\"$vm\"}",
           "refId": "A",
-          "legendFormat": "{{vm_name}} RX"
+          "legendFormat": "{{vm_name}} RX",
+          "maxDataPoints": 600
         },
         {
           "expr": "sentinelops_vmware_vm_network_transmit_bytes_per_second{endpoint=~\"$endpoint\",vm_name=~\"$vm\"}",
           "refId": "B",
-          "legendFormat": "{{vm_name}} TX"
+          "legendFormat": "{{vm_name}} TX",
+          "maxDataPoints": 600
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "Bps"
+          "unit": "Bps",
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
         }
       }
     },
@@ -142,17 +339,67 @@
         {
           "expr": "sentinelops_vmware_vm_disk_read_bytes_per_second{endpoint=~\"$endpoint\",vm_name=~\"$vm\"}",
           "refId": "A",
-          "legendFormat": "{{vm_name}} leitura"
+          "legendFormat": "{{vm_name}} leitura",
+          "maxDataPoints": 600
         },
         {
           "expr": "sentinelops_vmware_vm_disk_write_bytes_per_second{endpoint=~\"$endpoint\",vm_name=~\"$vm\"}",
           "refId": "B",
-          "legendFormat": "{{vm_name}} escrita"
+          "legendFormat": "{{vm_name}} escrita",
+          "maxDataPoints": 600
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "Bps"
+          "unit": "Bps",
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
         }
       }
     },
@@ -174,17 +421,68 @@
         {
           "expr": "sentinelops_vmware_vm_disk_read_iops{endpoint=~\"$endpoint\",vm_name=~\"$vm\"}",
           "refId": "A",
-          "legendFormat": "{{vm_name}} leitura"
+          "legendFormat": "{{vm_name}} leitura",
+          "maxDataPoints": 600
         },
         {
           "expr": "sentinelops_vmware_vm_disk_write_iops{endpoint=~\"$endpoint\",vm_name=~\"$vm\"}",
           "refId": "B",
-          "legendFormat": "{{vm_name}} escrita"
+          "legendFormat": "{{vm_name}} escrita",
+          "maxDataPoints": 600
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "iops"
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "description": "IOPS de disco das VMs. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
         }
       }
     },
@@ -206,17 +504,68 @@
         {
           "expr": "sentinelops_vmware_vm_disk_read_latency_milliseconds{endpoint=~\"$endpoint\",vm_name=~\"$vm\"}",
           "refId": "A",
-          "legendFormat": "{{vm_name}} leitura"
+          "legendFormat": "{{vm_name}} leitura",
+          "maxDataPoints": 600
         },
         {
           "expr": "sentinelops_vmware_vm_disk_write_latency_milliseconds{endpoint=~\"$endpoint\",vm_name=~\"$vm\"}",
           "refId": "B",
-          "legendFormat": "{{vm_name}} escrita"
+          "legendFormat": "{{vm_name}} escrita",
+          "maxDataPoints": 600
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "ms"
+          "unit": "s",
+          "decimals": 3,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "description": "Latência de disco das VMs. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
         }
       }
     },
@@ -238,12 +587,74 @@
         {
           "expr": "sentinelops_vmware_vm_cpu_usage_mhz{endpoint=~\"$endpoint\",vm_name=~\"$vm\"}",
           "refId": "A",
-          "legendFormat": "{{vm_name}}"
+          "legendFormat": "{{vm_name}}",
+          "maxDataPoints": 600
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "mhz"
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "description": "CPU das VMs. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
         }
       }
     },
@@ -265,12 +676,74 @@
         {
           "expr": "sentinelops_vmware_vm_memory_usage_bytes{endpoint=~\"$endpoint\",vm_name=~\"$vm\"}",
           "refId": "A",
-          "legendFormat": "{{vm_name}}"
+          "legendFormat": "{{vm_name}}",
+          "maxDataPoints": 600
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "bytes"
+          "unit": "bytes",
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "description": "Memória das VMs. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
         }
       }
     }
@@ -278,10 +751,11 @@
   "refresh": "30s",
   "schemaVersion": 42,
   "tags": [
-    "sentinelops",
     "managed",
-    "vmware",
-    "vm-performance"
+    "noc-ready",
+    "sentinelops",
+    "vm-performance",
+    "vmware"
   ],
   "templating": {
     "list": [
@@ -362,5 +836,7 @@
   },
   "title": "VMware Virtual Machine Performance",
   "uid": "sentinel-vmware-vm-performance",
-  "version": 3
+  "version": 3,
+  "description": "Dashboard operacional baseada exclusivamente em fontes reais do SentinelOps.",
+  "graphTooltip": 1
 }

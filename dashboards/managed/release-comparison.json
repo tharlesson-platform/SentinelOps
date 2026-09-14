@@ -25,15 +25,10 @@
   ],
   "panels": [
     {
-      "type": "stat",
-      "title": "Disponibilidade do alvo real",
       "id": 1,
-      "gridPos": {
-        "h": 5,
-        "w": 6,
-        "x": 0,
-        "y": 0
-      },
+      "type": "stat",
+      "title": "Sonda real disponível",
+      "description": "Pior estado no escopo. Sem dados significa que nenhuma sonda real foi onboardada.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -43,103 +38,78 @@
           "expr": "min(probe_success{job=~\"$probe_job\",instance=~\"$target\"})",
           "refId": "A"
         }
-      ]
-    },
-    {
-      "type": "timeseries",
-      "title": "Duração da sonda HTTP",
-      "id": 2,
+      ],
       "gridPos": {
-        "h": 8,
-        "w": 9,
-        "x": 6,
-        "y": 0
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "expr": "probe_duration_seconds{job=~\"$probe_job\",instance=~\"$target\"}",
-          "refId": "A",
-          "legendFormat": "{{instance}}"
-        }
-      ]
-    },
-    {
-      "type": "timeseries",
-      "title": "Resolução DNS da sonda",
-      "id": 3,
-      "gridPos": {
-        "h": 8,
-        "w": 9,
-        "x": 15,
-        "y": 0
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "expr": "probe_dns_lookup_time_seconds{job=~\"$probe_job\",instance=~\"$target\"}",
-          "refId": "A",
-          "legendFormat": "{{instance}}"
-        }
-      ]
-    },
-    {
-      "type": "stat",
-      "title": "Sucesso da sonda",
-      "id": 4,
-      "gridPos": {
-        "h": 9,
-        "w": 12,
         "x": 0,
-        "y": 8
+        "y": 0,
+        "w": 6,
+        "h": 5
       },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
       },
-      "targets": [
-        {
-          "expr": "probe_success{job=~\"$probe_job\",instance=~\"$target\"}",
-          "refId": "A",
-          "legendFormat": "{{instance}}"
-        }
-      ]
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     },
     {
-      "type": "stat",
-      "title": "Código HTTP",
-      "id": 5,
+      "id": 2,
+      "type": "text",
+      "title": "Onboarding de monitoramento sintético",
+      "description": "Orientação operacional, sem métricas substitutas.",
+      "options": {
+        "mode": "markdown",
+        "content": "### Sem sondas reais no escopo\n\nCadastre o alvo aprovado, valide TLS/DNS/HTTP e somente então habilite SLO e alertas. A ausência de dados não é tratada como sucesso."
+      },
       "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 12,
-        "y": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "expr": "probe_http_status_code{job=~\"$probe_job\",instance=~\"$target\"}",
-          "refId": "A",
-          "legendFormat": "{{instance}}"
-        }
-      ]
+        "x": 6,
+        "y": 0,
+        "w": 18,
+        "h": 5
+      }
     }
   ],
   "refresh": "15s",
   "schemaVersion": 42,
   "tags": [
-    "sentinelops",
     "managed",
-    "release-comparison"
+    "noc-ready",
+    "release-comparison",
+    "sentinelops"
   ],
   "templating": {
     "list": [
@@ -199,5 +169,5 @@
   "title": "Release Comparison",
   "uid": "sentinel-release-comparison",
   "version": 3,
-  "description": "Sondas HTTP reais filtráveis por grupo e alvo monitorado."
+  "description": "Status de onboarding de sondas reais. Sem probe_success, não apresenta disponibilidade fabricada."
 }

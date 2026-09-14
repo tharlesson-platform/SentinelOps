@@ -26,7 +26,7 @@
   "panels": [
     {
       "type": "stat",
-      "title": "Alvos Prometheus saudáveis",
+      "title": "Alertas firing no filtro",
       "id": 1,
       "gridPos": {
         "h": 5,
@@ -40,14 +40,55 @@
       },
       "targets": [
         {
-          "expr": "count(up{job=~\"$prometheus_job\",instance=~\"$prometheus_instance\"} == 1)",
+          "expr": "count(ALERTS{alertstate=\"firing\",severity=~\"$severity\",alertname=~\"$alertname\"}) or vector(0)",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Alertas firing no filtro. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     },
     {
       "type": "timeseries",
-      "title": "Séries ativas no TSDB",
+      "title": "Alertas por severidade",
       "id": 2,
       "gridPos": {
         "h": 8,
@@ -61,15 +102,74 @@
       },
       "targets": [
         {
-          "expr": "prometheus_tsdb_head_series",
-          "legendFormat": "series",
-          "refId": "A"
+          "expr": "sum by (severity) (ALERTS{alertstate=\"firing\",severity=~\"$severity\",alertname=~\"$alertname\"})",
+          "refId": "A",
+          "legendFormat": "{{severity}}",
+          "maxDataPoints": 600
         }
-      ]
+      ],
+      "description": "Alertas por severidade. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
     },
     {
       "type": "timeseries",
-      "title": "Amostras ingeridas por segundo",
+      "title": "Top alertas ativos",
       "id": 3,
       "gridPos": {
         "h": 8,
@@ -83,15 +183,74 @@
       },
       "targets": [
         {
-          "expr": "rate(prometheus_tsdb_head_samples_appended_total[5m])",
-          "legendFormat": "samples/s",
-          "refId": "A"
+          "expr": "topk(10, sum by (alertname) (ALERTS{alertstate=\"firing\",severity=~\"$severity\",alertname=~\"$alertname\"}))",
+          "refId": "A",
+          "legendFormat": "{{alertname}}",
+          "maxDataPoints": 600
         }
-      ]
+      ],
+      "description": "Top alertas ativos. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
     },
     {
       "type": "logs",
-      "title": "Logs filtrados da aplicação / container",
+      "title": "Logs de erro para correlação",
       "id": 4,
       "gridPos": {
         "h": 9,
@@ -105,14 +264,26 @@
       },
       "targets": [
         {
-          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\"}",
-          "refId": "A"
+          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/(${container_id:regex})/.*\"} |~ \"(?i)error|exception|fatal|panic\"",
+          "refId": "A",
+          "maxLines": 200
         }
-      ]
+      ],
+      "description": "Logs de erro para correlação. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
     },
     {
       "type": "stat",
-      "title": "Alertas em firing",
+      "title": "Alertas críticos",
       "id": 5,
       "gridPos": {
         "h": 9,
@@ -126,67 +297,63 @@
       },
       "targets": [
         {
-          "expr": "count(ALERTS{alertstate=\"firing\",severity=~\"$severity\",alertname=~\"$alertname\"})",
+          "expr": "count(ALERTS{alertstate=\"firing\",severity=\"critical\"}) or vector(0)",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Alertas críticos. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     }
   ],
   "refresh": "15s",
   "schemaVersion": 42,
   "tags": [
-    "sentinelops",
+    "alerts",
     "managed",
-    "alerts"
+    "noc-ready",
+    "sentinelops"
   ],
   "templating": {
     "list": [
-      {
-        "name": "prometheus_job",
-        "label": "Job Prometheus",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "query": {
-          "query": "label_values(up, job)",
-          "refId": "var-prometheus_job"
-        },
-        "includeAll": true,
-        "allValue": ".+",
-        "multi": true,
-        "refresh": 1,
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        },
-        "hide": 0
-      },
-      {
-        "name": "prometheus_instance",
-        "label": "Instância Prometheus",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "query": {
-          "query": "label_values(up{job=~\"$prometheus_job\"}, instance)",
-          "refId": "var-prometheus_instance"
-        },
-        "includeAll": true,
-        "allValue": ".*",
-        "multi": true,
-        "refresh": 1,
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        },
-        "hide": 0
-      },
       {
         "name": "severity",
         "label": "Severidade",
@@ -247,12 +414,12 @@
         },
         "includeAll": true,
         "allValue": ".*",
-        "multi": true,
+        "multi": false,
         "refresh": 1,
         "current": {
           "selected": true,
-          "text": "All",
-          "value": "$__all"
+          "text": "production",
+          "value": "production"
         },
         "hide": 0
       },
@@ -281,7 +448,7 @@
       },
       {
         "name": "container",
-        "label": "Aplicação / container",
+        "label": "Container Docker",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -292,7 +459,7 @@
           "refId": "var-container"
         },
         "includeAll": true,
-        "allValue": ".*",
+        "allValue": ".+",
         "multi": true,
         "refresh": 1,
         "current": {
@@ -323,7 +490,7 @@
           "value": "$__all"
         },
         "hide": 2,
-        "regex": "/.*\\/([a-f0-9]{12,64})$/"
+        "regex": "/.*(?:\\/|docker-)([a-f0-9]{64})(?:\\.scope)?$/"
       }
     ]
   },
@@ -335,5 +502,5 @@
   "title": "Alerts",
   "uid": "sentinel-alerts",
   "version": 3,
-  "description": "Plano de controle filtrável por job, instância, severidade e alerta."
+  "description": "Fila de alertas firing por severidade e nome, com logs de aplicação para correlação."
 }

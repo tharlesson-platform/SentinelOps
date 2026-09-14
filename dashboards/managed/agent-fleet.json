@@ -26,7 +26,7 @@
   "panels": [
     {
       "type": "stat",
-      "title": "Hosts Linux ativos",
+      "title": "Collectors Linux disponíveis",
       "id": 1,
       "gridPos": {
         "h": 5,
@@ -43,11 +43,52 @@
           "expr": "count(up{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\"} == 1)",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Collectors Linux disponíveis. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     },
     {
       "type": "timeseries",
-      "title": "CPU por host",
+      "title": "Estado dos collectors",
       "id": 2,
       "gridPos": {
         "h": 8,
@@ -61,15 +102,74 @@
       },
       "targets": [
         {
-          "expr": "100 - avg by (instance) (rate(node_cpu_seconds_total{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\",mode=\"idle\"}[5m])) * 100",
+          "expr": "up{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\"}",
           "refId": "A",
-          "legendFormat": "{{instance}}"
+          "legendFormat": "{{instance}}",
+          "maxDataPoints": 600
         }
-      ]
+      ],
+      "description": "Estado dos collectors. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
     },
     {
       "type": "timeseries",
-      "title": "Memória utilizada por host",
+      "title": "Idade do último scrape",
       "id": 3,
       "gridPos": {
         "h": 8,
@@ -83,15 +183,70 @@
       },
       "targets": [
         {
-          "expr": "100 * (1 - node_memory_MemAvailable_bytes{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\"} / node_memory_MemTotal_bytes{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\"})",
+          "expr": "time() - timestamp(up{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\"})",
           "refId": "A",
-          "legendFormat": "{{instance}}"
+          "legendFormat": "{{instance}}",
+          "maxDataPoints": 600
         }
-      ]
+      ],
+      "description": "Idade do último scrape. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
     },
     {
       "type": "logs",
-      "title": "Logs reais de aplicações",
+      "title": "Logs dos collectors",
       "id": 4,
       "gridPos": {
         "h": 9,
@@ -105,14 +260,26 @@
       },
       "targets": [
         {
-          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\"}",
-          "refId": "A"
+          "expr": "{job=\"linux-system\",deployment_environment=~\"$environment\",host_name=~\"$host\"} |~ \"(?i)alloy|cadvisor|beyla|sentinelops\"",
+          "refId": "A",
+          "maxLines": 200
         }
-      ]
+      ],
+      "description": "Logs dos collectors. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
     },
     {
       "type": "stat",
-      "title": "Contêineres observados",
+      "title": "Containers nomeados cobertos",
       "id": 5,
       "gridPos": {
         "h": 9,
@@ -126,18 +293,56 @@
       },
       "targets": [
         {
-          "expr": "count(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\"})",
+          "expr": "count(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\",name=~\"$container\"})",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Containers nomeados cobertos. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     }
   ],
   "refresh": "15s",
   "schemaVersion": 42,
   "tags": [
-    "sentinelops",
+    "agent-fleet",
     "managed",
-    "agent-fleet"
+    "noc-ready",
+    "sentinelops"
   ],
   "templating": {
     "list": [
@@ -155,12 +360,12 @@
         },
         "includeAll": true,
         "allValue": ".*",
-        "multi": true,
+        "multi": false,
         "refresh": 1,
         "current": {
           "selected": true,
-          "text": "All",
-          "value": "$__all"
+          "text": "production",
+          "value": "production"
         },
         "hide": 0
       },
@@ -189,7 +394,7 @@
       },
       {
         "name": "container",
-        "label": "Aplicação / container",
+        "label": "Container Docker",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -200,7 +405,7 @@
           "refId": "var-container"
         },
         "includeAll": true,
-        "allValue": ".*",
+        "allValue": ".+",
         "multi": true,
         "refresh": 1,
         "current": {
@@ -209,29 +414,6 @@
           "value": "$__all"
         },
         "hide": 0
-      },
-      {
-        "name": "container_id",
-        "label": "Container ID",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "query": {
-          "query": "label_values(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\"}, id)",
-          "refId": "var-container_id"
-        },
-        "includeAll": true,
-        "multi": true,
-        "refresh": 1,
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        },
-        "hide": 2,
-        "regex": "/.*\\/([a-f0-9]{12,64})$/"
       }
     ]
   },
@@ -243,5 +425,5 @@
   "title": "Agent Fleet",
   "uid": "sentinel-agent-fleet",
   "version": 3,
-  "description": "Frota Linux e Docker com filtros encadeados de ambiente, host e aplicação/container."
+  "description": "Saúde, freshness e logs dos collectors instalados na frota Linux."
 }

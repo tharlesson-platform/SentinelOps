@@ -49,6 +49,7 @@ jobs:
           ./scripts/render-production-dashboards.sh
           git diff --exit-code -- dashboards/managed
           python3 scripts/check-dashboard-filters.py
+          python3 scripts/check-dashboard-noc-ux.py
       - run: python3 scripts/check-markdown-links.py
       - name: Validate Compose profiles
         run: |

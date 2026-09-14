@@ -43,7 +43,44 @@
           "expr": "sum(up{job=\"linux-node\",instance=~\"$host\",deployment_environment=~\"$environment\"})",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Hosts ativos. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     },
     {
       "type": "stat",
@@ -67,9 +104,40 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "s"
+          "unit": "s",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
         },
         "overrides": []
+      },
+      "description": "Uptime. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
       }
     },
     {
@@ -96,9 +164,52 @@
         "defaults": {
           "unit": "percent",
           "min": 0,
-          "max": 100
+          "max": 100,
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
         },
         "overrides": []
+      },
+      "description": "CPU utilizada. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
       }
     },
     {
@@ -117,7 +228,7 @@
       },
       "targets": [
         {
-          "expr": "(1 - node_memory_MemAvailable_bytes{instance=~\"$host\",deployment_environment=~\"$environment\"} / node_memory_MemTotal_bytes{instance=~\"$host\",deployment_environment=~\"$environment\"}) * 100",
+          "expr": "(max(1 - node_memory_MemAvailable_bytes{instance=~\"$host\",deployment_environment=~\"$environment\"} / node_memory_MemTotal_bytes{instance=~\"$host\",deployment_environment=~\"$environment\"})) * 100",
           "refId": "A"
         }
       ],
@@ -125,9 +236,52 @@
         "defaults": {
           "unit": "percent",
           "min": 0,
-          "max": 100
+          "max": 100,
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
         },
         "overrides": []
+      },
+      "description": "Memória utilizada. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
       }
     },
     {
@@ -154,9 +308,52 @@
         "defaults": {
           "unit": "percent",
           "min": 0,
-          "max": 100
+          "max": 100,
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
         },
         "overrides": []
+      },
+      "description": "Filesystem utilizado. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
       }
     },
     {
@@ -178,7 +375,44 @@
           "expr": "sum(node_processes_running{instance=~\"$host\",deployment_environment=~\"$environment\"})",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Processos. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     },
     {
       "type": "timeseries",
@@ -198,9 +432,76 @@
         {
           "expr": "100 - avg by (instance) (rate(node_cpu_seconds_total{instance=~\"$host\",deployment_environment=~\"$environment\",mode=\"idle\"}[5m])) * 100",
           "legendFormat": "{{instance}}",
-          "refId": "A"
+          "refId": "A",
+          "maxDataPoints": 600
         }
-      ]
+      ],
+      "description": "CPU por host. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
     },
     {
       "type": "timeseries",
@@ -220,9 +521,76 @@
         {
           "expr": "(1 - node_memory_MemAvailable_bytes{instance=~\"$host\",deployment_environment=~\"$environment\"} / node_memory_MemTotal_bytes{instance=~\"$host\",deployment_environment=~\"$environment\"}) * 100",
           "legendFormat": "{{instance}}",
-          "refId": "A"
+          "refId": "A",
+          "maxDataPoints": 600
         }
-      ]
+      ],
+      "description": "Memória por host. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
     },
     {
       "type": "timeseries",
@@ -242,14 +610,70 @@
         {
           "expr": "sum by (instance) (rate(node_network_receive_bytes_total{instance=~\"$host\",deployment_environment=~\"$environment\",device=~\"$device\",device!=\"lo\"}[5m]))",
           "legendFormat": "{{instance}} RX",
-          "refId": "A"
+          "refId": "A",
+          "maxDataPoints": 600
         },
         {
           "expr": "sum by (instance) (rate(node_network_transmit_bytes_total{instance=~\"$host\",deployment_environment=~\"$environment\",device=~\"$device\",device!=\"lo\"}[5m]))",
           "legendFormat": "{{instance}} TX",
-          "refId": "B"
+          "refId": "B",
+          "maxDataPoints": 600
         }
-      ]
+      ],
+      "description": "Rede RX/TX. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
     },
     {
       "type": "timeseries",
@@ -269,9 +693,76 @@
         {
           "expr": "(1 - node_filesystem_avail_bytes{instance=~\"$host\",deployment_environment=~\"$environment\",fstype!~\"tmpfs|overlay\",mountpoint=~\"$mountpoint\"} / node_filesystem_size_bytes{instance=~\"$host\",deployment_environment=~\"$environment\",fstype!~\"tmpfs|overlay\",mountpoint=~\"$mountpoint\"}) * 100",
           "legendFormat": "{{instance}} {{mountpoint}}",
-          "refId": "A"
+          "refId": "A",
+          "maxDataPoints": 600
         }
-      ]
+      ],
+      "description": "Filesystem por montagem. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
     },
     {
       "type": "table",
@@ -294,7 +785,27 @@
           "instant": true,
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Inventário Linux. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Sem dados"
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [],
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      }
     },
     {
       "type": "logs",
@@ -313,17 +824,30 @@
       "targets": [
         {
           "expr": "{job=\"linux-system\",host_name=~\"$host\",deployment_environment=~\"$environment\"} |~ \"$search\"",
-          "refId": "A"
+          "refId": "A",
+          "maxLines": 200
         }
-      ]
+      ],
+      "description": "Logs do sistema. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
     }
   ],
   "refresh": "15s",
   "schemaVersion": 42,
   "tags": [
-    "sentinelops",
+    "linux",
     "managed",
-    "linux"
+    "noc-ready",
+    "sentinelops"
   ],
   "templating": {
     "list": [
@@ -341,12 +865,12 @@
         },
         "includeAll": true,
         "allValue": ".*",
-        "multi": true,
+        "multi": false,
         "refresh": 1,
         "current": {
           "selected": true,
-          "text": "All",
-          "value": "$__all"
+          "text": "production",
+          "value": "production"
         },
         "hide": 0
       },
@@ -439,5 +963,6 @@
   "timezone": "browser",
   "title": "Linux Hosts - Fleet e Detalhe",
   "uid": "sentinel-linux-overview",
-  "version": 3
+  "version": 3,
+  "description": "Dashboard operacional baseada exclusivamente em fontes reais do SentinelOps."
 }

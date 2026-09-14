@@ -26,7 +26,7 @@
   "panels": [
     {
       "type": "stat",
-      "title": "Alvos Prometheus saudáveis",
+      "title": "Targets saudáveis",
       "id": 1,
       "gridPos": {
         "h": 5,
@@ -43,7 +43,44 @@
           "expr": "count(up{job=~\"$prometheus_job\",instance=~\"$prometheus_instance\"} == 1)",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Targets saudáveis. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     },
     {
       "type": "timeseries",
@@ -62,13 +99,68 @@
       "targets": [
         {
           "expr": "count({__name__=~\"$metric\",job=~\"$prometheus_job\"})",
-          "refId": "A"
+          "refId": "A",
+          "maxDataPoints": 600
         }
-      ]
+      ],
+      "description": "Séries ativas no filtro. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
     },
     {
       "type": "timeseries",
-      "title": "Amostras ingeridas por segundo",
+      "title": "Ingestão de amostras",
       "id": 3,
       "gridPos": {
         "h": 8,
@@ -83,14 +175,69 @@
       "targets": [
         {
           "expr": "rate(prometheus_tsdb_head_samples_appended_total[5m])",
-          "legendFormat": "samples/s",
-          "refId": "A"
+          "refId": "A",
+          "legendFormat": "amostras/s",
+          "maxDataPoints": 600
         }
-      ]
+      ],
+      "description": "Ingestão de amostras. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
     },
     {
-      "type": "logs",
-      "title": "Logs filtrados da aplicação / container",
+      "type": "timeseries",
+      "title": "Top 10 métricas por séries",
       "id": 4,
       "gridPos": {
         "h": 9,
@@ -99,19 +246,75 @@
         "y": 8
       },
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "targets": [
         {
-          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\"}",
-          "refId": "A"
+          "expr": "topk(10, count by (__name__) ({__name__=~\"$metric\",job=~\"$prometheus_job\"}))",
+          "refId": "A",
+          "legendFormat": "{{__name__}}",
+          "maxDataPoints": 600
         }
-      ]
+      ],
+      "description": "Top 10 métricas por séries. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
     },
     {
       "type": "stat",
-      "title": "Alertas em firing",
+      "title": "Amostras por scrape",
       "id": 5,
       "gridPos": {
         "h": 9,
@@ -125,18 +328,56 @@
       },
       "targets": [
         {
-          "expr": "count(ALERTS{alertstate=\"firing\",severity=~\"$severity\",alertname=~\"$alertname\"})",
+          "expr": "sum(scrape_samples_scraped{job=~\"$prometheus_job\",instance=~\"$prometheus_instance\"})",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Amostras por scrape. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     }
   ],
   "refresh": "15s",
   "schemaVersion": 42,
   "tags": [
-    "sentinelops",
+    "cardinality-ingestion-cost",
     "managed",
-    "cardinality-ingestion-cost"
+    "noc-ready",
+    "sentinelops"
   ],
   "templating": {
     "list": [
@@ -208,144 +449,6 @@
           "value": "$__all"
         },
         "hide": 0
-      },
-      {
-        "name": "severity",
-        "label": "Severidade",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "query": {
-          "query": "label_values(ALERTS, severity)",
-          "refId": "var-severity"
-        },
-        "includeAll": true,
-        "allValue": ".*",
-        "multi": true,
-        "refresh": 1,
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        },
-        "hide": 0
-      },
-      {
-        "name": "alertname",
-        "label": "Alerta",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "query": {
-          "query": "label_values(ALERTS{severity=~\"$severity\"}, alertname)",
-          "refId": "var-alertname"
-        },
-        "includeAll": true,
-        "allValue": ".*",
-        "multi": true,
-        "refresh": 1,
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        },
-        "hide": 0
-      },
-      {
-        "name": "environment",
-        "label": "Ambiente",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "query": {
-          "query": "label_values(up{job=\"linux-node\"}, deployment_environment)",
-          "refId": "var-environment"
-        },
-        "includeAll": true,
-        "allValue": ".*",
-        "multi": true,
-        "refresh": 1,
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        },
-        "hide": 0
-      },
-      {
-        "name": "host",
-        "label": "Host",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "query": {
-          "query": "label_values(node_uname_info{deployment_environment=~\"$environment\"}, instance)",
-          "refId": "var-host"
-        },
-        "includeAll": true,
-        "allValue": ".*",
-        "multi": true,
-        "refresh": 1,
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        },
-        "hide": 0
-      },
-      {
-        "name": "container",
-        "label": "Aplicação / container",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "query": {
-          "query": "label_values(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\"}, name)",
-          "refId": "var-container"
-        },
-        "includeAll": true,
-        "allValue": ".*",
-        "multi": true,
-        "refresh": 1,
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        },
-        "hide": 0
-      },
-      {
-        "name": "container_id",
-        "label": "Container ID",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "query": {
-          "query": "label_values(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\"}, id)",
-          "refId": "var-container_id"
-        },
-        "includeAll": true,
-        "multi": true,
-        "refresh": 1,
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        },
-        "hide": 2,
-        "regex": "/.*\\/([a-f0-9]{12,64})$/"
       }
     ]
   },
@@ -357,5 +460,5 @@
   "title": "Cardinality and Ingestion Cost",
   "uid": "sentinel-cardinality-ingestion-cost",
   "version": 3,
-  "description": "Plano de controle filtrável por job, instância, severidade e alerta."
+  "description": "Custo técnico de cardinalidade e ingestão; top 10 limita fan-out visual e custo da consulta."
 }

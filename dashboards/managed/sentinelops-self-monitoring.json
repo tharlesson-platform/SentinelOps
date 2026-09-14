@@ -43,7 +43,44 @@
           "expr": "count(up{job=~\"$prometheus_job\",instance=~\"$prometheus_instance\"} == 1)",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Alvos Prometheus saudáveis. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     },
     {
       "type": "timeseries",
@@ -63,9 +100,64 @@
         {
           "expr": "prometheus_tsdb_head_series",
           "legendFormat": "series",
-          "refId": "A"
+          "refId": "A",
+          "maxDataPoints": 600
         }
-      ]
+      ],
+      "description": "Séries ativas no TSDB. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
     },
     {
       "type": "timeseries",
@@ -85,9 +177,64 @@
         {
           "expr": "rate(prometheus_tsdb_head_samples_appended_total[5m])",
           "legendFormat": "samples/s",
-          "refId": "A"
+          "refId": "A",
+          "maxDataPoints": 600
         }
-      ]
+      ],
+      "description": "Amostras ingeridas por segundo. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "decimals": 2,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
     },
     {
       "type": "logs",
@@ -105,10 +252,22 @@
       },
       "targets": [
         {
-          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\"}",
-          "refId": "A"
+          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/(${container_id:regex})/.*\"}",
+          "refId": "A",
+          "maxLines": 200
         }
-      ]
+      ],
+      "description": "Logs filtrados da aplicação / container. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
     },
     {
       "type": "stat",
@@ -129,14 +288,56 @@
           "expr": "count(ALERTS{alertstate=\"firing\",severity=~\"$severity\",alertname=~\"$alertname\"})",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Alertas em firing. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     }
   ],
   "refresh": "15s",
   "schemaVersion": 42,
   "tags": [
-    "sentinelops",
     "managed",
+    "noc-ready",
+    "sentinelops",
     "sentinelops-self-monitoring"
   ],
   "templating": {
@@ -247,12 +448,12 @@
         },
         "includeAll": true,
         "allValue": ".*",
-        "multi": true,
+        "multi": false,
         "refresh": 1,
         "current": {
           "selected": true,
-          "text": "All",
-          "value": "$__all"
+          "text": "production",
+          "value": "production"
         },
         "hide": 0
       },
@@ -281,7 +482,7 @@
       },
       {
         "name": "container",
-        "label": "Aplicação / container",
+        "label": "Container Docker",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -292,7 +493,7 @@
           "refId": "var-container"
         },
         "includeAll": true,
-        "allValue": ".*",
+        "allValue": ".+",
         "multi": true,
         "refresh": 1,
         "current": {
@@ -323,7 +524,7 @@
           "value": "$__all"
         },
         "hide": 2,
-        "regex": "/.*\\/([a-f0-9]{12,64})$/"
+        "regex": "/.*(?:\\/|docker-)([a-f0-9]{64})(?:\\.scope)?$/"
       }
     ]
   },

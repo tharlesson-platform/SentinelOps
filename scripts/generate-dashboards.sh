@@ -8,6 +8,7 @@ ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 
 "$ROOT/scripts/render-production-dashboards.sh"
 python3 "$ROOT/scripts/check-dashboard-filters.py"
+python3 "$ROOT/scripts/check-dashboard-noc-ux.py"
 "$ROOT/scripts/check-no-nonprod-telemetry.sh"
 
 echo "Dashboards reconciliadas exclusivamente com fontes reais de produção."

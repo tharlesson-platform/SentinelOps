@@ -26,7 +26,7 @@
   "panels": [
     {
       "type": "stat",
-      "title": "Aplicações selecionadas com métricas",
+      "title": "Dependências observadas",
       "id": 1,
       "gridPos": {
         "h": 5,
@@ -40,14 +40,51 @@
       },
       "targets": [
         {
-          "expr": "count(count by (job) (http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route=~\"$route\"}))",
+          "expr": "count(count by (client, server) (traces_service_graph_request_total))",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Dependências observadas. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     },
     {
       "type": "timeseries",
-      "title": "Requisições por segundo",
+      "title": "Top dependências por volume",
       "id": 2,
       "gridPos": {
         "h": 8,
@@ -61,15 +98,70 @@
       },
       "targets": [
         {
-          "expr": "sum by (job, http_route) (rate(http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route=~\"$route\"}[5m]))",
+          "expr": "topk(10, sum by (client, server) (rate(traces_service_graph_request_total[5m])))",
           "refId": "A",
-          "legendFormat": "{{job}} · {{http_route}}"
+          "legendFormat": "{{client}} → {{server}}",
+          "maxDataPoints": 600
         }
-      ]
+      ],
+      "description": "Top dependências por volume. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
     },
     {
       "type": "timeseries",
-      "title": "Latência p95",
+      "title": "Latência p95 entre serviços",
       "id": 3,
       "gridPos": {
         "h": 8,
@@ -83,15 +175,70 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le, job, http_route) (rate(http_server_request_duration_seconds_bucket{job=~\"(.*/)?$application\",http_route=~\"$route\"}[5m])))",
+          "expr": "topk(10, histogram_quantile(0.95, sum by (le, client, server) (rate(traces_service_graph_request_server_seconds_bucket[5m]))))",
           "refId": "A",
-          "legendFormat": "{{job}} · {{http_route}}"
+          "legendFormat": "{{client}} → {{server}}",
+          "maxDataPoints": 600
         }
-      ]
+      ],
+      "description": "Latência p95 entre serviços. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 3,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
     },
     {
       "type": "logs",
-      "title": "Logs filtrados da aplicação / container",
+      "title": "Logs da aplicação nos últimos 5 minutos",
       "id": 4,
       "gridPos": {
         "h": 9,
@@ -105,14 +252,22 @@
       },
       "targets": [
         {
-          "expr": "{job=\"docker-container\",host_name=~\"$host\",filename=~\".*/$container_id/.*\",deployment_environment=~\"$environment\"}",
-          "refId": "A"
-        },
-        {
-          "expr": "{service_name=~\"$application\"}",
-          "refId": "B"
+          "expr": "sum(count_over_time({job=\"docker-container\",filename=~\".*/(${container_id:regex})/.*\",host_name=~\"$host\",deployment_environment=~\"$environment\"} [5m]))",
+          "refId": "A",
+          "maxLines": 200
         }
-      ]
+      ],
+      "description": "Logs da aplicação nos últimos 5 minutos. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
     },
     {
       "type": "traces",
@@ -134,21 +289,23 @@
           "queryType": "traceql",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Traces da aplicação selecionada. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados."
     }
   ],
   "refresh": "15s",
   "schemaVersion": 42,
   "tags": [
-    "sentinelops",
     "managed",
+    "noc-ready",
+    "sentinelops",
     "service-graph"
   ],
   "templating": {
     "list": [
       {
         "name": "application",
-        "label": "Aplicação",
+        "label": "Aplicação APM (service.name)",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -167,31 +324,7 @@
           "text": "All",
           "value": "$__all"
         },
-        "hide": 0,
-        "regex": "/([^\\/\"]+)$/"
-      },
-      {
-        "name": "route",
-        "label": "Rota ativa (top 200)",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "query": {
-          "query": "query_result(topk(200, sum by (http_route) (rate(http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route!=\"\"}[15m]))))",
-          "refId": "var-route"
-        },
-        "includeAll": true,
-        "multi": true,
-        "refresh": 1,
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        },
-        "hide": 0,
-        "regex": "/http_route=\"([^\"]+)\"/"
+        "hide": 0
       },
       {
         "name": "environment",
@@ -207,12 +340,12 @@
         },
         "includeAll": true,
         "allValue": ".*",
-        "multi": true,
+        "multi": false,
         "refresh": 1,
         "current": {
           "selected": true,
-          "text": "All",
-          "value": "$__all"
+          "text": "production",
+          "value": "production"
         },
         "hide": 0
       },
@@ -241,7 +374,7 @@
       },
       {
         "name": "container",
-        "label": "Aplicação / container",
+        "label": "Container Docker",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -252,7 +385,7 @@
           "refId": "var-container"
         },
         "includeAll": true,
-        "allValue": ".*",
+        "allValue": ".+",
         "multi": true,
         "refresh": 1,
         "current": {
@@ -283,17 +416,17 @@
           "value": "$__all"
         },
         "hide": 2,
-        "regex": "/.*\\/([a-f0-9]{12,64})$/"
+        "regex": "/.*(?:\\/|docker-)([a-f0-9]{64})(?:\\.scope)?$/"
       }
     ]
   },
   "time": {
-    "from": "now-30m",
+    "from": "now-1h",
     "to": "now"
   },
   "timezone": "browser",
   "title": "Service Graph",
   "uid": "sentinel-service-graph",
   "version": 3,
-  "description": "Telemetria real com filtros encadeados de aplicação, rota, ambiente, host e container."
+  "description": "Grafo derivado exclusivamente de span metrics reais do Tempo; Sem dados indica metrics-generator não onboardado."
 }

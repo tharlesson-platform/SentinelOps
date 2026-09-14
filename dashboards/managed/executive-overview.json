@@ -26,7 +26,7 @@
   "panels": [
     {
       "type": "stat",
-      "title": "Hosts Linux ativos",
+      "title": "Hosts disponíveis",
       "id": 1,
       "gridPos": {
         "h": 5,
@@ -43,11 +43,48 @@
           "expr": "count(up{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\"} == 1)",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Hosts disponíveis. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     },
     {
-      "type": "timeseries",
-      "title": "CPU por host",
+      "type": "stat",
+      "title": "Maior uso de CPU",
       "id": 2,
       "gridPos": {
         "h": 8,
@@ -61,15 +98,63 @@
       },
       "targets": [
         {
-          "expr": "100 - avg by (instance) (rate(node_cpu_seconds_total{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\",mode=\"idle\"}[5m])) * 100",
-          "refId": "A",
-          "legendFormat": "{{instance}}"
+          "expr": "max(100 - avg by (instance) (rate(node_cpu_seconds_total{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\",mode=\"idle\"}[5m])) * 100)",
+          "refId": "A"
         }
-      ]
+      ],
+      "description": "Maior uso de CPU. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     },
     {
-      "type": "timeseries",
-      "title": "Memória utilizada por host",
+      "type": "stat",
+      "title": "Maior uso de memória",
       "id": 3,
       "gridPos": {
         "h": 8,
@@ -83,15 +168,63 @@
       },
       "targets": [
         {
-          "expr": "100 * (1 - node_memory_MemAvailable_bytes{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\"} / node_memory_MemTotal_bytes{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\"})",
-          "refId": "A",
-          "legendFormat": "{{instance}}"
+          "expr": "max(100 * (1 - node_memory_MemAvailable_bytes{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\"} / node_memory_MemTotal_bytes{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\"}))",
+          "refId": "A"
         }
-      ]
+      ],
+      "description": "Maior uso de memória. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     },
     {
-      "type": "logs",
-      "title": "Logs reais de aplicações",
+      "type": "stat",
+      "title": "Alertas ativos",
       "id": 4,
       "gridPos": {
         "h": 9,
@@ -100,19 +233,60 @@
         "y": 8
       },
       "datasource": {
-        "type": "loki",
-        "uid": "loki"
+        "type": "prometheus",
+        "uid": "prometheus"
       },
       "targets": [
         {
-          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\"}",
+          "expr": "count(ALERTS{alertstate=\"firing\"}) or vector(0)",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Alertas ativos. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     },
     {
       "type": "stat",
-      "title": "Contêineres observados",
+      "title": "Aplicações com APM",
       "id": 5,
       "gridPos": {
         "h": 9,
@@ -126,18 +300,56 @@
       },
       "targets": [
         {
-          "expr": "count(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\"})",
+          "expr": "count(count by (job) (http_server_request_duration_seconds_count))",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Aplicações com APM. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     }
   ],
   "refresh": "15s",
   "schemaVersion": 42,
   "tags": [
-    "sentinelops",
+    "executive-overview",
     "managed",
-    "executive-overview"
+    "noc-ready",
+    "sentinelops"
   ],
   "templating": {
     "list": [
@@ -155,12 +367,12 @@
         },
         "includeAll": true,
         "allValue": ".*",
-        "multi": true,
+        "multi": false,
         "refresh": 1,
         "current": {
           "selected": true,
-          "text": "All",
-          "value": "$__all"
+          "text": "production",
+          "value": "production"
         },
         "hide": 0
       },
@@ -186,52 +398,6 @@
           "value": "$__all"
         },
         "hide": 0
-      },
-      {
-        "name": "container",
-        "label": "Aplicação / container",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "query": {
-          "query": "label_values(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\"}, name)",
-          "refId": "var-container"
-        },
-        "includeAll": true,
-        "allValue": ".*",
-        "multi": true,
-        "refresh": 1,
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        },
-        "hide": 0
-      },
-      {
-        "name": "container_id",
-        "label": "Container ID",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "query": {
-          "query": "label_values(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\"}, id)",
-          "refId": "var-container_id"
-        },
-        "includeAll": true,
-        "multi": true,
-        "refresh": 1,
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        },
-        "hide": 2,
-        "regex": "/.*\\/([a-f0-9]{12,64})$/"
       }
     ]
   },
@@ -243,5 +409,5 @@
   "title": "Executive Overview",
   "uid": "sentinel-executive-overview",
   "version": 3,
-  "description": "Frota Linux e Docker com filtros encadeados de ambiente, host e aplicação/container."
+  "description": "Resumo executivo de disponibilidade, saturação, alertas e cobertura APM com dados reais."
 }

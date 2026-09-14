@@ -43,7 +43,44 @@
           "expr": "count(up{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\"} == 1)",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Hosts Linux ativos. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     },
     {
       "type": "timeseries",
@@ -63,9 +100,76 @@
         {
           "expr": "100 - avg by (instance) (rate(node_cpu_seconds_total{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\",mode=\"idle\"}[5m])) * 100",
           "refId": "A",
-          "legendFormat": "{{instance}}"
+          "legendFormat": "{{instance}}",
+          "maxDataPoints": 600
         }
-      ]
+      ],
+      "description": "CPU por host. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
     },
     {
       "type": "timeseries",
@@ -85,9 +189,76 @@
         {
           "expr": "100 * (1 - node_memory_MemAvailable_bytes{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\"} / node_memory_MemTotal_bytes{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\"})",
           "refId": "A",
-          "legendFormat": "{{instance}}"
+          "legendFormat": "{{instance}}",
+          "maxDataPoints": 600
         }
-      ]
+      ],
+      "description": "Memória utilizada por host. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
     },
     {
       "type": "logs",
@@ -105,10 +276,22 @@
       },
       "targets": [
         {
-          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\"}",
-          "refId": "A"
+          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/(${container_id:regex})/.*\"}",
+          "refId": "A",
+          "maxLines": 200
         }
-      ]
+      ],
+      "description": "Logs reais de aplicações. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
     },
     {
       "type": "stat",
@@ -129,15 +312,53 @@
           "expr": "count(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\"})",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Contêineres observados. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     }
   ],
   "refresh": "15s",
   "schemaVersion": 42,
   "tags": [
-    "sentinelops",
+    "azure-overview",
     "managed",
-    "azure-overview"
+    "noc-ready",
+    "sentinelops"
   ],
   "templating": {
     "list": [
@@ -155,12 +376,12 @@
         },
         "includeAll": true,
         "allValue": ".*",
-        "multi": true,
+        "multi": false,
         "refresh": 1,
         "current": {
           "selected": true,
-          "text": "All",
-          "value": "$__all"
+          "text": "production",
+          "value": "production"
         },
         "hide": 0
       },
@@ -189,7 +410,7 @@
       },
       {
         "name": "container",
-        "label": "Aplicação / container",
+        "label": "Container Docker",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -200,7 +421,7 @@
           "refId": "var-container"
         },
         "includeAll": true,
-        "allValue": ".*",
+        "allValue": ".+",
         "multi": true,
         "refresh": 1,
         "current": {
@@ -231,7 +452,7 @@
           "value": "$__all"
         },
         "hide": 2,
-        "regex": "/.*\\/([a-f0-9]{12,64})$/"
+        "regex": "/.*(?:\\/|docker-)([a-f0-9]{64})(?:\\.scope)?$/"
       }
     ]
   },
@@ -240,8 +461,8 @@
     "to": "now"
   },
   "timezone": "browser",
-  "title": "Azure Overview",
+  "title": "Azure — VMs Docker observadas",
   "uid": "sentinel-azure-overview",
   "version": 3,
-  "description": "Frota Linux e Docker com filtros encadeados de ambiente, host e aplicação/container."
+  "description": "Visão das VMs Azure baseada nos collectors Linux reais; não representa inventário da API Azure."
 }

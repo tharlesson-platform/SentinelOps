@@ -29,10 +29,8 @@ CONTAINER_DASHBOARDS = {
     "capacity-forecast.json",
     "database-overview.json",
     "docker-overview.json",
-    "executive-overview.json",
     "frontend-observability.json",
     "logs.json",
-    "noc-overview.json",
     "web-vitals.json",
 }
 SYNTHETIC_DASHBOARDS = {
@@ -68,17 +66,29 @@ def validate(path: Path) -> list[str]:
 
     declared = {variable.get("name") for variable in variables if variable.get("name")}
     searchable_text = "\n".join(strings_from(dashboard.get("panels", [])) + strings_from([v.get("query") for v in variables]))
-    referenced = set(re.findall(r"\$([A-Za-z_][A-Za-z0-9_]*)", searchable_text))
+    referenced_matches = re.findall(
+        r"\$(?:\{([A-Za-z_][A-Za-z0-9_]*)(?::[^}]*)?\}|([A-Za-z_][A-Za-z0-9_]*))",
+        searchable_text,
+    )
+    referenced = {left or right for left, right in referenced_matches}
     undeclared = referenced - declared - GRAFANA_BUILTINS
     if undeclared:
         errors.append(f"{path}: variáveis usadas mas não declaradas: {sorted(undeclared)}")
 
-    unused = {name for name in declared if f"${name}" not in searchable_text}
+    unused = {
+        name
+        for name in declared
+        if f"${name}" not in searchable_text and f"${{{name}" not in searchable_text
+    }
     if unused:
         errors.append(f"{path}: filtros declarados mas não aplicados: {sorted(unused)}")
 
     for variable in variables:
         if variable.get("type") != "query":
+            continue
+        if variable.get("name") == "environment":
+            if variable.get("multi") or variable.get("current", {}).get("value") != "production":
+                errors.append(f"{path}: filtro environment deve iniciar em production e seleção única")
             continue
         if not variable.get("includeAll") or not variable.get("multi"):
             errors.append(f"{path}: filtro {variable.get('name')} não aceita seleção múltipla/All")
@@ -89,11 +99,13 @@ def validate(path: Path) -> list[str]:
         errors.append(f"{path}: dashboard de aplicação sem filtro application")
     if path.name in APPLICATION_DASHBOARDS:
         route_variables = [variable for variable in variables if variable.get("name") == "route"]
-        route_query = "\n".join(strings_from([variable.get("query") for variable in route_variables]))
-        if "topk(200" not in route_query:
-            errors.append(f"{path}: filtro de rotas não limita cardinalidade")
-        if any(variable.get("allValue") for variable in route_variables):
-            errors.append(f"{path}: All de rotas ignora o conjunto top-200")
+        if path.name != "service-graph.json" and (not route_variables or any(variable.get("type") != "textbox" for variable in route_variables)):
+            errors.append(f"{path}: rota deve ser filtro regex explícito, não uma lista de alta cardinalidade")
+        if any(variable.get("current", {}).get("value") != ".*" for variable in route_variables):
+            errors.append(f"{path}: rota não inicia com regex segura .* ")
+        application_variables = [variable for variable in variables if variable.get("name") == "application"]
+        if any(variable.get("regex") for variable in application_variables):
+            errors.append(f"{path}: application remove namespace e pode colidir identidades")
         trace_queries = [
             target.get("query", "")
             for panel in dashboard.get("panels", [])
@@ -114,6 +126,9 @@ def validate(path: Path) -> list[str]:
     container_id_variables = [variable for variable in variables if variable.get("name") == "container_id"]
     if any(variable.get("allValue") for variable in container_id_variables):
         errors.append(f"{path}: All de container_id ignora o container selecionado")
+    container_variables = [variable for variable in variables if variable.get("name") == "container"]
+    if any(variable.get("allValue") != ".+" for variable in container_variables):
+        errors.append(f"{path}: All de container deve excluir cgroups sem nome")
     if path.name in SYNTHETIC_DASHBOARDS and not {"probe_job", "target"}.issubset(declared):
         errors.append(f"{path}: dashboard sintético sem filtros de grupo e alvo")
     if path.name == "vmware-vm-performance.json" and not {"endpoint", "vm", "datastore"}.issubset(declared):

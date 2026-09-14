@@ -40,14 +40,51 @@
       },
       "targets": [
         {
-          "expr": "sum(count_over_time({job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\",stream=~\"$stream\"} |~ \"$search\" [$__range]))",
+          "expr": "sum(count_over_time({job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/(${container_id:regex})/.*\",stream=~\"$stream\"} |~ \"$search\" [$__range]))",
           "refId": "A"
         },
         {
           "expr": "sum(count_over_time({job=~\"$log_source\",job!=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\"} |~ \"$search\" [$__range]))",
           "refId": "B"
         }
-      ]
+      ],
+      "description": "Eventos no período. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     },
     {
       "type": "timeseries",
@@ -65,20 +102,76 @@
       },
       "targets": [
         {
-          "expr": "sum by (host_name, filename) (count_over_time({job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\",stream=~\"$stream\"} |~ \"$search\" [$__interval]))",
+          "expr": "sum by (host_name) (count_over_time({job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/(${container_id:regex})/.*\",stream=~\"$stream\"} |~ \"$search\" [$__interval]))",
           "refId": "A",
-          "legendFormat": "{{host_name}} · {{filename}}"
+          "legendFormat": "{{host_name}}",
+          "maxDataPoints": 600
         },
         {
           "expr": "sum by (job, host_name) (count_over_time({job=~\"$log_source\",job!=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\"} |~ \"$search\" [$__interval]))",
           "refId": "B",
-          "legendFormat": "{{job}} · {{host_name}}"
+          "legendFormat": "{{job}} · {{host_name}}",
+          "maxDataPoints": 600
         }
-      ]
+      ],
+      "description": "Volume de logs por aplicação/container. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
     },
     {
       "type": "timeseries",
-      "title": "Erros por intervalo",
+      "title": "Possíveis erros por intervalo (regex)",
       "id": 3,
       "gridPos": {
         "h": 8,
@@ -92,18 +185,78 @@
       },
       "targets": [
         {
-          "expr": "sum(count_over_time({job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\",stream=~\"$stream\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__interval]))",
-          "refId": "A"
+          "expr": "sum(count_over_time({job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/(${container_id:regex})/.*\",stream=~\"$stream\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__interval]))",
+          "refId": "A",
+          "maxDataPoints": 600
         },
         {
           "expr": "sum(count_over_time({job=~\"$log_source\",job!=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__interval]))",
-          "refId": "B"
+          "refId": "B",
+          "maxDataPoints": 600
         }
-      ]
+      ],
+      "description": "Triagem textual por error/exception/fatal; stack traces podem elevar a contagem.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
     },
     {
       "type": "logs",
-      "title": "Logs filtrados",
+      "title": "Logs filtrados (máximo 200 linhas)",
       "id": 4,
       "gridPos": {
         "h": 9,
@@ -117,18 +270,31 @@
       },
       "targets": [
         {
-          "expr": "{job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\",stream=~\"$stream\"} |~ \"$search\"",
-          "refId": "A"
+          "expr": "{job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/(${container_id:regex})/.*\",stream=~\"$stream\"} |~ \"$search\"",
+          "refId": "A",
+          "maxLines": 200
         },
         {
           "expr": "{job=~\"$log_source\",job!=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\"} |~ \"$search\"",
-          "refId": "B"
+          "refId": "B",
+          "maxLines": 200
         }
-      ]
+      ],
+      "description": "Conteúdo bruto pode conter dados pessoais; aplicar mascaramento no collector antes da ingestão.",
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
     },
     {
       "type": "stat",
-      "title": "Erros no período",
+      "title": "Possíveis erros no período (regex)",
       "id": 5,
       "gridPos": {
         "h": 9,
@@ -142,22 +308,64 @@
       },
       "targets": [
         {
-          "expr": "sum(count_over_time({job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\",stream=~\"$stream\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__range]))",
+          "expr": "sum(count_over_time({job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/(${container_id:regex})/.*\",stream=~\"$stream\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__range]))",
           "refId": "A"
         },
         {
           "expr": "sum(count_over_time({job=~\"$log_source\",job!=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__range]))",
           "refId": "B"
         }
-      ]
+      ],
+      "description": "Fallback por regex; não equivale a uma contagem estruturada por severity.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     }
   ],
   "refresh": "15s",
   "schemaVersion": 42,
   "tags": [
-    "sentinelops",
+    "logs",
     "managed",
-    "logs"
+    "noc-ready",
+    "sentinelops"
   ],
   "templating": {
     "list": [
@@ -190,12 +398,12 @@
         },
         "includeAll": true,
         "allValue": ".*",
-        "multi": true,
+        "multi": false,
         "refresh": 1,
         "current": {
           "selected": true,
-          "text": "All",
-          "value": "$__all"
+          "text": "production",
+          "value": "production"
         },
         "hide": 0
       },
@@ -224,7 +432,7 @@
       },
       {
         "name": "container",
-        "label": "Aplicação / container",
+        "label": "Container Docker",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -235,7 +443,7 @@
           "refId": "var-container"
         },
         "includeAll": true,
-        "allValue": ".*",
+        "allValue": ".+",
         "multi": true,
         "refresh": 1,
         "current": {
@@ -266,7 +474,7 @@
           "value": "$__all"
         },
         "hide": 2,
-        "regex": "/.*\\/([a-f0-9]{12,64})$/"
+        "regex": "/.*(?:\\/|docker-)([a-f0-9]{64})(?:\\.scope)?$/"
       },
       {
         "name": "stream",
@@ -277,7 +485,7 @@
           "uid": "loki"
         },
         "query": {
-          "query": "label_values({job=\"docker-container\",host_name=~\"$host\",filename=~\".*/$container_id/.*\"}, stream)",
+          "query": "label_values({job=\"docker-container\",host_name=~\"$host\",filename=~\".*/(${container_id:regex})/.*\"}, stream)",
           "refId": "var-stream"
         },
         "includeAll": true,
@@ -312,5 +520,5 @@
   "title": "Logs",
   "uid": "sentinel-logs",
   "version": 3,
-  "description": "Logs pesquisáveis por fonte, aplicação/container Docker, ambiente, host, stream e conteúdo."
+  "description": "Logs pesquisáveis por fonte, container Docker, ambiente, host, stream e conteúdo. A detecção de erro é fallback por regex, não severidade normalizada; dados pessoais exigem redaction upstream."
 }

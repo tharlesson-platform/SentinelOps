@@ -40,10 +40,47 @@
       },
       "targets": [
         {
-          "expr": "count(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\"})",
+          "expr": "count(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\",name=~\"$container\"})",
           "refId": "A"
         }
-      ]
+      ],
+      "description": "Containers observados. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      }
     },
     {
       "type": "timeseries",
@@ -61,11 +98,78 @@
       },
       "targets": [
         {
-          "expr": "sum by (instance, name) (rate(container_cpu_usage_seconds_total{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\"}[5m])) * 100",
+          "expr": "topk(10, sum by (instance, name) (rate(container_cpu_usage_seconds_total{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\",name=~\"$container\"}[5m])) * 100)",
           "refId": "A",
-          "legendFormat": "{{instance}} · {{name}}"
+          "legendFormat": "{{instance}} · {{name}}",
+          "maxDataPoints": 600
         }
-      ]
+      ],
+      "description": "CPU por container. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
     },
     {
       "type": "timeseries",
@@ -83,11 +187,78 @@
       },
       "targets": [
         {
-          "expr": "sum by (instance, name) (container_memory_working_set_bytes{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\"})",
+          "expr": "topk(10, sum by (instance, name) (container_memory_working_set_bytes{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\",name=~\"$container\"}))",
           "refId": "A",
-          "legendFormat": "{{instance}} · {{name}}"
+          "legendFormat": "{{instance}} · {{name}}",
+          "maxDataPoints": 600
         }
-      ]
+      ],
+      "description": "Memória por container. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
     },
     {
       "type": "timeseries",
@@ -105,16 +276,72 @@
       },
       "targets": [
         {
-          "expr": "sum by (instance, name) (rate(container_network_receive_bytes_total{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\"}[5m]))",
+          "expr": "topk(10, sum by (instance, name) (rate(container_network_receive_bytes_total{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\",name=~\"$container\"}[5m])))",
           "refId": "A",
-          "legendFormat": "{{instance}} · {{name}} RX"
+          "legendFormat": "{{instance}} · {{name}} RX",
+          "maxDataPoints": 600
         },
         {
-          "expr": "sum by (instance, name) (rate(container_network_transmit_bytes_total{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\"}[5m]))",
+          "expr": "topk(10, sum by (instance, name) (rate(container_network_transmit_bytes_total{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\",name=~\"$container\"}[5m])))",
           "refId": "B",
-          "legendFormat": "{{instance}} · {{name}} TX"
+          "legendFormat": "{{instance}} · {{name}} TX",
+          "maxDataPoints": 600
         }
-      ]
+      ],
+      "description": "Rede por container. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
     },
     {
       "type": "timeseries",
@@ -132,19 +359,87 @@
       },
       "targets": [
         {
-          "expr": "sum by (instance, name) (rate(container_fs_reads_bytes_total{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\"}[5m]) + rate(container_fs_writes_bytes_total{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\"}[5m]))",
+          "expr": "topk(10, sum by (instance, name) (rate(container_fs_reads_bytes_total{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\",name=~\"$container\"}[5m]) + rate(container_fs_writes_bytes_total{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\",name=~\"$container\"}[5m])))",
           "refId": "A",
-          "legendFormat": "{{instance}} · {{name}}"
+          "legendFormat": "{{instance}} · {{name}}",
+          "maxDataPoints": 600
         }
-      ]
+      ],
+      "description": "I/O de filesystem. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "decimals": 1,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "orange",
+                "value": 80
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto",
+            "axisColorMode": "text",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
     }
   ],
   "refresh": "15s",
   "schemaVersion": 42,
   "tags": [
-    "sentinelops",
+    "docker",
     "managed",
-    "docker"
+    "noc-ready",
+    "sentinelops"
   ],
   "templating": {
     "list": [
@@ -162,12 +457,12 @@
         },
         "includeAll": true,
         "allValue": ".*",
-        "multi": true,
+        "multi": false,
         "refresh": 1,
         "current": {
           "selected": true,
-          "text": "All",
-          "value": "$__all"
+          "text": "production",
+          "value": "production"
         },
         "hide": 0
       },
@@ -196,7 +491,7 @@
       },
       {
         "name": "container",
-        "label": "Aplicação / container",
+        "label": "Container Docker",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -207,7 +502,7 @@
           "refId": "var-container"
         },
         "includeAll": true,
-        "allValue": ".*",
+        "allValue": ".+",
         "multi": true,
         "refresh": 1,
         "current": {
