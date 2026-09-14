@@ -92,10 +92,15 @@ def validate(path: Path) -> list[str]:
         route_query = "\n".join(strings_from([variable.get("query") for variable in route_variables]))
         if "topk(200" not in route_query:
             errors.append(f"{path}: filtro de rotas não limita cardinalidade")
+        if any(variable.get("allValue") for variable in route_variables):
+            errors.append(f"{path}: All de rotas ignora o conjunto top-200")
     if path.name in CONTAINER_DASHBOARDS and "container" not in declared:
         errors.append(f"{path}: dashboard Docker/log sem filtro de aplicação/container")
     if path.name == "logs.json" and not {"container_id", "stream", "search"}.issubset(declared):
         errors.append(f"{path}: dashboard de logs sem filtros operacionais completos")
+    container_id_variables = [variable for variable in variables if variable.get("name") == "container_id"]
+    if any(variable.get("allValue") for variable in container_id_variables):
+        errors.append(f"{path}: All de container_id ignora o container selecionado")
     if path.name in SYNTHETIC_DASHBOARDS and not {"probe_job", "target"}.issubset(declared):
         errors.append(f"{path}: dashboard sintético sem filtros de grupo e alvo")
     if path.name == "vmware-vm-performance.json" and not {"endpoint", "vm", "datastore"}.issubset(declared):

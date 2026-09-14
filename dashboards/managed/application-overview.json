@@ -328,7 +328,6 @@
           "refId": "var-route"
         },
         "includeAll": true,
-        "allValue": ".*",
         "multi": true,
         "refresh": 1,
         "current": {
@@ -421,7 +420,6 @@
           "refId": "var-container_id"
         },
         "includeAll": true,
-        "allValue": ".*",
         "multi": true,
         "refresh": 1,
         "current": {

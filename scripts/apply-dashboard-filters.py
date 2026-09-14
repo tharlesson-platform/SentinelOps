@@ -58,7 +58,7 @@ def query_variable(
     datasource: dict[str, str],
     query: str,
     *,
-    all_value: str = ".*",
+    all_value: str | None = ".*",
     regex: str | None = None,
     hide: int = 0,
 ) -> dict[str, object]:
@@ -69,12 +69,17 @@ def query_variable(
         "datasource": datasource,
         "query": {"query": query, "refId": f"var-{name}"},
         "includeAll": True,
-        "allValue": all_value,
-        "multi": True,
-        "refresh": 1,
-        "current": ALL,
-        "hide": hide,
     }
+    if all_value is not None:
+        variable["allValue"] = all_value
+    variable.update(
+        {
+            "multi": True,
+            "refresh": 1,
+            "current": ALL,
+            "hide": hide,
+        }
+    )
     if regex:
         variable["regex"] = regex
     return variable
@@ -162,6 +167,9 @@ def infrastructure_variables(*, include_container: bool = True) -> list[dict[str
                     "Container ID",
                     PROMETHEUS,
                     'label_values(container_last_seen{deployment_environment=~"$environment",instance=~"$host",name=~"$container"}, id)',
+                    # Sem allValue customizado: o Grafana expande "All" apenas
+                    # para os IDs retornados pelo container selecionado.
+                    all_value=None,
                     regex='/.*\\/([a-f0-9]{12,64})$/',
                     hide=2,
                 ),
@@ -188,6 +196,9 @@ def application_variables(*, host_filters_apm: bool = False) -> list[dict[str, o
             "Rota ativa (top 200)",
             PROMETHEUS,
             'query_result(topk(200, sum by (http_route) (rate(http_server_request_duration_seconds_count{job=~"(.*/)?$application",http_route!=""}[15m]))))',
+            # Preserva o top-200 ao selecionar "All" em vez de usar .*, que
+            # voltaria a casar todas as rotas de alta cardinalidade.
+            all_value=None,
             regex='/http_route="([^"]+)"/',
         ),
         *infrastructure,
