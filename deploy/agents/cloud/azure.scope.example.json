@@ -1,0 +1,8 @@
+{
+  "provider": "azure",
+  "environment": "hml",
+  "ownerTeam": "platform",
+  "scope": {
+    "subscriptionId": "00000000-0000-0000-0000-000000000000"
+  }
+}

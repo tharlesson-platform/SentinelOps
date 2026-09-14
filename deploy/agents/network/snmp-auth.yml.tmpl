@@ -1,0 +1,11 @@
+# Credenciais entram exclusivamente por variáveis de ambiente do processo.
+# O nome da autenticação é fixo e usado apenas pelo Alloy deste collector.
+auths:
+  sentinelops_v3_authpriv:
+    version: 3
+    username: ${SENTINEL_SNMP_V3_USERNAME}
+    security_level: authPriv
+    password: ${SENTINEL_SNMP_V3_AUTH_PASSWORD}
+    auth_protocol: SHA256
+    priv_protocol: AES
+    priv_password: ${SENTINEL_SNMP_V3_PRIV_PASSWORD}

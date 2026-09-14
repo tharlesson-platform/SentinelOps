@@ -29,3 +29,43 @@ func TestBadPassword(t *testing.T) {
 		t.Fatal("expected rejection")
 	}
 }
+
+func TestHasScopeAcceptsStandardAndArrayClaims(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		scope  string
+		scopes []string
+		want   bool
+	}{
+		{name: "standard scope claim", scope: "openid profile sentinelops.api", want: true},
+		{name: "array scope claim", scopes: []string{"openid", "sentinelops.api"}, want: true},
+		{name: "prefix is not a scope", scope: "sentinelops.api.read", want: false},
+		{name: "missing", scope: "openid profile", want: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := hasScope(test.scope, test.scopes, "sentinelops.api"); got != test.want {
+				t.Fatalf("hasScope() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestAssetPermissionsFollowRBAC(t *testing.T) {
+	if !Can("Viewer", "asset:read") || Can("Viewer", "asset:write") {
+		t.Fatal("viewer asset permissions are not read-only")
+	}
+	if !Can("SRE Operator", "asset:write") {
+		t.Fatal("SRE operator must reconcile authorized inventory")
+	}
+}
+
+func TestDataLifecyclePermissionsArePlatformAdminOnly(t *testing.T) {
+	for _, role := range []string{"Viewer", "Auditor", "Developer", "Application Owner", "SRE Operator", "SRE Administrator"} {
+		if Can(role, "data-lifecycle:read") || Can(role, "data-lifecycle:write") {
+			t.Fatalf("%s must not access data lifecycle requests", role)
+		}
+	}
+	if !Can("Platform Administrator", "data-lifecycle:read") || !Can("Platform Administrator", "data-lifecycle:write") {
+		t.Fatal("platform administrator must access data lifecycle requests")
+	}
+}

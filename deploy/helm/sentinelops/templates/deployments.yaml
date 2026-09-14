@@ -4,10 +4,17 @@
 {{- end }}
 {{- if $root.Values.global.requireImageDigests }}
 {{- if not (regexMatch "^https://[^[:space:]]+$" (default "" $root.Values.global.oidcIssuerURL)) }}{{- fail "global.oidcIssuerURL HTTPS é obrigatório no perfil produtivo" }}{{- end }}
+{{- if empty $root.Values.global.oidcAPIAudience }}{{- fail "global.oidcAPIAudience é obrigatório no perfil produtivo" }}{{- end }}
+{{- if empty $root.Values.global.oidcRequiredScope }}{{- fail "global.oidcRequiredScope é obrigatório no perfil produtivo" }}{{- end }}
 {{- if not (regexMatch "^https://[^[:space:]]+$" (default "" $root.Values.global.allowedOrigin)) }}{{- fail "global.allowedOrigin HTTPS é obrigatório no perfil produtivo" }}{{- end }}
 {{- if empty $root.Values.global.existingSecret }}{{- fail "global.existingSecret é obrigatório no perfil produtivo" }}{{- end }}
 {{- if empty $root.Values.global.releaseValidationAllowedHosts }}{{- fail "global.releaseValidationAllowedHosts deve declarar a allowlist SSRF produtiva" }}{{- end }}
+{{- if empty $root.Values.global.syntheticAllowedTargets }}{{- fail "global.syntheticAllowedTargets deve declarar hostname@CIDR para cada alvo sintético produtivo" }}{{- end }}
 {{- if empty $root.Values.global.upstreamCABundleSecretName }}{{- fail "global.upstreamCABundleSecretName é obrigatório para os upstreams HTTPS internos" }}{{- end }}
+{{- if not $root.Values.gateway.enabled }}{{- fail "gateway.enabled é obrigatório para isolar queries de telemetria em produção" }}{{- end }}
+{{- if not (regexMatch "^https://[^[:space:]]+$" (default "" $root.Values.global.telemetryQueryGatewayURL)) }}{{- fail "global.telemetryQueryGatewayURL HTTPS é obrigatório no perfil produtivo" }}{{- end }}
+{{- if empty $root.Values.global.telemetryQueryClientTLSSecretName }}{{- fail "global.telemetryQueryClientTLSSecretName é obrigatório no perfil produtivo" }}{{- end }}
+{{- if empty $root.Values.global.telemetryQueryAPIClientTLSSecretName }}{{- fail "global.telemetryQueryAPIClientTLSSecretName é obrigatório no perfil produtivo" }}{{- end }}
 {{- if and (empty $root.Values.networkPolicy.externalHTTPSCIDRs) (empty $root.Values.networkPolicy.extraEgress) }}{{- fail "declare egress HTTPS explícito para IdP e alvos via externalHTTPSCIDRs ou extraEgress" }}{{- end }}
 {{- range $key := list "prometheusURL" "lokiURL" "tempoURL" }}
 {{- if not (regexMatch "^https://[^[:space:]]+$" (default "" (index $root.Values.global $key))) }}{{- fail (printf "global.%s HTTPS é obrigatório no perfil produtivo" $key) }}{{- end }}
@@ -82,16 +89,24 @@ spec:
             - { name: AUTH_MODE, value: oidc }
             - { name: OIDC_ISSUER_URL, value: {{ $root.Values.global.oidcIssuerURL | quote }} }
             - { name: OIDC_CLIENT_ID, value: {{ $root.Values.global.oidcClientID | quote }} }
+            - { name: OIDC_API_AUDIENCE, value: {{ $root.Values.global.oidcAPIAudience | quote }} }
+            - { name: OIDC_REQUIRED_SCOPE, value: {{ $root.Values.global.oidcRequiredScope | quote }} }
             - { name: TEMPORAL_ADDRESS, value: {{ $root.Values.global.temporalAddress | quote }} }
             - { name: ALLOWED_ORIGIN, value: {{ $root.Values.global.allowedOrigin | quote }} }
             {{- if $root.Values.global.upstreamCABundleSecretName }}
             - { name: SSL_CERT_FILE, value: /etc/sentinelops/upstream-ca/{{ $root.Values.global.upstreamCABundleKey }} }
             {{- end }}
             {{- if eq $name "worker" }}
-            - { name: PROMETHEUS_URL, value: {{ $root.Values.global.prometheusURL | quote }} }
-            - { name: LOKI_URL, value: {{ $root.Values.global.lokiURL | quote }} }
-            - { name: TEMPO_URL, value: {{ $root.Values.global.tempoURL | quote }} }
+            - { name: TELEMETRY_QUERY_GATEWAY_URL, value: {{ $root.Values.global.telemetryQueryGatewayURL | quote }} }
+            - { name: TELEMETRY_QUERY_CLIENT_CERT_FILE, value: /etc/sentinelops/telemetry-query-client/{{ $root.Values.global.telemetryQueryClientTLSCertKey }} }
+            - { name: TELEMETRY_QUERY_CLIENT_KEY_FILE, value: /etc/sentinelops/telemetry-query-client/{{ $root.Values.global.telemetryQueryClientTLSKeyKey }} }
             - { name: RELEASE_VALIDATION_ALLOWED_HOSTS, value: {{ join "," $root.Values.global.releaseValidationAllowedHosts | quote }} }
+            - { name: SYNTHETIC_ALLOWED_TARGETS, value: {{ join "," $root.Values.global.syntheticAllowedTargets | quote }} }
+            {{- end }}
+            {{- if eq $name "api" }}
+            - { name: TELEMETRY_QUERY_GATEWAY_URL, value: {{ $root.Values.global.telemetryQueryGatewayURL | quote }} }
+            - { name: TELEMETRY_QUERY_API_CLIENT_CERT_FILE, value: /etc/sentinelops/telemetry-query-api-client/{{ $root.Values.global.telemetryQueryClientTLSCertKey }} }
+            - { name: TELEMETRY_QUERY_API_CLIENT_KEY_FILE, value: /etc/sentinelops/telemetry-query-api-client/{{ $root.Values.global.telemetryQueryClientTLSKeyKey }} }
             {{- end }}
             - name: DATABASE_URL
               valueFrom: { secretKeyRef: { name: {{ $root.Values.global.existingSecret }}, key: {{ $root.Values.global.databaseURLKey }} } }
@@ -118,6 +133,12 @@ spec:
             {{- if $root.Values.global.upstreamCABundleSecretName }}
             - { name: upstream-ca, mountPath: /etc/sentinelops/upstream-ca, readOnly: true }
             {{- end }}
+            {{- if eq $name "worker" }}
+            - { name: telemetry-query-client, mountPath: /etc/sentinelops/telemetry-query-client, readOnly: true }
+            {{- end }}
+            {{- if eq $name "api" }}
+            - { name: telemetry-query-api-client, mountPath: /etc/sentinelops/telemetry-query-api-client, readOnly: true }
+            {{- end }}
           {{- end }}
       volumes:
         - { name: tmp, emptyDir: { sizeLimit: 256Mi } }
@@ -125,6 +146,12 @@ spec:
         - { name: web-config, configMap: { name: {{ include "sentinelops.fullname" $root }}-web-config } }
         {{- else if $root.Values.global.upstreamCABundleSecretName }}
         - { name: upstream-ca, secret: { secretName: {{ $root.Values.global.upstreamCABundleSecretName }}, defaultMode: 288 } }
+        {{- end }}
+        {{- if eq $name "worker" }}
+        - { name: telemetry-query-client, secret: { secretName: {{ $root.Values.global.telemetryQueryClientTLSSecretName }}, defaultMode: 288 } }
+        {{- end }}
+        {{- if eq $name "api" }}
+        - { name: telemetry-query-api-client, secret: { secretName: {{ $root.Values.global.telemetryQueryAPIClientTLSSecretName }}, defaultMode: 288 } }
         {{- end }}
       imagePullSecrets: {{- toYaml $root.Values.global.imagePullSecrets | nindent 8 }}
 {{- end }}

@@ -8,6 +8,7 @@ INSTALL_DIR=/opt/sentinelops
 WEB_BIND=127.0.0.1
 INGEST_BIND=127.0.0.1
 INGEST_SERVER_NAME=ingest.local
+INGEST_SERVER_IP=""
 ALLOW_PUBLIC_INGEST=false
 ENABLE_SERVICE=true
 SEED=true
@@ -26,6 +27,7 @@ Uso remoto: sudo ./bootstrap-linux.sh --source-url https://host/sentinelops.tar.
   --web-bind IP                bind Web (padrão 127.0.0.1)
   --ingest-bind IP             IP privado do gateway mTLS
   --ingest-server-name DNS     nome presente no certificado TLS
+  --ingest-server-ip IP        IP unicast presente no certificado TLS
   --allow-public-ingest        confirma bind público; configure firewall
   --without-seed               omite dados demonstrativos
   --without-service            não instala unit systemd
@@ -48,6 +50,7 @@ while [ "$#" -gt 0 ]; do
     --web-bind) [ "$#" -ge 2 ] || die "--web-bind requer valor"; WEB_BIND=$2; shift 2 ;;
     --ingest-bind) [ "$#" -ge 2 ] || die "--ingest-bind requer valor"; INGEST_BIND=$2; shift 2 ;;
     --ingest-server-name) [ "$#" -ge 2 ] || die "--ingest-server-name requer valor"; INGEST_SERVER_NAME=$2; shift 2 ;;
+    --ingest-server-ip) [ "$#" -ge 2 ] || die "--ingest-server-ip requer valor"; INGEST_SERVER_IP=$2; shift 2 ;;
     --allow-public-ingest) ALLOW_PUBLIC_INGEST=true; shift ;;
     --without-seed) SEED=false; shift ;;
     --without-service) ENABLE_SERVICE=false; shift ;;
@@ -123,6 +126,7 @@ find "$SCRIPT_ROOT" -type f -name '._*' -delete
 
 log "Fase 20/40: instalando runtime e subindo a plataforma"
 set -- --phase all --install-runtime --web-bind "$WEB_BIND" --ingest-bind "$INGEST_BIND" --ingest-server-name "$INGEST_SERVER_NAME"
+[ -z "$INGEST_SERVER_IP" ] || set -- "$@" --ingest-server-ip "$INGEST_SERVER_IP"
 [ "$ALLOW_PUBLIC_INGEST" = false ] || set -- "$@" --allow-public-ingest
 [ "$SEED" = true ] || set -- "$@" --without-seed
 [ "$ENABLE_SERVICE" = false ] || set -- "$@" --enable-service

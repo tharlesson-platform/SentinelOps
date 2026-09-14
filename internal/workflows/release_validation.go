@@ -23,13 +23,13 @@ type ValidationInput struct {
 	Mode           string `json:"mode"`
 }
 type Activities struct {
-	Store              *database.Store
-	HTTPClient         *http.Client
-	DemoBaseURL        string
-	AllowedHealthHosts []string
-	PrometheusURL      string
-	LokiURL            string
-	TempoURL           string
+	Store                    *database.Store
+	HTTPClient               *http.Client
+	ReleaseValidationBaseURL string
+	AllowedHealthHosts       []string
+	PrometheusURL            string
+	LokiURL                  string
+	TempoURL                 string
 }
 
 func ReleaseValidationWorkflow(ctx workflow.Context, input ValidationInput) error {
@@ -46,9 +46,9 @@ func (a *Activities) EvaluateValidation(ctx context.Context, input ValidationInp
 	if err != nil {
 		return err
 	}
-	base := a.DemoBaseURL
+	base := a.ReleaseValidationBaseURL
 	if base == "" {
-		base = "http://demo-api:8090"
+		return fmt.Errorf("RELEASE_VALIDATION_BASE_URL is required")
 	}
 	endpoint := base + "/health"
 	if release.Labels["health_url"] != "" {

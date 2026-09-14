@@ -9,5 +9,5 @@ data:
       authMode: 'oidc',
       oidcAuthority: {{ .Values.global.oidcIssuerURL | quote }},
       oidcClientId: {{ .Values.global.oidcClientID | quote }},
-      oidcScope: 'openid profile email'
+      oidcScope: {{ .Values.global.oidcScope | quote }}
     };

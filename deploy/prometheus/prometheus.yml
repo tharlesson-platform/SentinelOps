@@ -10,10 +10,20 @@ scrape_configs:
     static_configs: [{ targets: ["localhost:9090"] }]
   - job_name: sentinel-api
     static_configs: [{ targets: ["api:8080"] }]
+  - job_name: sentinel-demo-apps
+    static_configs:
+      - targets: ["demo-api:8090", "demo-orders:8090", "demo-payments:8090"]
+        labels: { deployment_environment: local-demo, telemetry_scope: demo-only }
+  - job_name: linux-node
+    static_configs:
+      - targets: ["demo-linux-host:8090"]
+        labels: { instance: sentinel-demo-linux, deployment_environment: local-demo, telemetry_scope: demo-only }
   - job_name: alloy
     static_configs: [{ targets: ["alloy:12345"] }]
   - job_name: sentinel-vmware
     static_configs: [{ targets: ["vmware-exporter:9472"] }]
+  - job_name: sentinel-postgres
+    static_configs: [{ targets: ["postgres-exporter:9187"] }]
   - job_name: blackbox-demo
     metrics_path: /probe
     params: { module: [http_2xx] }

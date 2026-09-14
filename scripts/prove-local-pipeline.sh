@@ -176,7 +176,7 @@ jq -n \
   --arg overThresholdResult "$over_threshold_result" \
   --arg profileTicks "$profile_ticks" \
   '{schemaVersion:1,startedAt:$startedAt,completedAt:$completedAt,marker:$marker,traceId:$traceId,
-    collection:{metrics:{path:"mock -> Alloy scrape -> Prometheus remote write",services:$metricServices,allTargetsUp:true},
+    collection:{metrics:{path:"mock -> Prometheus local scrape",services:$metricServices,allTargetsUp:true},
       logs:{path:"mock OTLP -> Alloy processors -> Loki",services:$logServices},
       traces:{path:"mock OTLP -> Alloy tail sampling -> Tempo",services:$traceServices},
       profiles:{path:"Alloy pprof scrape -> Pyroscope",services:$profileServices,cpuTicks:($profileTicks|tonumber)}},

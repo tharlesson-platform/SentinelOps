@@ -8,7 +8,6 @@ test('login e abertura do dashboard sem erros de console', async ({ page }) => {
   await page.getByLabel('Senha').fill(process.env.LOCAL_ADMIN_PASSWORD || '')
   await page.getByRole('button', { name: 'Entrar' }).click()
   await expect(page.getByText('Entrega confiável começa por evidência.')).toBeVisible()
-  await expect(page.getByText('Control Plane conectado')).toBeVisible()
+  await expect(page.locator('.time-range', { hasText: 'Catálogo/API em' })).toBeVisible()
   expect(errors).toEqual([])
 })
-

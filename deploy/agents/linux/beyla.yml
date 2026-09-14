@@ -1,0 +1,32 @@
+# Instrumentação eBPF somente para processos de contêiner. O collector Alloy
+# local recebe OTLP no loopback e aplica mTLS, redaction, retry e roteamento
+# ao SentinelOps central; nenhuma aplicação precisa conhecer credenciais.
+log_level: INFO
+
+discovery:
+  exclude_otel_instrumented_services: true
+  instrument:
+    # Mantém o escopo nos namespaces OCI, sem depender de nomes ou de acesso
+    # ao socket Docker. As portas cobrem HTTP/gRPC usuais da plataforma e
+    # evitam anexar a processos do host ou a bancos/cache.
+    - containers_only: true
+      open_ports: 80,3000,3001,8080,8083
+      exports: [metrics, traces]
+
+# Evita transformar identificadores variáveis de URL em séries e spans de alta
+# cardinalidade. Rotas Java, Go e Node usam o harvesting nativo quando houver.
+routes:
+  unmatched: heuristic
+
+otel_metrics_export:
+  endpoint: http://127.0.0.1:4318
+  interval: 15s
+  features:
+    - application
+    - application_span_otel
+    - application_process
+    - application_runtime
+    - application_service_graph
+
+otel_traces_export:
+  endpoint: http://127.0.0.1:4318

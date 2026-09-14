@@ -9,14 +9,21 @@ groups:
           summary: SentinelOps API indisponível
           runbook_url: docs/runbooks/control-plane-unavailable.md
       - alert: SyntheticProbeFailing
-        expr: probe_success{job="blackbox-demo"} == 0
+        expr: probe_success{job="blackbox-production"} == 0
         for: 2m
-        labels: { severity: warning, team: platform, service: sentinel-demo-api }
+        labels: { severity: warning, team: platform, service: tqipedia }
         annotations:
           summary: Probe sintético falhando
           runbook_url: docs/runbooks/synthetic-tests-failing.md
+      - alert: TenantRequestQuotaExceeded
+        expr: increase(sentinel_tenant_quota_rejections_total[5m]) > 0
+        for: 0m
+        labels: { severity: warning, team: platform, service: sentinel-api }
+        annotations:
+          summary: Quota de requisições de uma organização excedida
+          runbook_url: docs/operations/tenant-quotas.md
       - record: service:http_requests:rate5m
-        expr: sum by (service) (rate(demo_pipeline_requests_total[5m]))
+        expr: sum by (job) (rate(http_server_request_duration_seconds_count{job=~"tqi-platform/.+"}[5m]))
 
   - name: sentinelops-linux-hosts
     rules:
@@ -56,6 +63,23 @@ groups:
           summary: Clock skew Linux acima de 100 ms
           runbook_url: docs/runbooks/operational-response.md
 
+  - name: sentinelops-docker-containers
+    rules:
+      - alert: DockerContainerMetricsStale
+        expr: time() - max by (instance) (container_last_seen{name!=""}) > 120
+        for: 5m
+        labels: { severity: warning, team: platform, integration: docker }
+        annotations:
+          summary: Métricas de contêiner desatualizadas há mais de 5 minutos
+          runbook_url: docs/runbooks/docker-observability.md
+      - alert: DockerContainerRestarted
+        expr: changes(container_start_time_seconds{name!=""}[15m]) > 0
+        for: 2m
+        labels: { severity: warning, team: platform, integration: docker }
+        annotations:
+          summary: Contêiner reiniciado nos últimos 15 minutos
+          runbook_url: docs/runbooks/docker-observability.md
+
   - name: sentinelops-vmware
     rules:
       - alert: VMwareInventoryUnavailable
@@ -65,6 +89,7 @@ groups:
         annotations:
           summary: Coleta de inventário VMware indisponível
           runbook_url: docs/integrations/vmware-monitoring.md
+
       - alert: VMwarePerformanceUnavailable
         expr: absent(sentinelops_vmware_performance_scrape_success) or sentinelops_vmware_performance_scrape_success != 1
         for: 5m
@@ -94,17 +119,66 @@ groups:
           summary: Latência de disco de VM acima de 20 ms
           runbook_url: docs/integrations/vmware-monitoring.md
 
+  - name: sentinelops-postgresql
+    rules:
+      # Do not use absent(): the optional Compose profile is disabled until a
+      # real monitored database and a TLS credential have been approved.
+      - alert: PostgreSQLCollectorUnhealthy
+        expr: sentinelops_postgres_scrape_success == 0 or (time() - sentinelops_postgres_last_success_unixtime) > 120
+        for: 3m
+        labels:
+          severity: critical
+          team: '{{ $labels.team }}'
+          asset_id: '{{ $labels.asset_id }}'
+          integration: postgresql
+        annotations:
+          summary: Coleta PostgreSQL indisponível ou desatualizada
+          runbook_url: docs/operations/postgresql-collector.md
+      - alert: PostgreSQLConnectionSaturation
+        expr: sentinelops_postgres_connections / clamp_min(sentinelops_postgres_max_connections, 1) > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          team: '{{ $labels.team }}'
+          asset_id: '{{ $labels.asset_id }}'
+          integration: postgresql
+        annotations:
+          summary: Conexões PostgreSQL acima de 85% do limite
+          runbook_url: docs/operations/postgresql-collector.md
+      - alert: PostgreSQLBlockedLocks
+        expr: sentinelops_postgres_blocked_locks > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: '{{ $labels.team }}'
+          asset_id: '{{ $labels.asset_id }}'
+          integration: postgresql
+        annotations:
+          summary: Locks PostgreSQL não concedidos persistentes
+          runbook_url: docs/operations/postgresql-collector.md
+      - alert: PostgreSQLDeadlocks
+        expr: increase(sentinelops_postgres_deadlocks_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+          team: '{{ $labels.team }}'
+          asset_id: '{{ $labels.asset_id }}'
+          integration: postgresql
+        annotations:
+          summary: Deadlock PostgreSQL detectado
+          runbook_url: docs/operations/postgresql-collector.md
+
   - name: sentinelops-applications
     rules:
       - alert: ApplicationErrorRateHigh
-        expr: sum by (service) (rate(demo_pipeline_requests_total{status=~"5.."}[5m])) / clamp_min(sum by (service) (rate(demo_pipeline_requests_total[5m])), 0.000001) > 0.05
+        expr: sum by (job) (rate(http_server_request_duration_seconds_count{job=~"tqi-platform/.+",http_response_status_code=~"5.."}[5m])) / clamp_min(sum by (job) (rate(http_server_request_duration_seconds_count{job=~"tqi-platform/.+"}[5m])), 0.000001) > 0.05
         for: 10m
         labels: { severity: warning, team: platform }
         annotations:
           summary: Taxa de erro da aplicação acima de 5%
           runbook_url: docs/runbooks/operational-response.md
       - alert: ApplicationLatencyP95High
-        expr: histogram_quantile(0.95, sum by (le,service) (rate(demo_pipeline_request_duration_seconds_bucket[5m]))) > 1
+        expr: histogram_quantile(0.95, sum by (le,job) (rate(http_server_request_duration_seconds_bucket{job=~"tqi-platform/.+"}[5m]))) > 1
         for: 10m
         labels: { severity: warning, team: platform }
         annotations:

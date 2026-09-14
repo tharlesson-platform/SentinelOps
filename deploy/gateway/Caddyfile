@@ -56,7 +56,7 @@ https://:8443 {
 	}
 
 	@agents {
-		path /api/v1/agents/register /api/v1/agents/*/heartbeat
+		path /api/v1/agents/register /api/v1/agents/*/heartbeat /api/v1/agents/*/inventory-reconcile
 		vars_regexp tenant_uri {http.request.tls.client.san.uris.0} ^spiffe://sentinelops/organizations/([A-Za-z0-9][A-Za-z0-9._-]{1,62})/collectors/([A-Za-z0-9][A-Za-z0-9._-]{1,62})$
 	}
 	handle @agents {
@@ -68,6 +68,50 @@ https://:8443 {
 		}
 	}
 
+	respond 404
+}
+
+# Somente leitores de telemetria do Control Plane possuem estes SANs. Eles
+# fornecem a organização a partir da identidade autenticada ou do workflow;
+# o gateway remove o cabeçalho de entrada e injeta X-Scope-OrgID no upstream.
+https://:8444 {
+	import collector_mtls
+	@prometheus {
+		path /prometheus/api/v1/query /prometheus/api/v1/query_range
+		header X-Sentinel-Organization *
+		vars_regexp worker_uri {http.request.tls.client.san.uris.0} ^spiffe://sentinelops/workloads/(release-validator|control-plane-api)$
+	}
+	handle @prometheus {
+		uri strip_prefix /prometheus
+		reverse_proxy prometheus:9090 {
+			header_up X-Scope-OrgID {http.request.header.X-Sentinel-Organization}
+			header_up -X-Sentinel-Organization
+		}
+	}
+	@loki {
+		path /loki/loki/api/v1/query_range
+		header X-Sentinel-Organization *
+		vars_regexp worker_uri {http.request.tls.client.san.uris.0} ^spiffe://sentinelops/workloads/(release-validator|control-plane-api)$
+	}
+	handle @loki {
+		uri strip_prefix /loki
+		reverse_proxy loki:3100 {
+			header_up X-Scope-OrgID {http.request.header.X-Sentinel-Organization}
+			header_up -X-Sentinel-Organization
+		}
+	}
+	@tempo {
+		path /tempo/api/search
+		header X-Sentinel-Organization *
+		vars_regexp worker_uri {http.request.tls.client.san.uris.0} ^spiffe://sentinelops/workloads/(release-validator|control-plane-api)$
+	}
+	handle @tempo {
+		uri strip_prefix /tempo
+		reverse_proxy tempo:3200 {
+			header_up X-Scope-OrgID {http.request.header.X-Sentinel-Organization}
+			header_up -X-Sentinel-Organization
+		}
+	}
 	respond 404
 }
 

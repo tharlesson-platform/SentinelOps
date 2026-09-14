@@ -4,11 +4,12 @@ COMPOSE := docker compose --env-file $(ROOT)/.env -f $(ROOT)/deploy/compose/dock
 COMPOSE_HA := $(COMPOSE) -f $(ROOT)/deploy/compose/docker-compose.ha.yml
 IMAGE_LOCK := $(ROOT)/artifacts/runtime/docker-compose.images.lock.yml
 COMPOSE_RUNTIME := $(COMPOSE_HA) -f $(IMAGE_LOCK)
+LOCAL_DEMO_ENV := RELEASE_VALIDATION_ALLOWED_HOSTS=demo-api RELEASE_VALIDATION_BASE_URL=http://demo-api:8090 SYNTHETIC_ALLOWED_TARGETS=demo-api@172.16.0.0/12
 GO_IMAGE := golang:1.26.6-alpine3.23@sha256:e57c41c1d5864341031181b0db34b9a537bb5773eb6428e4e5bdaea0f9135406
 GO_TEST_IMAGE := golang:1.26.6-bookworm@sha256:116d58cbd88c1297624acc6e967a060012422bacf9930927e23fb719189c6f36
 NODE_IMAGE := node:26.7.0-alpine3.23@sha256:ce3cc39fe3b8b2602d3b1c4d63d301e46b48c550ecb627869853ddcdda418b63
 
-.PHONY: bootstrap prepare-images up local-demo prove-local prove-ha prove-ha-manifests prove-resilience prove-dashboards prove-apm validate-release down reset seed test test-synthetics check logs doctor credentials generate lint build install-server install-collector bootstrap-apm collector-bundle
+.PHONY: bootstrap prepare-images up local-demo prove-local prove-ha prove-ha-manifests prove-resilience prove-dashboards prove-apm validate-release down reset seed test test-synthetics check logs doctor credentials generate lint build install-server install-collector bootstrap-apm collector-bundle harness-doctor harness-validate-specs harness-check harness-integration harness-integration-compose harness-e2e harness-eval-ai harness-release harness-production
 
 bootstrap:
 	@chmod +x scripts/*.sh
@@ -18,14 +19,19 @@ bootstrap:
 prepare-images: bootstrap
 	@docker image inspect sentinelops-alloy:1.18.1-patched.2 >/dev/null 2>&1 || ./scripts/build-patched-alloy.sh
 	@docker image inspect sentinelops-caddy:2.11.4-patched.1 >/dev/null 2>&1 || ./scripts/build-patched-caddy.sh
-	$(COMPOSE) build migrate api worker agent web demo-api vmware-exporter
+	$(COMPOSE) build migrate api worker agent web demo-api vmware-exporter postgres-exporter
 	@./scripts/lock-local-images.sh
 
 up: prepare-images
 	$(COMPOSE_RUNTIME) up -d --no-build --scale api=2 --scale worker=2
-	@echo "SentinelOps: http://localhost:3000 | Demo: http://localhost:8090 | Grafana: http://localhost:3001 | Temporal: http://localhost:8088"
+	@echo "SentinelOps: http://localhost:3000 | Grafana: http://localhost:3001 | Temporal: http://localhost:8088"
 
-local-demo: up seed prove-local prove-ha
+local-demo: up
+	$(LOCAL_DEMO_ENV) $(COMPOSE_RUNTIME) --profile demo up -d --no-build --scale api=2 --scale worker=2
+	@./scripts/seed.sh
+	@./scripts/prove-local-pipeline.sh
+	@./scripts/prove-local-ha.sh
+	@echo "Demo observável: http://localhost:8090"
 
 prove-local:
 	@./scripts/prove-local-pipeline.sh
@@ -65,9 +71,9 @@ test:
 
 test-synthetics:
 	@test -f $(IMAGE_LOCK) || { echo "Execute make prepare-images primeiro" >&2; exit 2; }
-	$(COMPOSE_RUNTIME) --profile test up --scale api=2 --abort-on-container-exit --exit-code-from playwright playwright
-	$(COMPOSE_RUNTIME) --profile test up --abort-on-container-exit --exit-code-from k6 k6
-	$(COMPOSE_RUNTIME) --profile test rm -f playwright k6
+	$(LOCAL_DEMO_ENV) $(COMPOSE_RUNTIME) --profile demo --profile test up --scale api=2 --abort-on-container-exit --exit-code-from playwright playwright
+	$(LOCAL_DEMO_ENV) $(COMPOSE_RUNTIME) --profile demo --profile test up --abort-on-container-exit --exit-code-from k6 k6
+	$(LOCAL_DEMO_ENV) $(COMPOSE_RUNTIME) --profile demo --profile test rm -f playwright k6
 
 lint:
 	docker run --rm -v $(ROOT):/src -w /src $(GO_IMAGE) sh -ec 'gofmt -w $$(find apps internal demo -name "*.go") && go vet ./...'
@@ -75,7 +81,7 @@ lint:
 	$(COMPOSE_HA) config --quiet
 
 build:
-	$(COMPOSE) build migrate api worker agent web demo-api vmware-exporter
+	$(COMPOSE) build migrate api worker agent web demo-api vmware-exporter postgres-exporter
 
 check: test lint
 
@@ -113,3 +119,31 @@ collector-bundle:
 	@test -n "$(GATEWAY_URL)" || { echo "GATEWAY_URL é obrigatório" >&2; exit 2; }
 	@test -n "$(TLS_SERVER_NAME)" || { echo "TLS_SERVER_NAME é obrigatório" >&2; exit 2; }
 	@./scripts/create-linux-collector-bundle.sh --organization "$(ORGANIZATION)" --collector-name "$(COLLECTOR)" --gateway-url "$(GATEWAY_URL)" --tls-server-name "$(TLS_SERVER_NAME)"
+
+harness-doctor:
+	@./scripts/harness/doctor.sh
+
+harness-validate-specs:
+	@python3 scripts/harness/validate_specs.py
+
+harness-check: harness-validate-specs
+	@./scripts/harness/check.sh
+
+harness-integration:
+	@./scripts/harness/integration.sh
+
+harness-integration-compose:
+	@./scripts/harness/integration-postgres-compose.sh
+
+harness-e2e:
+	@./scripts/harness/e2e.sh
+
+harness-eval-ai:
+	@./scripts/harness/eval_ai.sh
+
+harness-release:
+	@./scripts/harness/release.sh
+
+harness-production:
+	@test -n "$(TARGET)" || { echo "BLOCKED: use make harness-production TARGET=<alvo-autorizado>" >&2; exit 2; }
+	@./scripts/harness/production.sh "$(TARGET)"

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "checks": [
+    {"id":"HC-001","spec":"SPEC-001","command":"make harness-validate-specs","timeout":"30s","environment":"local","required":true},
+    {"id":"HC-002","spec":"SPEC-001","command":"make harness-check","timeout":"20m","environment":"local","required":true},
+    {"id":"HC-014","spec":"SPEC-014","command":"make harness-e2e","timeout":"30m","environment":"isolated-compose","required":true},
+    {"id":"HC-PRD","spec":"SPEC-014","command":"make harness-production TARGET=<alvo>","timeout":"30m","environment":"authorized-target","required":true}
+  ]
+}

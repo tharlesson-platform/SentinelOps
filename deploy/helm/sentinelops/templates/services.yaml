@@ -33,5 +33,6 @@ spec:
   selector: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: gateway }
   ports:
     - { name: https, port: {{ .Values.gateway.service.httpsPort }}, targetPort: https, protocol: TCP }
+    - { name: query, port: {{ .Values.gateway.service.queryPort }}, targetPort: query, protocol: TCP }
     - { name: otlp-grpc, port: {{ .Values.gateway.service.grpcPort }}, targetPort: otlp-grpc, protocol: TCP }
 {{- end }}

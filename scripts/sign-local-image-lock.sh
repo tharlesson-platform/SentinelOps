@@ -26,7 +26,8 @@ for entry in \
   web=sentinelops-web:0.1.0-local \
   demo=sentinelops-demo-api:0.2.0-local \
   alloy=sentinelops-alloy:1.18.1-patched.2 \
-  caddy=sentinelops-caddy:2.11.4-patched.1
+  caddy=sentinelops-caddy:2.11.4-patched.1 \
+  postgres-exporter=sentinelops-postgres-exporter:0.1.0-local
 do
   name=${entry%%=*}
   image=${entry#*=}

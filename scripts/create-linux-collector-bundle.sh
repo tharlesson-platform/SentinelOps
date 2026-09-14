@@ -13,6 +13,8 @@ ENVIRONMENT=production
 TEAM=platform
 LOCATION=on-premises
 WITH_CONTAINERS=false
+WITH_CADVISOR=false
+WITH_BEYLA=false
 
 usage() {
   cat <<'EOF'
@@ -25,7 +27,9 @@ Uso: create-linux-collector-bundle.sh --organization ORG --collector-name NAME \
   --environment NAME
   --team NAME
   --location NAME
-  --with-containers            coleta privilegiada de containers
+  --with-containers            coleta logs JSON Docker por mount read-only
+  --with-cadvisor              coleta métricas cAdvisor privilegiadas
+  --with-beyla                 coleta APM eBPF para todos os processos em contêiner
 
 Gera pacote autocontido com certificado mTLS exclusivo e Alloy corrigido.
 A chave da CA e a senha nunca entram no pacote.
@@ -48,6 +52,8 @@ while [ "$#" -gt 0 ]; do
     --team) TEAM=$2; shift 2 ;;
     --location) LOCATION=$2; shift 2 ;;
     --with-containers) WITH_CONTAINERS=true; shift ;;
+    --with-cadvisor) WITH_CADVISOR=true; shift ;;
+    --with-beyla) WITH_BEYLA=true; shift ;;
     --help|-h) usage; exit 0 ;;
     *) die "Opção desconhecida: $1" ;;
   esac
@@ -68,16 +74,32 @@ mkdir -p "$bundle/scripts/lib" "$bundle/deploy/agents/linux" "$bundle/deploy/all
 cp "$ROOT/scripts/install-linux-collector.sh" "$bundle/scripts/"
 cp "$ROOT/scripts/lib/linux-common.sh" "$bundle/scripts/lib/"
 cp "$ROOT/deploy/agents/linux/docker-compose.yml" "$ROOT/deploy/agents/linux/config.alloy" \
-  "$ROOT/deploy/agents/linux/config-cadvisor.alloy" "$ROOT/deploy/agents/linux/config-docker-logs.alloy" \
+  "$ROOT/deploy/agents/linux/config-cadvisor.alloy" "$ROOT/deploy/agents/linux/config-docker-logs.alloy" "$ROOT/deploy/agents/linux/beyla.yml" \
   "$ROOT/deploy/agents/linux/.env.example" "$bundle/deploy/agents/linux/"
 cp "$ROOT/deploy/alloy/Dockerfile.patched" "$bundle/deploy/alloy/"
 cp "$ROOT/deploy/alloy/patches/moby-cve-2026-34040.patch" "$bundle/deploy/alloy/patches/"
+# Alloy runs unprivileged (UID 473) and reads these bind-mounted configuration
+# files.  Keep the bundle itself private, but make the non-secret compose and
+# Alloy configuration readable after extraction; TLS material stays under the
+# separate, owner-only cert-source directory below.
+chmod 0755 "$bundle/deploy" "$bundle/deploy/agents" "$bundle/deploy/agents/linux" \
+  "$bundle/deploy/alloy" "$bundle/deploy/alloy/patches"
+chmod 0644 "$bundle/deploy/agents/linux/docker-compose.yml" \
+  "$bundle/deploy/agents/linux/config.alloy" \
+  "$bundle/deploy/agents/linux/config-cadvisor.alloy" \
+  "$bundle/deploy/agents/linux/config-docker-logs.alloy" \
+  "$bundle/deploy/agents/linux/beyla.yml" \
+  "$bundle/deploy/agents/linux/.env.example" \
+  "$bundle/deploy/alloy/Dockerfile.patched" \
+  "$bundle/deploy/alloy/patches/moby-cve-2026-34040.patch"
 mkdir -p "$bundle/cert-source"
 "$ROOT/scripts/bootstrap-pki.sh" issue-collector --ca-dir "$CA_DIR" --passphrase-file "$PASSPHRASE_FILE" \
   --organization "$ORGANIZATION" --name "$COLLECTOR_NAME" --days 30 --output-dir "$bundle/cert-source"
 
 container_flag=""
 [ "$WITH_CONTAINERS" = false ] || container_flag="--with-containers"
+[ "$WITH_CADVISOR" = false ] || container_flag="$container_flag --with-cadvisor"
+[ "$WITH_BEYLA" = false ] || container_flag="$container_flag --with-beyla"
 cat > "$bundle/install.sh" <<EOF
 #!/bin/sh
 set -eu

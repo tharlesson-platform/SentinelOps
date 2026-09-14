@@ -14,6 +14,25 @@ type Service struct {
 	UpdatedAt   time.Time         `json:"updatedAt" yaml:"updatedAt"`
 }
 
+// Asset is an inventoried physical, virtual, network, cloud or application
+// resource. AssetID is stable across name and address changes and is scoped to
+// an organization.
+type Asset struct {
+	ID          string            `json:"id" yaml:"id"`
+	AssetID     string            `json:"assetId" yaml:"assetId"`
+	Name        string            `json:"name" yaml:"name"`
+	Kind        string            `json:"kind" yaml:"kind"`
+	Site        string            `json:"site" yaml:"site"`
+	OwnerTeam   string            `json:"ownerTeam" yaml:"ownerTeam"`
+	Environment string            `json:"environment" yaml:"environment"`
+	Lifecycle   string            `json:"lifecycle" yaml:"lifecycle"`
+	Source      string            `json:"source" yaml:"source"`
+	LastSeen    *time.Time        `json:"lastSeen,omitempty" yaml:"lastSeen,omitempty"`
+	Labels      map[string]string `json:"labels" yaml:"labels"`
+	CreatedAt   time.Time         `json:"createdAt" yaml:"createdAt"`
+	UpdatedAt   time.Time         `json:"updatedAt" yaml:"updatedAt"`
+}
+
 type Agent struct {
 	ID            string            `json:"id"`
 	Name          string            `json:"name"`
@@ -95,4 +114,73 @@ type SyntheticResult struct {
 	Assertions []ValidationCheck `json:"assertions"`
 	StartedAt  time.Time         `json:"startedAt"`
 	FinishedAt time.Time         `json:"finishedAt"`
+}
+
+type SyntheticRun struct {
+	ID         string         `json:"id"`
+	ScenarioID string         `json:"scenarioId"`
+	Scenario   string         `json:"scenario"`
+	Status     string         `json:"status"`
+	StartedAt  *time.Time     `json:"startedAt,omitempty"`
+	FinishedAt *time.Time     `json:"finishedAt,omitempty"`
+	Result     map[string]any `json:"result"`
+}
+
+type Incident struct {
+	ID               string     `json:"id"`
+	Title            string     `json:"title"`
+	Severity         string     `json:"severity"`
+	Status           string     `json:"status"`
+	Commander        string     `json:"commander,omitempty"`
+	Summary          string     `json:"summary,omitempty"`
+	DeduplicationKey string     `json:"deduplicationKey,omitempty"`
+	AcknowledgedAt   *time.Time `json:"acknowledgedAt,omitempty"`
+	AcknowledgedBy   string     `json:"acknowledgedBy,omitempty"`
+	CreatedAt        time.Time  `json:"createdAt"`
+	ResolvedAt       *time.Time `json:"resolvedAt,omitempty"`
+}
+
+type AlertRoute struct {
+	ID      string         `json:"id"`
+	Name    string         `json:"name"`
+	Spec    map[string]any `json:"spec"`
+	Enabled bool           `json:"enabled"`
+}
+
+type NotificationDelivery struct {
+	ID          string     `json:"id"`
+	RouteID     string     `json:"routeId,omitempty"`
+	Status      string     `json:"status"`
+	Attempts    int        `json:"attempts"`
+	LastError   string     `json:"lastError,omitempty"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	DeliveredAt *time.Time `json:"deliveredAt,omitempty"`
+}
+
+type IncidentEscalation struct {
+	ID          string     `json:"id"`
+	RouteID     string     `json:"routeId"`
+	TargetRef   string     `json:"targetRef"`
+	Status      string     `json:"status"`
+	ScheduledAt time.Time  `json:"scheduledAt"`
+	CancelledAt *time.Time `json:"cancelledAt,omitempty"`
+	EscalatedAt *time.Time `json:"escalatedAt,omitempty"`
+}
+
+// DataLifecycleRequest records an export or erasure request. Approval is a
+// control-plane decision only: no data is exported or deleted by this model.
+// A separately deployed fulfiller must record its evidence before it can move
+// a request beyond approved.
+type DataLifecycleRequest struct {
+	ID          string         `json:"id"`
+	RequestType string         `json:"requestType"`
+	Status      string         `json:"status"`
+	RequestedBy string         `json:"requestedBy"`
+	ApprovedBy  string         `json:"approvedBy,omitempty"`
+	Reason      string         `json:"reason"`
+	Scope       map[string]any `json:"scope"`
+	Evidence    map[string]any `json:"evidence"`
+	CreatedAt   time.Time      `json:"createdAt"`
+	UpdatedAt   time.Time      `json:"updatedAt"`
+	CompletedAt *time.Time     `json:"completedAt,omitempty"`
 }

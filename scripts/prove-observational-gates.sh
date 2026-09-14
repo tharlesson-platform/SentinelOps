@@ -45,10 +45,11 @@ wait_validation() {
 
 pass_labels=$(jq -nc '{
   health_url:"http://demo-api:8090/health",
-  gate_promql:"vector(0)",gate_promql_max:"0",gate_promql_min_samples:"1",
-  gate_logql:"sum(count_over_time({service_name=\"sentinel-demo-api\"}[15m]))",gate_logql_max:"1000000",gate_logql_min_samples:"1",
-  gate_slo_promql:"vector(0)",gate_slo_promql_max:"1",gate_slo_promql_min_samples:"1",
-  gate_traceql:"{ resource.service.name = \"sentinelops-proof-none\" }",gate_traceql_max_matches:"0"
+  gate_promql:"vector(0)",gate_promql_max:"0",gate_promql_min_samples:"2",gate_promql_window:"2m",gate_promql_max_age:"30s",gate_promql_step:"15s",
+  gate_logql:"sum(count_over_time({service_name=\"sentinel-demo-api\"}[15m]))",gate_logql_max:"1000000",gate_logql_min_samples:"2",gate_logql_window:"2m",gate_logql_max_age:"30s",gate_logql_step:"15s",
+  gate_slo_promql:"vector(0)",gate_slo_promql_max:"1",gate_slo_promql_min_samples:"2",gate_slo_promql_window:"2m",gate_slo_promql_max_age:"30s",gate_slo_promql_step:"15s",
+  gate_traceql:"{ resource.service.name = \"sentinelops-proof-none\" }",gate_traceql_max_matches:"0",
+  gate_traceql_coverage_query:"{ resource.service.name = \"sentinel-demo-api\" }",gate_traceql_min_coverage_matches:"1",gate_traceql_window:"15m"
 }')
 inconclusive_labels='{"health_url":"http://demo-api:8090/health"}'
 fail_labels=$(printf '%s' "$pass_labels" | jq '.gate_promql="vector(2)" | .gate_promql_max="1"')

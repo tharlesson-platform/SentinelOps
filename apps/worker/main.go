@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync/atomic"
@@ -12,6 +15,7 @@ import (
 
 	"github.com/sentinelops/sentinelops/internal/config"
 	"github.com/sentinelops/sentinelops/internal/database"
+	"github.com/sentinelops/sentinelops/internal/events"
 	"github.com/sentinelops/sentinelops/internal/synthetics"
 	"github.com/sentinelops/sentinelops/internal/workflows"
 	"go.temporal.io/sdk/client"
@@ -23,6 +27,10 @@ func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		logger.Error("configuration invalid", "error", err)
+		os.Exit(1)
+	}
+	if err := cfg.ValidateWorker(); err != nil {
+		logger.Error("worker configuration invalid", "error", err)
 		os.Exit(1)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -41,9 +49,14 @@ func main() {
 	defer tc.Close()
 	w := worker.New(tc, workflows.ReleaseValidationTaskQueue, worker.Options{})
 	w.RegisterWorkflow(workflows.ReleaseValidationWorkflow)
-	validationHosts := splitList(env("RELEASE_VALIDATION_ALLOWED_HOSTS", "demo-api"))
-	w.RegisterActivity(&workflows.Activities{Store: store, HTTPClient: &http.Client{Timeout: 12 * time.Second}, DemoBaseURL: os.Getenv("DEMO_BASE_URL"), AllowedHealthHosts: validationHosts,
-		PrometheusURL: env("PROMETHEUS_URL", "http://prometheus:9090"), LokiURL: env("LOKI_URL", "http://loki:3100"), TempoURL: env("TEMPO_URL", "http://tempo:3200")})
+	validationHosts := splitList(os.Getenv("RELEASE_VALIDATION_ALLOWED_HOSTS"))
+	telemetryClient, telemetryURLs, err := telemetryQueryClient(cfg)
+	if err != nil {
+		logger.Error("telemetry query client invalid", "error", err)
+		os.Exit(1)
+	}
+	w.RegisterActivity(&workflows.Activities{Store: store, HTTPClient: telemetryClient, ReleaseValidationBaseURL: os.Getenv("RELEASE_VALIDATION_BASE_URL"), AllowedHealthHosts: validationHosts,
+		PrometheusURL: telemetryURLs.prometheus, LokiURL: telemetryURLs.loki, TempoURL: telemetryURLs.tempo})
 	var ready atomic.Bool
 	healthMux := http.NewServeMux()
 	healthMux.HandleFunc("GET /healthz", func(response http.ResponseWriter, _ *http.Request) { response.WriteHeader(http.StatusNoContent) })
@@ -68,8 +81,13 @@ func main() {
 	}()
 	schedulerCtx, schedulerCancel := context.WithCancel(context.Background())
 	defer schedulerCancel()
-	allowedHosts := splitList(env("SYNTHETIC_ALLOWED_HOSTS", "demo-api"))
-	go (&synthetics.Scheduler{Store: store, Client: &http.Client{Timeout: 12 * time.Second}, Logger: logger, Interval: time.Minute, AllowedHosts: allowedHosts}).Run(schedulerCtx)
+	allowedTargets, err := synthetics.ParseAllowedTargets(os.Getenv("SYNTHETIC_ALLOWED_TARGETS"))
+	if err != nil {
+		logger.Error("synthetic target policy invalid", "error", err)
+		os.Exit(1)
+	}
+	go (&synthetics.Scheduler{Store: store, Client: &http.Client{Timeout: 12 * time.Second}, Logger: logger, Interval: time.Minute, AllowedTargets: allowedTargets}).Run(schedulerCtx)
+	go (&events.Dispatcher{Store: store, Logger: logger, Interval: 2 * time.Second, HTTPClient: &http.Client{Timeout: 10 * time.Second}, WebhookURLs: cfg.NotificationWebhookURLs, AllowedHosts: cfg.NotificationAllowedHosts}).Run(schedulerCtx)
 	ready.Store(true)
 	logger.Info("worker started", "queue", workflows.ReleaseValidationTaskQueue)
 	if err := w.Run(worker.InterruptCh()); err != nil {
@@ -93,4 +111,38 @@ func env(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+type telemetryURLs struct {
+	prometheus string
+	loki       string
+	tempo      string
+}
+
+func telemetryQueryClient(cfg config.Config) (*http.Client, telemetryURLs, error) {
+	urls := telemetryURLs{
+		prometheus: env("PROMETHEUS_URL", "http://prometheus:9090"),
+		loki:       env("LOKI_URL", "http://loki:3100"),
+		tempo:      env("TEMPO_URL", "http://tempo:3200"),
+	}
+	if cfg.TelemetryQueryGatewayURL == "" {
+		return &http.Client{Timeout: 12 * time.Second}, urls, nil
+	}
+	base, err := url.Parse(cfg.TelemetryQueryGatewayURL)
+	if err != nil || base.Scheme != "https" || base.Host == "" || base.User != nil {
+		return nil, telemetryURLs{}, errors.New("TELEMETRY_QUERY_GATEWAY_URL must be an absolute HTTPS URL")
+	}
+	certificate, err := tls.LoadX509KeyPair(cfg.TelemetryQueryClientCert, cfg.TelemetryQueryClientKey)
+	if err != nil {
+		return nil, telemetryURLs{}, fmt.Errorf("load telemetry query mTLS certificate: %w", err)
+	}
+	base.Path = strings.TrimRight(base.Path, "/")
+	urls = telemetryURLs{
+		prometheus: base.String() + "/prometheus",
+		loki:       base.String() + "/loki",
+		tempo:      base.String() + "/tempo",
+	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{certificate}}
+	return &http.Client{Timeout: 12 * time.Second, Transport: transport}, urls, nil
 }

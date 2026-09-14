@@ -24,12 +24,22 @@ loki.process "docker_json_logs" {
       time    = "time",
     }
   }
+  // The filename is the only container identity available without mounting
+  // docker.sock. Container IDs are bounded by the host inventory and let the
+  // Control Plane correlate Loki streams with cAdvisor metadata safely.
+  stage.regex {
+    source     = "filename"
+    expression = ".*/(?P<container_id>[a-f0-9]{12,64})/[a-f0-9]{12,64}-json\\.log$"
+  }
   stage.drop {
     expression          = "(?i)(authorization|cookie|password|passwd|secret|token)="
     drop_counter_reason = "possible_secret"
   }
   stage.labels {
-    values = { stream = "" }
+    values = {
+      stream       = ""
+      container_id = ""
+    }
   }
   stage.timestamp {
     source = "time"

@@ -1,0 +1,37 @@
+# Sobreposição de instrumentação para /opt/tqi-platform/docker-compose.yml.
+# Mantém os serviços de negócio e encaminha exclusivamente métricas e traces
+# para o Alloy local do host. Logs continuam no pipeline de arquivos do host.
+services:
+  worklog-backend:
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - /opt/tqi-platform/otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar:ro
+    environment:
+      JAVA_TOOL_OPTIONS: -javaagent:/otel/opentelemetry-javaagent.jar
+      OTEL_SERVICE_NAME: tqi-worklog
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://host.docker.internal:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_LOGS_EXPORTER: none
+      OTEL_RESOURCE_ATTRIBUTES: host.name=tqi-platform,deployment.environment.name=production,service.namespace=tqi-platform
+      OTEL_TRACES_SAMPLER: parentbased_traceidratio
+      OTEL_TRACES_SAMPLER_ARG: "0.25"
+
+  scale-management-backend:
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - /opt/tqi-platform/otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar:ro
+    environment:
+      JAVA_TOOL_OPTIONS: -javaagent:/otel/opentelemetry-javaagent.jar
+      OTEL_SERVICE_NAME: tqi-scale-management
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://host.docker.internal:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: otlp
+      OTEL_LOGS_EXPORTER: none
+      OTEL_RESOURCE_ATTRIBUTES: host.name=tqi-platform,deployment.environment.name=production,service.namespace=tqi-platform
+      OTEL_TRACES_SAMPLER: parentbased_traceidratio
+      OTEL_TRACES_SAMPLER_ARG: "0.25"

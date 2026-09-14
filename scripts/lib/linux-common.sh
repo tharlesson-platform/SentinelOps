@@ -8,6 +8,11 @@ die() { printf '%s\n' "[sentinelops][erro] $*" >&2; exit 1; }
 
 command_exists() { command -v "$1" >/dev/null 2>&1; }
 
+runtime_available() {
+  command_exists docker && docker info >/dev/null 2>&1 && \
+    docker compose version >/dev/null 2>&1 && docker buildx version >/dev/null 2>&1
+}
+
 run_as_root() {
   if [ "$(id -u)" -eq 0 ]; then
     "$@"
@@ -52,34 +57,59 @@ install_runtime_packages() {
   manager=$(detect_package_manager || true)
   [ -n "$manager" ] || die "Gerenciador não reconhecido. Instale Docker Engine, Compose v2, make, curl, jq, openssl e htpasswd manualmente."
 
+  # Não substitua um runtime já íntegro. Em Debian/Ubuntu, instalar docker.io
+  # sobre Docker CE remove o engine/CLI oficiais e conflita com os plugins
+  # compose/buildx fornecidos pelo repositório Docker.
+  if runtime_available && command_exists make && command_exists curl && \
+    command_exists jq && command_exists openssl && command_exists htpasswd; then
+    log "Docker Engine, Compose v2 e Buildx já estão disponíveis; runtime preservado."
+    return 0
+  fi
+
   log "Instalando dependências com $manager"
   case "$manager" in
     apt-get)
       run_as_root apt-get update
-      run_as_root apt-get install -y ca-certificates curl git make jq openssl apache2-utils docker.io
-      run_as_root apt-get install -y docker-compose-v2 || run_as_root apt-get install -y docker-compose-plugin || run_as_root apt-get install -y docker-compose
-      run_as_root apt-get install -y docker-buildx || run_as_root apt-get install -y docker-buildx-v2 || run_as_root apt-get install -y docker-buildx-plugin
+      run_as_root apt-get install -y ca-certificates curl git make jq openssl apache2-utils
+      if runtime_available; then
+        log "Docker Engine, Compose v2 e Buildx já estão disponíveis; runtime preservado."
+      else
+        run_as_root apt-get install -y docker.io
+        run_as_root apt-get install -y docker-compose-v2 || run_as_root apt-get install -y docker-compose-plugin || run_as_root apt-get install -y docker-compose
+        run_as_root apt-get install -y docker-buildx || run_as_root apt-get install -y docker-buildx-v2 || run_as_root apt-get install -y docker-buildx-plugin
+      fi
       ;;
     dnf)
       run_as_root dnf install -y ca-certificates curl git make jq openssl httpd-tools
-      run_as_root dnf install -y docker docker-buildx-plugin docker-compose-plugin || \
-        run_as_root dnf install -y moby-engine docker-buildx-plugin docker-compose-plugin || \
-        install_docker_rpm_repository dnf
+      if runtime_available; then
+        log "Docker Engine, Compose v2 e Buildx já estão disponíveis; runtime preservado."
+      else
+        run_as_root dnf install -y docker docker-buildx-plugin docker-compose-plugin || \
+          run_as_root dnf install -y moby-engine docker-buildx-plugin docker-compose-plugin || \
+          install_docker_rpm_repository dnf
+      fi
       ;;
     yum)
       run_as_root yum install -y ca-certificates curl git make jq openssl httpd-tools
-      run_as_root yum install -y docker docker-buildx-plugin docker-compose-plugin || \
-        run_as_root yum install -y docker docker-buildx-plugin docker-compose || \
-        install_docker_rpm_repository yum
+      if runtime_available; then
+        log "Docker Engine, Compose v2 e Buildx já estão disponíveis; runtime preservado."
+      else
+        run_as_root yum install -y docker docker-buildx-plugin docker-compose-plugin || \
+          run_as_root yum install -y docker docker-buildx-plugin docker-compose || \
+          install_docker_rpm_repository yum
+      fi
       ;;
     zypper)
-      run_as_root zypper --non-interactive install ca-certificates curl git make jq openssl apache2-utils docker docker-buildx docker-compose
+      run_as_root zypper --non-interactive install ca-certificates curl git make jq openssl apache2-utils
+      runtime_available || run_as_root zypper --non-interactive install docker docker-buildx docker-compose
       ;;
     apk)
-      run_as_root apk add ca-certificates curl git make jq openssl apache2-utils docker docker-cli-buildx docker-cli-compose
+      run_as_root apk add ca-certificates curl git make jq openssl apache2-utils
+      runtime_available || run_as_root apk add docker docker-cli-buildx docker-cli-compose
       ;;
     pacman)
-      run_as_root pacman -Sy --noconfirm ca-certificates curl git make jq openssl apache docker docker-buildx docker-compose
+      run_as_root pacman -Sy --noconfirm ca-certificates curl git make jq openssl apache
+      runtime_available || run_as_root pacman -S --noconfirm docker docker-buildx docker-compose
       ;;
     microdnf)
       run_as_root microdnf install -y ca-certificates curl git make jq openssl httpd-tools tar gzip dnf

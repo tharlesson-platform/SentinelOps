@@ -1,28 +1,313 @@
 {
-  "annotations": {"list": [{"builtIn": 1, "datasource": {"type": "grafana", "uid": "-- Grafana --"}, "enable": true, "hide": true, "name": "Deployments", "type": "dashboard"}]},
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "name": "Deployments",
+        "type": "dashboard"
+      }
+    ]
+  },
   "editable": false,
   "graphTooltip": 1,
-  "links": [{"title": "SentinelOps", "type": "link", "url": "http://localhost:3000"}],
+  "links": [
+    {
+      "title": "SentinelOps",
+      "type": "link",
+      "url": "http://localhost:3000"
+    }
+  ],
   "panels": [
-    {"type":"stat","title":"Telemetria ativa","id":1,"gridPos":{"h":4,"w":4,"x":0,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum(up{job=\"sentinel-demo-apps\",service_name=~\"$service\"}) or clamp_max(count(sentinelops_apm_bootstrap{job=~\"$service\"} or http_server_request_duration_seconds_count{job=~\"$service\"}), 1)","refId":"A"}]},
-    {"type":"stat","title":"Requests/s","id":2,"gridPos":{"h":4,"w":4,"x":4,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum(rate(demo_pipeline_requests_total{service=~\"$service\"}[5m])) or sum(rate(http_server_request_duration_seconds_count{job=~\"$service\"}[5m]))","refId":"A"}]},
-    {"type":"stat","title":"Taxa de erro","id":3,"gridPos":{"h":4,"w":4,"x":8,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum(rate(demo_pipeline_requests_total{service=~\"$service\",status=~\"5..\"}[5m])) / clamp_min(sum(rate(demo_pipeline_requests_total{service=~\"$service\"}[5m])), 0.000001) * 100 or sum(rate(http_server_request_duration_seconds_count{job=~\"$service\",http_response_status_code=~\"5..\"}[5m])) / clamp_min(sum(rate(http_server_request_duration_seconds_count{job=~\"$service\"}[5m])), 0.000001) * 100","refId":"A"}]},
-    {"type":"stat","title":"Latência p95","id":4,"gridPos":{"h":4,"w":4,"x":12,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"histogram_quantile(0.95, sum by (le) (rate(demo_pipeline_request_duration_seconds_bucket{service=~\"$service\"}[5m]))) or histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{job=~\"$service\"}[5m])))","refId":"A"}]},
-    {"type":"stat","title":"Erros downstream/s","id":5,"gridPos":{"h":4,"w":4,"x":16,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum(rate(demo_pipeline_downstream_errors_total{service=~\"$service\"}[5m]))","refId":"A"}]},
-    {"type":"stat","title":"SLO disponibilidade","id":6,"gridPos":{"h":4,"w":4,"x":20,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"1 - sum(rate(demo_pipeline_requests_total{service=~\"$service\",status=~\"5..\"}[30m])) / clamp_min(sum(rate(demo_pipeline_requests_total{service=~\"$service\"}[30m])), 0.000001) or 1 - sum(rate(http_server_request_duration_seconds_count{job=~\"$service\",http_response_status_code=~\"5..\"}[30m])) / clamp_min(sum(rate(http_server_request_duration_seconds_count{job=~\"$service\"}[30m])), 0.000001)","refId":"A"}]},
-    {"type":"timeseries","title":"RED - volume por serviço e rota","id":7,"gridPos":{"h":8,"w":12,"x":0,"y":4},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"sum by (service,route) (rate(demo_pipeline_requests_total{service=~\"$service\"}[5m]))","legendFormat":"{{service}} · {{route}}","refId":"A"},{"expr":"sum by (job,http_route) (rate(http_server_request_duration_seconds_count{job=~\"$service\"}[5m]))","legendFormat":"{{job}} · {{http_route}}","refId":"B"}]},
-    {"type":"timeseries","title":"RED - latência p50/p95/p99","id":8,"gridPos":{"h":8,"w":12,"x":12,"y":4},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"expr":"histogram_quantile(0.50, sum by (le,service) (rate(demo_pipeline_request_duration_seconds_bucket{service=~\"$service\"}[5m])))","legendFormat":"{{service}} p50","refId":"A"},{"expr":"histogram_quantile(0.95, sum by (le,service) (rate(demo_pipeline_request_duration_seconds_bucket{service=~\"$service\"}[5m])))","legendFormat":"{{service}} p95","refId":"B"},{"expr":"histogram_quantile(0.99, sum by (le,service) (rate(demo_pipeline_request_duration_seconds_bucket{service=~\"$service\"}[5m])))","legendFormat":"{{service}} p99","refId":"C"},{"expr":"histogram_quantile(0.95, sum by (le,job) (rate(http_server_request_duration_seconds_bucket{job=~\"$service\"}[5m])))","legendFormat":"{{job}} p95 OTel","refId":"D"}]},
-    {"type":"logs","title":"Logs da aplicação","id":9,"gridPos":{"h":9,"w":12,"x":0,"y":12},"datasource":{"type":"loki","uid":"loki"},"targets":[{"expr":"{service_name=~\"$service\"}","refId":"A"}]},
-    {"type":"traces","title":"Traces distribuídos","id":10,"gridPos":{"h":9,"w":12,"x":12,"y":12},"datasource":{"type":"tempo","uid":"tempo"},"targets":[{"query":"{ resource.service.name =~ \"$service\" }","queryType":"traceql","refId":"A"}]},
-    {"type":"timeseries","title":"CPU profiles","id":11,"gridPos":{"h":9,"w":24,"x":0,"y":21},"datasource":{"type":"grafana-pyroscope-datasource","uid":"pyroscope"},"targets":[{"queryType":"profile","profileTypeId":"process_cpu:cpu:nanoseconds:cpu:nanoseconds","labelSelector":"{service_name=~\"$service\"}","refId":"A"}]}
+    {
+      "type": "stat",
+      "title": "Serviços APM com métricas",
+      "id": 1,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "count(http_server_request_duration_seconds_count{job=~\"tqi-platform/.+\"})",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Requisições por segundo",
+      "id": 2,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum by (job) (rate(http_server_request_duration_seconds_count{job=~\"tqi-platform/.+\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{job}}"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Latência p95",
+      "id": 3,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, job) (rate(http_server_request_duration_seconds_bucket{job=~\"tqi-platform/.+\"}[5m])))",
+          "refId": "A",
+          "legendFormat": "{{job}}"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Logs reais dos contêineres",
+      "id": 4,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "{job=\"docker-container\",host_name=\"tqi-platform\"}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Erros HTTP 5xx",
+      "id": 5,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum by (job) (rate(http_server_request_duration_seconds_count{job=~\"$service\",http_response_status_code=~\"5..\"}[5m]))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "SLO de disponibilidade",
+      "id": 6,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "1 - sum(rate(http_server_request_duration_seconds_count{job=~\"$service\",http_response_status_code=~\"5..\"}[30m])) / clamp_min(sum(rate(http_server_request_duration_seconds_count{job=~\"$service\"}[30m])), 0.000001)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "RED - volume por serviço e rota",
+      "id": 7,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum by (job,http_route) (rate(http_server_request_duration_seconds_count{job=~\"$service\"}[5m]))",
+          "legendFormat": "{{job}} {{http_route}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "RED - latência p50/p95/p99",
+      "id": 8,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le,job) (rate(http_server_request_duration_seconds_bucket{job=~\"$service\"}[5m])))",
+          "legendFormat": "p50 {{job}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le,job) (rate(http_server_request_duration_seconds_bucket{job=~\"$service\"}[5m])))",
+          "legendFormat": "p95 {{job}}",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le,job) (rate(http_server_request_duration_seconds_bucket{job=~\"$service\"}[5m])))",
+          "legendFormat": "p99 {{job}}",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "type": "logs",
+      "title": "Logs reais dos contêineres",
+      "id": 9,
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "expr": "{job=\"docker-container\",host_name=\"tqi-platform\"}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "traces",
+      "title": "Traces reais do tqi-platform",
+      "id": 10,
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "targets": [
+        {
+          "query": "{ resource.service.namespace = \"tqi-platform\" }",
+          "queryType": "traceql",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Continuous profiling pendente de agente real",
+      "id": 11,
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
+      "datasource": {
+        "type": "grafana-pyroscope-datasource",
+        "uid": "pyroscope"
+      },
+      "targets": [
+        {
+          "queryType": "profile",
+          "profileTypeId": "process_cpu:cpu:nanoseconds:cpu:nanoseconds",
+          "labelSelector": "{service_name=~\"$service\"}",
+          "refId": "A"
+        }
+      ]
+    }
   ],
   "refresh": "15s",
   "schemaVersion": 42,
-  "tags": ["sentinelops", "managed", "application"],
-  "templating": {"list": [{"name":"service","label":"Aplicação","type":"query","datasource":{"type":"prometheus","uid":"prometheus"},"query":{"query":"query_result(count by (service) (demo_pipeline_requests_total) or label_replace(count by (job) (sentinelops_apm_bootstrap{job!=\"alloy\"} or http_server_request_duration_seconds_count{job!=\"alloy\"}), \"service\", \"$1\", \"job\", \"(.*)\"))","refId":"service"},"regex":"/service=\"([^\"]+)\"/","includeAll":true,"allValue":".*","refresh":1}]},
-  "time": {"from": "now-30m", "to": "now"},
+  "tags": [
+    "sentinelops",
+    "managed",
+    "application"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "label": "Aplicação",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "query_result(label_replace(count by (job) (http_server_request_duration_seconds_count{job=~\"tqi-platform/.+\"}), \"service\", \"$1\", \"job\", \"(.*)\"))",
+          "refId": "service"
+        },
+        "regex": "/service=\"([^\"]+)\"/",
+        "includeAll": true,
+        "allValue": ".*",
+        "refresh": 1
+      }
+    ]
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
   "timezone": "browser",
   "title": "Application Overview",
   "uid": "sentinel-application-overview",
-  "version": 2
+  "version": 2,
+  "description": "APM real das aplicações Java instrumentadas no tqi-platform; não há métricas demo."
 }

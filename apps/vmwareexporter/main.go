@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -47,6 +48,10 @@ func load() (config, error) {
 	if c.endpoint == "" || c.username == "" || c.passwordFile == "" || c.thumbprint == "" {
 		return c, errors.New("VMWARE_ENDPOINT, VMWARE_USERNAME, VMWARE_PASSWORD_FILE e VMWARE_TLS_THUMBPRINT são obrigatórios")
 	}
+	endpoint, err := url.Parse(c.endpoint)
+	if err != nil || endpoint.Scheme != "https" || endpoint.Hostname() == "" || endpoint.User != nil || endpoint.RawQuery != "" || endpoint.Fragment != "" {
+		return c, errors.New("VMWARE_ENDPOINT deve ser URL HTTPS sem credenciais, query ou fragmento")
+	}
 	if c.interval < 30*time.Second || c.interval > 10*time.Minute {
 		return c, errors.New("VMWARE_SCRAPE_INTERVAL deve estar entre 30s e 10m")
 	}
@@ -61,10 +66,9 @@ func load() (config, error) {
 	if len(parts) != 32 {
 		return c, errors.New("VMWARE_TLS_THUMBPRINT deve ser SHA-256 com 32 octetos separados por :")
 	}
-	for _, p := range parts {
-		if len(p) != 2 {
-			return c, errors.New("VMWARE_TLS_THUMBPRINT inválido")
-		}
+	thumbprint := strings.Join(parts, "")
+	if _, err := hex.DecodeString(thumbprint); err != nil {
+		return c, errors.New("VMWARE_TLS_THUMBPRINT inválido")
 	}
 	return c, nil
 }
@@ -106,8 +110,8 @@ func (e *exporter) refresh(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("stat password file: %w", err)
 	}
-	if info.Mode().Perm()&0o007 != 0 {
-		return errors.New("VMWARE_PASSWORD_FILE não pode conceder permissões a outros usuários")
+	if info.Mode().Perm()&0o077 != 0 {
+		return errors.New("VMWARE_PASSWORD_FILE não pode conceder permissões a grupo ou outros usuários")
 	}
 	data, err := os.ReadFile(e.cfg.passwordFile)
 	if err != nil {

@@ -2,14 +2,20 @@ package workflows
 
 import (
 	"testing"
+	"time"
 
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/testsuite"
+	"go.temporal.io/sdk/worker"
 )
 
 func TestWorkflowSchedulesActivity(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
+	// The race detector can hold the workflow goroutine for more than the SDK's
+	// one-second production deadlock threshold. This relaxed value is restricted
+	// to the in-memory test worker; production workers retain the SDK default.
+	env.SetWorkerOptions(worker.Options{DeadlockDetectionTimeout: 10 * time.Second})
 	env.RegisterActivityWithOptions(func(ValidationInput) error { return nil }, activity.RegisterOptions{Name: "EvaluateValidation"})
 	env.ExecuteWorkflow(ReleaseValidationWorkflow, ValidationInput{ValidationID: "v", ReleaseID: "r", Mode: "smoke"})
 	if !env.IsWorkflowCompleted() || env.GetWorkflowError() != nil {

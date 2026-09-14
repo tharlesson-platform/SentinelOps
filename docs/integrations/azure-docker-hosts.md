@@ -6,11 +6,13 @@
 |---|---|---:|
 | `tqi-platform` | aplicações Docker privadas | 1 |
 | `easy-vm` | aplicações Docker privadas do Easy | 1 |
-| `tqi-platform-edge` | entrada Traefik/edge | 2 |
+| `gitlab-vm` | GitLab Omnibus e Runner em Docker | 2 |
+| `tqi-platform-edge` | entrada de rede sem Docker; collector Linux separado | fora do escopo Docker |
 
-Os dois hosts privados recebem o mesmo baseline de inventário, métricas e logs.
-O edge entra após a primeira onda provar que o collector não altera listeners,
-Traefik ou rotas de aplicação.
+Os três hosts Docker privados recebem o mesmo baseline de inventário, métricas
+e logs. A classificação foi revalidada em 2026-09-14: o edge não possui Docker
+e não deve ser contado como cobertura Docker. Seu onboarding Linux depende de
+rota ao gateway e possui gate próprio.
 
 ## Descoberta sem impacto
 
@@ -30,20 +32,28 @@ de ingestão; o certificado por host limita a identidade do collector.
 
 ## Host Docker
 
-Gere um bundle com `--with-containers`. Além das métricas de host e cAdvisor,
-esse perfil coleta os logs JSON dos containers por mount somente leitura em
-`/var/lib/docker/containers`, sem montar `docker.sock`. Se o `DockerRootDir`
-descoberto for diferente, informe seu diretório `containers` em
-`SENTINEL_DOCKER_LOG_ROOT` antes do deploy.
+Gere um bundle com `--with-containers`. Além das métricas de host, esse perfil
+coleta os logs JSON dos containers por mount somente leitura em
+`DockerRootDir/containers`, sem montar `docker.sock`. Se o runtime usa um
+caminho não convencional, passe `--docker-log-root` na configuração após
+conferir o diretório no host.
+
+Use `--with-cadvisor` somente depois de aprovar a exceção privilegiada do
+host; ele não é ativado pelo perfil de logs.
 
 Os logs são interpretados como JSON Docker, recebem timestamp e label de stream,
 e linhas que aparentem conter credenciais são descartadas. Não adicione IDs de
 requisição, usuário, URL ou container como labels de Loki: mantenha-os no corpo
 estruturado para evitar alta cardinalidade.
 
-## Edge
+## Edge sem Docker
 
-O edge deve usar o mesmo bundle, inicialmente sem cAdvisor se a exceção
-privilegiada não tiver sido aprovada. O rollout do collector não muda portas de
-Traefik nem reinicia os serviços de negócio. Na fase APM, Traefik e cada serviço
-receberão logs JSON, métricas e propagação W3C de trace.
+O edge usa o baseline Linux sem os perfis `containers` e `cadvisor`. Não
+instale componentes Docker apenas para hospedar o collector. A rota privada
+para `sentinelops:8443/44317` é pré-requisito; ausência de rota mantém o host
+`BLOCKED`, mesmo que a VM esteja `running` no Azure.
+
+## Evidência atual
+
+O estado por host, mudanças executadas e rollback estão em
+[`azure-docker-rollout-2026-09-14.md`](../production-readiness/azure-docker-rollout-2026-09-14.md).

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -101,6 +102,17 @@ func run(args []string) int {
 			return exitErr(g, 3, errors.New("service delete requer nome"))
 		}
 		return call(ctx, g, client, "DELETE", "/api/v1/services/"+args[2], nil, nil)
+	case "asset list":
+		return get(ctx, g, client, "/api/v1/assets")
+	case "asset search":
+		return cmdAssetSearch(ctx, g, client, args[2:])
+	case "asset get":
+		if len(args) < 3 {
+			return exitErr(g, 3, errors.New("asset get requer assetId"))
+		}
+		return get(ctx, g, client, "/api/v1/assets/"+args[2])
+	case "asset apply":
+		return applyFile(ctx, g, client, "/api/v1/assets", args[2:])
 	case "scenario list":
 		return get(ctx, g, client, "/api/v1/scenarios")
 	case "scenario validate", "config validate":
@@ -120,6 +132,11 @@ func run(args []string) int {
 		return cmdWait(ctx, g, client, args[2:])
 	case "agent list", "agent status":
 		return get(ctx, g, client, "/api/v1/agents")
+	case "agent revoke":
+		if len(args) < 3 {
+			return exitErr(g, 3, errors.New("agent revoke requer id"))
+		}
+		return call(ctx, g, client, "POST", "/api/v1/agents/"+args[2]+"/revoke", nil, nil)
 	case "dashboard export", "dashboard import", "slo apply", "test run", "test watch", "agent install":
 		return exitErr(g, 4, errors.New("comando reconhecido, mas requer módulo opcional não habilitado neste perfil"))
 	default:
@@ -230,6 +247,40 @@ func cmdRelease(ctx context.Context, g globals, c *apiclient.Client, args []stri
 	}
 	body := map[string]any{"service": *service, "environment": *environment, "version": *ver, "commitSha": *sha, "imageDigest": *digest, "deployedAt": time.Now().UTC()}
 	return call(ctx, g, c, "POST", "/api/v1/releases", body, map[string]string{"Idempotency-Key": fmt.Sprintf("%s-%s-%s", *service, *environment, *ver)})
+}
+func cmdAssetSearch(ctx context.Context, g globals, c *apiclient.Client, args []string) int {
+	fs := flag.NewFlagSet("asset search", flag.ContinueOnError)
+	query := fs.String("query", "", "termo de busca")
+	cursor := fs.String("cursor", "", "cursor da pagina anterior")
+	limit := fs.Int("limit", 25, "itens por pagina (1-100)")
+	if err := fs.Parse(args); err != nil {
+		return exitErr(g, 3, err)
+	}
+	path, err := assetSearchPath(*query, *cursor, *limit)
+	if err != nil {
+		return exitErr(g, 3, err)
+	}
+	return get(ctx, g, c, path)
+}
+func assetSearchPath(query, cursor string, limit int) (string, error) {
+	query, cursor = strings.TrimSpace(query), strings.TrimSpace(cursor)
+	if len(query) > 128 {
+		return "", errors.New("--query deve ter no máximo 128 caracteres")
+	}
+	if len(cursor) > 128 {
+		return "", errors.New("--cursor deve ter no máximo 128 caracteres")
+	}
+	if limit < 1 || limit > 100 {
+		return "", errors.New("--limit deve estar entre 1 e 100")
+	}
+	params := url.Values{"limit": []string{fmt.Sprintf("%d", limit)}}
+	if query != "" {
+		params.Set("q", query)
+	}
+	if cursor != "" {
+		params.Set("cursor", cursor)
+	}
+	return "/api/v1/assets/search?" + params.Encode(), nil
 }
 func cmdReleaseValidate(ctx context.Context, g globals, c *apiclient.Client, args []string) int {
 	fs := flag.NewFlagSet("release validate", flag.ContinueOnError)

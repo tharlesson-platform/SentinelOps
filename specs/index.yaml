@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "specs": [
+    {
+      "id": "SPEC-001",
+      "path": "specs/SPEC-001-harness-e-confianca.md",
+      "state": "IN_PROGRESS",
+      "dependsOn": [],
+      "acceptance": ["AC-001", "AC-002", "AC-003"],
+      "evidence": []
+    },
+    {
+      "id": "SPEC-002",
+      "path": "specs/SPEC-002-identidade-e-rbac.md",
+      "state": "IN_PROGRESS",
+      "dependsOn": ["SPEC-001"],
+      "acceptance": ["AC-0201", "AC-0202", "AC-0203", "AC-0204"],
+      "evidence": []
+    },
+    {
+      "id": "SPEC-003",
+      "path": "specs/SPEC-003-inventario-e-catalogo.md",
+      "state": "IN_PROGRESS",
+      "dependsOn": ["SPEC-001", "SPEC-002"],
+      "acceptance": ["AC-0301", "AC-0302", "AC-0303", "AC-0304"],
+      "evidence": []
+    },
+    {
+      "id": "SPEC-004",
+      "path": "specs/SPEC-004-saude-e-experiencia-operacional.md",
+      "state": "IN_PROGRESS",
+      "dependsOn": ["SPEC-001", "SPEC-002", "SPEC-003"],
+      "acceptance": ["AC-0401", "AC-0402", "AC-0403", "AC-0404"],
+      "evidence": []
+    },
+    {
+      "id": "SPEC-005",
+      "path": "specs/SPEC-005-frota-e-gateway.md",
+      "state": "IN_PROGRESS",
+      "dependsOn": ["SPEC-001", "SPEC-002", "SPEC-003"],
+      "acceptance": ["AC-0501", "AC-0502", "AC-0503", "AC-0504"],
+      "evidence": []
+    },
+    {
+      "id": "SPEC-006",
+      "path": "specs/SPEC-006-linux-e-docker.md",
+      "state": "IN_PROGRESS",
+      "dependsOn": ["SPEC-001", "SPEC-003", "SPEC-005"],
+      "acceptance": ["AC-0601", "AC-0602", "AC-0603", "AC-0604"],
+      "evidence": []
+    },
+    {
+      "id": "SPEC-007",
+      "path": "specs/SPEC-007-windows-e-ad.md",
+      "state": "IN_PROGRESS",
+      "dependsOn": ["SPEC-001", "SPEC-002", "SPEC-003", "SPEC-005"],
+      "acceptance": ["AC-0701", "AC-0702", "AC-0703", "AC-0704"],
+      "evidence": []
+    },
+    {
+      "id": "SPEC-008",
+      "path": "specs/SPEC-008-rede-e-fortigate.md",
+      "state": "IN_PROGRESS",
+      "dependsOn": ["SPEC-001", "SPEC-003", "SPEC-005"],
+      "acceptance": ["AC-0801", "AC-0802", "AC-0803", "AC-0804"],
+      "evidence": []
+    },
+    {
+      "id": "SPEC-009",
+      "path": "specs/SPEC-009-vmware-e-fisico.md",
+      "state": "IN_PROGRESS",
+      "dependsOn": ["SPEC-001", "SPEC-003", "SPEC-005"],
+      "acceptance": ["AC-0901", "AC-0902", "AC-0903", "AC-0904"],
+      "evidence": []
+    },
+    {
+      "id": "SPEC-010",
+      "path": "specs/SPEC-010-azure.md",
+      "state": "IN_PROGRESS",
+      "dependsOn": ["SPEC-001", "SPEC-003", "SPEC-005"],
+      "acceptance": ["AC-1001", "AC-1002", "AC-1003", "AC-1004"],
+      "evidence": []
+    },
+    {
+      "id": "SPEC-011",
+      "path": "specs/SPEC-011-aws.md",
+      "state": "IN_PROGRESS",
+      "dependsOn": ["SPEC-001", "SPEC-003", "SPEC-005"],
+      "acceptance": ["AC-1101", "AC-1102", "AC-1103", "AC-1104"],
+      "evidence": []
+    },
+    {
+      "id": "SPEC-012",
+      "path": "specs/SPEC-012-kubernetes-e-bancos.md",
+      "state": "IN_PROGRESS",
+      "dependsOn": ["SPEC-001", "SPEC-003", "SPEC-005"],
+      "acceptance": ["AC-1201", "AC-1202", "AC-1203", "AC-1204"],
+      "evidence": []
+    },
+    {
+      "id": "SPEC-013",
+      "path": "specs/SPEC-013-apm-e-correlacao.md",
+      "state": "IN_PROGRESS",
+      "dependsOn": ["SPEC-001", "SPEC-003", "SPEC-006"],
+      "acceptance": ["AC-1301", "AC-1302", "AC-1303", "AC-1304"],
+      "evidence": []
+    },
+    {
+      "id": "SPEC-014",
+      "path": "specs/SPEC-014-sinteticos-e-delivery.md",
+      "state": "IN_PROGRESS",
+      "dependsOn": ["SPEC-001"],
+      "acceptance": ["AC-1401", "AC-1402", "AC-1403", "AC-1404"],
+      "evidence": []
+    },
+    {
+      "id": "SPEC-015",
+      "path": "specs/SPEC-015-alertas-e-incidentes.md",
+      "state": "IN_PROGRESS",
+      "dependsOn": ["SPEC-001"],
+      "acceptance": ["AC-1501", "AC-1502", "AC-1503", "AC-1504", "AC-1505"],
+      "evidence": []
+    },
+    {
+      "id": "SPEC-016",
+      "path": "specs/SPEC-016-ia-e-rca.md",
+      "state": "IN_PROGRESS",
+      "dependsOn": ["SPEC-001", "SPEC-002", "SPEC-003", "SPEC-015"],
+      "acceptance": ["AC-1601", "AC-1602", "AC-1603", "AC-1604"],
+      "evidence": []
+    },
+    {
+      "id": "SPEC-017",
+      "path": "specs/SPEC-017-mcp.md",
+      "state": "IN_PROGRESS",
+      "dependsOn": ["SPEC-001", "SPEC-002", "SPEC-003", "SPEC-016"],
+      "acceptance": ["AC-1701", "AC-1702", "AC-1703", "AC-1704"],
+      "evidence": []
+    },
+    {
+      "id": "SPEC-018",
+      "path": "specs/SPEC-018-producao-e-dr.md",
+      "state": "IN_PROGRESS",
+      "dependsOn": ["SPEC-001", "SPEC-002", "SPEC-005", "SPEC-015"],
+      "acceptance": ["AC-1801", "AC-1802", "AC-1803", "AC-1804"],
+      "evidence": []
+    },
+    {
+      "id": "SPEC-019",
+      "path": "specs/SPEC-019-rum-e-capacidade.md",
+      "state": "IN_PROGRESS",
+      "dependsOn": ["SPEC-004", "SPEC-006", "SPEC-013"],
+      "acceptance": ["AC-1901", "AC-1902", "AC-1903", "AC-1904"],
+      "evidence": []
+    },
+    {
+      "id": "SPEC-020",
+      "path": "specs/SPEC-020-expansao-e-custos.md",
+      "state": "IN_PROGRESS",
+      "dependsOn": ["SPEC-001", "SPEC-002", "SPEC-018"],
+      "acceptance": ["AC-2001", "AC-2002", "AC-2003", "AC-2004"],
+      "evidence": []
+    }
+  ]
+}

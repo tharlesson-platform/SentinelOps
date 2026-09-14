@@ -14,6 +14,7 @@ TEAM=platform
 OWNER=platform
 OTLP_ENDPOINT=http://127.0.0.1:4318
 FARO_ENDPOINT=""
+RUM_SAMPLING_RATE=0.1
 OUTPUT_ROOT="$ROOT/artifacts/onboarding"
 FORCE=false
 VERIFY=false
@@ -36,6 +37,7 @@ Linguagens: java, spring, quarkus, node, nestjs, python, fastapi, django,
   --owner NAME
   --otlp-endpoint URL
   --faro-endpoint URL          obrigatório para React
+  --rum-sampling-rate 0..1     fração de sessões RUM para React (padrão: 0.1)
   --output DIRECTORY
   --force
   --verify                    envia métrica, log e trace OTLP de prova
@@ -49,6 +51,60 @@ Ele não altera automaticamente o repositório da aplicação.
 EOF
 }
 
+validate_endpoint() {
+  endpoint=$1
+  purpose=$2
+  python3 - "$endpoint" "$purpose" <<'PY'
+import ipaddress
+import sys
+from urllib.parse import urlsplit
+
+raw, purpose = sys.argv[1:]
+try:
+    parsed = urlsplit(raw)
+except ValueError:
+    raise SystemExit(1)
+if any(char.isspace() or char in "'\\\"`" for char in raw):
+    raise SystemExit(1)
+if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+    raise SystemExit(1)
+if purpose == "faro" and parsed.scheme != "https":
+    raise SystemExit(1)
+if parsed.scheme == "http":
+    host = parsed.hostname.lower()
+    if host != "localhost":
+        try:
+            if not ipaddress.ip_address(host).is_loopback:
+                raise SystemExit(1)
+        except ValueError:
+            raise SystemExit(1)
+PY
+}
+
+validate_literal_ip() {
+  python3 - "$1" <<'PY'
+import ipaddress
+import sys
+try:
+    address = ipaddress.ip_address(sys.argv[1])
+except ValueError:
+    raise SystemExit(1)
+raise SystemExit(0 if not (address.is_unspecified or address.is_multicast) else 1)
+PY
+}
+
+validate_sampling_rate() {
+  python3 - "$1" <<'PY'
+import math
+import sys
+try:
+    value = float(sys.argv[1])
+except ValueError:
+    raise SystemExit(1)
+raise SystemExit(0 if math.isfinite(value) and 0 < value <= 1 else 1)
+PY
+}
+
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --language) LANGUAGE=$2; shift 2 ;;
@@ -60,6 +116,7 @@ while [ "$#" -gt 0 ]; do
     --owner) OWNER=$2; shift 2 ;;
     --otlp-endpoint) OTLP_ENDPOINT=$2; shift 2 ;;
     --faro-endpoint) FARO_ENDPOINT=$2; shift 2 ;;
+    --rum-sampling-rate) RUM_SAMPLING_RATE=$2; shift 2 ;;
     --output) OUTPUT_ROOT=$2; shift 2 ;;
     --force) FORCE=true; shift ;;
     --verify) VERIFY=true; shift ;;
@@ -81,10 +138,12 @@ validate_name "$ENVIRONMENT" environment
 validate_name "$TEAM" team
 validate_name "$OWNER" owner
 printf '%s' "$SERVICE_VERSION" | grep -Eq '^[a-zA-Z0-9][a-zA-Z0-9._+-]{0,63}$' || die "Versão inválida: $SERVICE_VERSION"
-printf '%s' "$OTLP_ENDPOINT" | grep -Eq '^https?://[^[:space:]]+$' || die "OTLP endpoint inválido: $OTLP_ENDPOINT"
+command_exists python3 || die "python3 é obrigatório para validar endpoints APM"
+validate_endpoint "$OTLP_ENDPOINT" otlp || die "OTLP endpoint deve ser HTTPS ou HTTP estritamente em loopback, sem credencial/query/fragmento"
 if [ "$LANGUAGE" = react ]; then
   [ -n "$FARO_ENDPOINT" ] || die "React requer --faro-endpoint; o perfil local ainda não publica um receiver Faro seguro."
-  printf '%s' "$FARO_ENDPOINT" | grep -Eq '^https://[^[:space:]]+$' || die "Faro endpoint deve usar HTTPS: $FARO_ENDPOINT"
+  validate_endpoint "$FARO_ENDPOINT" faro || die "Faro endpoint deve usar HTTPS sem credencial/query/fragmento"
+  validate_sampling_rate "$RUM_SAMPLING_RATE" || die "--rum-sampling-rate deve estar no intervalo (0, 1]"
 fi
 
 OUTPUT_DIRECTORY="$OUTPUT_ROOT/$SERVICE_NAME"
@@ -176,10 +235,33 @@ import { TracingInstrumentation } from '@grafana/faro-web-tracing';
 export const faro = initializeFaro({
   url: '$FARO_ENDPOINT',
   app: { name: '$SERVICE_NAME', version: '$SERVICE_VERSION', environment: '$ENVIRONMENT' },
+  // Session Replay não é habilitado por este kit. Avalie consentimento e LGPD
+  // separadamente antes de introduzir qualquer captura de sessão.
+  sessionTracking: { samplingRate: $RUM_SAMPLING_RATE },
+  // Evita que requests ao próprio collector consumam budget e criem loop.
+  ignoreUrls: ['$FARO_ENDPOINT'],
   instrumentations: [...getWebInstrumentations(), new TracingInstrumentation()],
+  beforeSend(item) {
+    // Query e fragmento frequentemente carregam token, e-mail ou identificador.
+    // Mantém somente origem + path para preservar correlação de rota.
+    const page = item.meta?.page;
+    if (page?.url) {
+      try {
+        const url = new URL(page.url);
+        url.username = '';
+        url.password = '';
+        url.search = '';
+        url.hash = '';
+        page.url = url.toString();
+      } catch {
+        return null;
+      }
+    }
+    return item;
+  },
 });
 EOF
-    LANGUAGE_GUIDE="Publique o receiver Faro em endpoint dedicado com CORS restrito. Não envie tokens, corpo de formulário, email ou identificadores pessoais. Valide Web Vitals e correlação com o backend em um ambiente não produtivo."
+    LANGUAGE_GUIDE="Publique o receiver Faro em endpoint dedicado com CORS restrito. O kit amostra somente $RUM_SAMPLING_RATE das sessões, não habilita Session Replay, remove query/fragmento da URL de página e ignora o próprio collector. Não envie tokens, corpo de formulário, email ou identificadores pessoais por logs/eventos/custom attributes. Valide Web Vitals e correlação com o backend em um ambiente não produtivo."
     ;;
 esac
 
@@ -224,10 +306,11 @@ if [ "$VERIFY" = true ]; then
         [ -s "$certificate_file" ] || die "HTTPS --verify exige CA, certificado e chave mTLS"
       done
       if [ -n "$TLS_RESOLVE_ADDRESS" ]; then
-        printf '%s' "$TLS_RESOLVE_ADDRESS" | grep -Eq '^[A-Za-z0-9.:-]+$' || die "--tls-resolve-address inválido"
+        validate_literal_ip "$TLS_RESOLVE_ADDRESS" || die "--tls-resolve-address deve ser IP unicast literal"
       fi
       ;;
   esac
+  [ -z "$TLS_RESOLVE_ADDRESS" ] || case "$OTLP_ENDPOINT" in https://*) ;; *) die "--tls-resolve-address exige OTLP HTTPS" ;; esac
   trace_id=$(openssl rand -hex 16)
   span_id=$(openssl rand -hex 8)
   observed_at="$(date +%s)000000000"

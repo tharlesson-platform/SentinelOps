@@ -1,0 +1,10 @@
+{
+  "provider": "aws",
+  "environment": "hml",
+  "ownerTeam": "platform",
+  "scope": {
+    "accountId": "000000000000",
+    "region": "sa-east-1",
+    "profile": "sentinelops-readonly"
+  }
+}

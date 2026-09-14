@@ -8,6 +8,6 @@
     "method": "GET",
     "timeout": "10s",
     "headers": { "X-Synthetic-Test": "sentinelops", "X-Demo-Marker": "scheduled-checkout" },
-    "assertions": [{ "field": "status", "operator": "lessThan", "value": 400 }]
+    "assertions": [{ "type": "status_range", "min": 200, "max": 399 }]
   }
 }

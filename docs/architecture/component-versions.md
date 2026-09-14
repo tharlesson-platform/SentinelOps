@@ -20,7 +20,7 @@ por digest após scan e assinatura.
 | PostgreSQL | 18.3 | banco relacional; <https://www.postgresql.org/docs/release/> |
 | Temporal | 1.29.7 | versão mais recente publicada na imagem oficial `auto-setup`; o SDK 1.47.0 mantém compatibilidade; <https://hub.docker.com/r/temporalio/auto-setup/tags> |
 | Temporal UI | 2.53.3 | inspeção local; <https://github.com/temporalio/ui/releases> |
-| MinIO | RELEASE.2025-09-07T16-13-09Z | versão mais recente publicada na imagem oficial; <https://hub.docker.com/r/minio/minio/tags> |
+| MinIO | RELEASE.2025-09-07T16-13-09Z | imagem oficial em `quay.io/minio/minio`; manifesto multiarch validado pelo digest fixado |
 | Grafana | 13.1.3 | visualização e alertas; <https://github.com/grafana/grafana/releases> |
 | Grafana Alloy | 1.18.1 | collector suportado; <https://grafana.com/docs/alloy/latest/release-notes/> |
 | Caddy | 2.11.4-patched.1 | gateway TLS/mTLS; imagem recompilada em `deploy/caddy` com dependencias Go corrigidas |
@@ -41,7 +41,7 @@ por digest após scan e assinatura.
 Compatibilidade foi deliberadamente limitada a amd64 e arm64. Node exporter e
 cAdvisor são ativados apenas onde o host permite os mounts necessários.
 
-O Compose usa `mirror.gcr.io` e `public.ecr.aws/docker/library` como mirrors de
+O Compose usa `mirror.gcr.io`, `quay.io` e `public.ecr.aws/docker/library` como registries de
 distribuição para imagens Docker Hub, preservando nomes upstream e tags exatas.
 Isso reduz falhas por rate limit sem alterar a versão do componente.
 

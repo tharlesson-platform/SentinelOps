@@ -9,6 +9,8 @@ ARCHIVE=""
 PASSPHRASE_FILE=""
 TARGET_PROJECT=""
 CONFIRM=""
+STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+STARTED_EPOCH=$(date -u +%s)
 
 usage() {
   cat <<'EOF'
@@ -48,6 +50,14 @@ trap 'rm -rf "$workdir"' EXIT HUP INT TERM
 
 docker_prefix=$(docker_command)
 crypto_image=sentinelops-backupcrypt:1.3.1
+# Um nome terminado em -restore não basta: reutilizar containers ou volumes de
+# um ensaio anterior pode sobrescrever sua evidência e invalidar a medição.
+# O restore exige um projeto Docker sem recursos Compose existentes.
+# shellcheck disable=SC2086
+if $docker_prefix ps -aq --filter "label=com.docker.compose.project=$TARGET_PROJECT" | grep -q . || \
+  $docker_prefix volume ls -q --filter "label=com.docker.compose.project=$TARGET_PROJECT" | grep -q .; then
+  die "target-project já possui recursos Docker Compose; escolha um nome novo e não reutilize um ensaio de restore"
+fi
 log "Construindo helper e autenticando backup antes da extração"
 # shellcheck disable=SC2086
 $docker_prefix build -q -f "$ROOT/Dockerfile.app" --build-arg APP=backupcrypt -t "$crypto_image" "$ROOT" >/dev/null
@@ -55,11 +65,15 @@ $docker_prefix build -q -f "$ROOT/Dockerfile.app" --build-arg APP=backupcrypt -t
 $docker_prefix run --rm --network none --user "$(id -u):$(id -g)" \
   -v "$(dirname "$ARCHIVE"):/input:ro" -v "$workdir:/output" -v "$PASSPHRASE_FILE:/run/secrets/passphrase:ro" \
   "$crypto_image" decrypt --input "/input/$(basename "$ARCHIVE")" --output /output/package.tar.gz --passphrase-file /run/secrets/passphrase
-if tar -tzf "$workdir/package.tar.gz" | awk 'BEGIN{bad=0} /^\// || /(^|\/)\.\.($|\/)/ {bad=1} END{exit bad}'; then
-  tar -C "$workdir" -xzf "$workdir/package.tar.gz"
-else
-  die "backup contém caminho inseguro e foi recusado"
-fi
+# Valida tipos, paths, duplicatas e metadata antes de o tar tocar o filesystem.
+# shellcheck disable=SC2086
+$docker_prefix run --rm --network none --user "$(id -u):$(id -g)" -v "$workdir:/input:ro" \
+  "$crypto_image" validate --input /input/package.tar.gz
+tar -C "$workdir" -xzf "$workdir/package.tar.gz"
+
+for required in databases/sentinel.dump databases/temporal.dump databases/temporal_visibility.dump databases/globals.sql metadata.json SHA256SUMS; do
+  [ -s "$workdir/$required" ] || die "backup não atende ao contrato: arquivo obrigatório ausente ou vazio: $required"
+done
 
 if command_exists sha256sum; then
   (cd "$workdir" && sha256sum -c SHA256SUMS)
@@ -102,4 +116,19 @@ $docker_prefix compose -p "$TARGET_PROJECT" --env-file "$env_file" -f "$base" -f
 counts=$($docker_prefix compose -p "$TARGET_PROJECT" --env-file "$env_file" -f "$base" -f "$override" exec -T postgres \
   psql -U sentinel -d sentinel -Atc "select 'organizations='||count(*) from organizations union all select 'services='||count(*) from services union all select 'releases='||count(*) from releases")
 printf '%s\n' "$counts"
-log "Restore concluído. Projeto $TARGET_PROJECT permanece ativo para testes de isolamento, API e RTO/RPO."
+if command_exists sha256sum; then
+  archive_sha256=$(sha256sum "$ARCHIVE" | awk '{print $1}')
+else
+  archive_sha256=$(shasum -a 256 "$ARCHIVE" | awk '{print $1}')
+fi
+finished_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+finished_epoch=$(date -u +%s)
+evidence_dir="$ROOT/artifacts/evidence/dr-restore-$(date -u +%Y%m%dT%H%M%SZ)-$(git -C "$ROOT" rev-parse --short HEAD)"
+mkdir -p "$evidence_dir"
+chmod 700 "$evidence_dir"
+printf '%s\n' "$counts" > "$evidence_dir/row-counts.txt"
+printf '{"schemaVersion":1,"scope":"local-compose-isolated-restore","targetProject":"%s","archiveSHA256":"%s","startedAt":"%s","finishedAt":"%s","durationSeconds":%s,"sourceMetadata":%s}\n' \
+  "$TARGET_PROJECT" "$archive_sha256" "$STARTED_AT" "$finished_at" "$((finished_epoch - STARTED_EPOCH))" "$(cat "$workdir/metadata.json")" > "$evidence_dir/metadata.json"
+chmod 600 "$evidence_dir/metadata.json" "$evidence_dir/row-counts.txt"
+log "Restore concluído. Evidência sanitizada: $evidence_dir"
+log "Projeto $TARGET_PROJECT permanece ativo para testes de isolamento, API e RTO/RPO."
