@@ -40,7 +40,7 @@
       },
       "targets": [
         {
-          "expr": "min(probe_success{job=\"blackbox-production\"})",
+          "expr": "min(probe_success{job=~\"$probe_job\",instance=~\"$target\"})",
           "refId": "A"
         }
       ]
@@ -61,9 +61,9 @@
       },
       "targets": [
         {
-          "expr": "probe_duration_seconds{job=\"blackbox-production\"}",
-          "legendFormat": "{{instance}}",
-          "refId": "A"
+          "expr": "probe_duration_seconds{job=~\"$probe_job\",instance=~\"$target\"}",
+          "refId": "A",
+          "legendFormat": "{{instance}}"
         }
       ]
     },
@@ -83,9 +83,9 @@
       },
       "targets": [
         {
-          "expr": "probe_dns_lookup_time_seconds{job=\"blackbox-production\"}",
-          "legendFormat": "{{instance}}",
-          "refId": "A"
+          "expr": "probe_dns_lookup_time_seconds{job=~\"$probe_job\",instance=~\"$target\"}",
+          "refId": "A",
+          "legendFormat": "{{instance}}"
         }
       ]
     },
@@ -105,8 +105,9 @@
       },
       "targets": [
         {
-          "expr": "probe_success{job=\"blackbox-production\"}",
-          "refId": "A"
+          "expr": "probe_success{job=~\"$probe_job\",instance=~\"$target\"}",
+          "refId": "A",
+          "legendFormat": "{{instance}}"
         }
       ]
     },
@@ -126,8 +127,9 @@
       },
       "targets": [
         {
-          "expr": "probe_http_status_code{job=\"blackbox-production\"}",
-          "refId": "A"
+          "expr": "probe_http_status_code{job=~\"$probe_job\",instance=~\"$target\"}",
+          "refId": "A",
+          "legendFormat": "{{instance}}"
         }
       ]
     }
@@ -142,14 +144,50 @@
   "templating": {
     "list": [
       {
-        "name": "environment",
-        "label": "Ambiente",
-        "type": "custom",
-        "query": "production",
+        "name": "probe_job",
+        "label": "Grupo de sondas",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(probe_success{job=~\"blackbox-.+\"}, job)",
+          "refId": "var-probe_job"
+        },
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "refresh": 1,
         "current": {
-          "text": "production",
-          "value": "production"
-        }
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "target",
+        "label": "Alvo",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(probe_success{job=~\"$probe_job\"}, instance)",
+          "refId": "var-target"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
       }
     ]
   },
@@ -160,6 +198,6 @@
   "timezone": "browser",
   "title": "Release Comparison",
   "uid": "sentinel-release-comparison",
-  "version": 2,
-  "description": "Sondas HTTP reais executadas pela central SentinelOps."
+  "version": 3,
+  "description": "Sondas HTTP reais filtráveis por grupo e alvo monitorado."
 }

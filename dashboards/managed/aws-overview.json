@@ -40,7 +40,7 @@
       },
       "targets": [
         {
-          "expr": "max(up{job=\"sentinel-aws\"})",
+          "expr": "max(up{job=\"sentinel-aws\",instance=~\"$collector_instance\"})",
           "refId": "A"
         }
       ]
@@ -61,7 +61,7 @@
       },
       "targets": [
         {
-          "expr": "max(up{job=\"sentinel-aws\"})",
+          "expr": "max(up{job=\"sentinel-aws\",instance=~\"$collector_instance\"})",
           "refId": "A"
         }
       ]
@@ -82,7 +82,7 @@
       },
       "targets": [
         {
-          "expr": "max(up{job=\"sentinel-aws\"})",
+          "expr": "max(up{job=\"sentinel-aws\",instance=~\"$collector_instance\"})",
           "refId": "A"
         }
       ]
@@ -103,7 +103,7 @@
       },
       "targets": [
         {
-          "expr": "max(up{job=\"sentinel-aws\"})",
+          "expr": "max(up{job=\"sentinel-aws\",instance=~\"$collector_instance\"})",
           "refId": "A"
         }
       ]
@@ -124,7 +124,7 @@
       },
       "targets": [
         {
-          "expr": "max(up{job=\"sentinel-aws\"})",
+          "expr": "max(up{job=\"sentinel-aws\",instance=~\"$collector_instance\"})",
           "refId": "A"
         }
       ]
@@ -140,14 +140,27 @@
   "templating": {
     "list": [
       {
-        "name": "environment",
-        "label": "Ambiente",
-        "type": "custom",
-        "query": "production",
+        "name": "collector_instance",
+        "label": "Instância do collector",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(up{job=\"sentinel-aws\"}, instance)",
+          "refId": "var-collector_instance"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
         "current": {
-          "text": "production",
-          "value": "production"
-        }
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
       }
     ]
   },
@@ -158,6 +171,6 @@
   "timezone": "browser",
   "title": "AWS Overview",
   "uid": "sentinel-aws-overview",
-  "version": 2,
+  "version": 3,
   "description": "Sem telemetria de demonstração. Este painel mostra o estado real da integração AWS; habilite o coletor antes de tratá-lo como cobertura."
 }

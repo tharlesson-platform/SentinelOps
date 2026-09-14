@@ -43,7 +43,8 @@ O [portal de documentação](docs/README.md) organiza os guias por perfil e obje
 - Ecossistema mock instrumentado (`storefront → orders → payments`) com tráfego
   contínuo, métricas via Alloy, logs/traces OTLP, pprof/profiles e falhas
   controladas; Playwright, k6 e prova E2E correlacionada.
-- 35 dashboards Grafana gerenciados, alertas de self-monitoring e drill-down de
+- 37 dashboards Grafana gerenciados, alertas de self-monitoring, filtros
+  encadeados por aplicação/host/container e drill-down de
   metric/exemplar → trace → logs → profile configurado.
 - Helm hardened, External Secrets/Argo CD, Terraform para storage/PostgreSQL e
   exemplos de GitHub, GitLab, Jenkins, Azure DevOps, CodePipeline e Rollouts.
@@ -283,6 +284,8 @@ curl -H 'X-Demo-Fault: error' \
   [Terraform faseado](infra/terraform/README.md),
   [backup/restore/upgrade](docs/operations/lifecycle.md) e
   [runbooks](docs/runbooks/operational-response.md).
+- Para selecionar aplicações sem consolidar toda a frota, consulte o
+  [runbook de observabilidade Docker](docs/runbooks/docker-observability.md#filtros-das-dashboards).
 - O bootstrap Linux é um perfil single-node para laboratório/piloto; não é o
   perfil `small-production`. As duas réplicas toleram falha de processo, mas
   permanecem no mesmo host e não comprovam falha física, DR ou IdP externo.

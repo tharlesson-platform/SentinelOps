@@ -40,7 +40,7 @@
       },
       "targets": [
         {
-          "expr": "count(container_last_seen{name=~\".*(frontend|web).*\"})",
+          "expr": "count(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\",name=~\".*(frontend|web).*\"})",
           "refId": "A"
         }
       ]
@@ -61,9 +61,9 @@
       },
       "targets": [
         {
-          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\".*(frontend|web).*\"}[5m]))",
-          "legendFormat": "{{name}}",
-          "refId": "A"
+          "expr": "sum by (instance, name) (rate(container_cpu_usage_seconds_total{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\",name=~\".*(frontend|web).*\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{instance}} · {{name}}"
         }
       ]
     },
@@ -83,9 +83,9 @@
       },
       "targets": [
         {
-          "expr": "sum by (name) (container_memory_working_set_bytes{name=~\".*(frontend|web).*\"})",
-          "legendFormat": "{{name}}",
-          "refId": "A"
+          "expr": "sum by (instance, name) (container_memory_working_set_bytes{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\",name=~\".*(frontend|web).*\"})",
+          "refId": "A",
+          "legendFormat": "{{instance}} · {{name}}"
         }
       ]
     },
@@ -105,7 +105,7 @@
       },
       "targets": [
         {
-          "expr": "{job=\"docker-container\",host_name=\"tqi-platform\"} |= \"frontend\"",
+          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\"}",
           "refId": "A"
         }
       ]
@@ -144,12 +144,95 @@
       {
         "name": "environment",
         "label": "Ambiente",
-        "type": "custom",
-        "query": "production",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(up{job=\"linux-node\"}, deployment_environment)",
+          "refId": "var-environment"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
         "current": {
-          "text": "production",
-          "value": "production"
-        }
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "host",
+        "label": "Host",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(node_uname_info{deployment_environment=~\"$environment\"}, instance)",
+          "refId": "var-host"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "container",
+        "label": "Aplicação / container",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\"}, name)",
+          "refId": "var-container"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "container_id",
+        "label": "Container ID",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\"}, id)",
+          "refId": "var-container_id"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 2,
+        "regex": "/.*\\/([a-f0-9]{12,64})$/"
       }
     ]
   },
@@ -160,6 +243,6 @@
   "timezone": "browser",
   "title": "Web Vitals",
   "uid": "sentinel-web-vitals",
-  "version": 2,
-  "description": "Runtime real dos contêineres frontend; RUM/Web Vitals requer instrumentação de browser em artefato futuro."
+  "version": 3,
+  "description": "Frontends filtráveis por ambiente, host e aplicação/container."
 }

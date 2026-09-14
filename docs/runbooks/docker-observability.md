@@ -37,6 +37,39 @@ Isso não reinicia os contêineres de negócio.
 5. No Tempo, filtre traces pelo serviço descoberto e confirme que a rota é normalizada.
 6. No Grafana, abra **Docker Containers** e **APM - Hosts TQI** e filtre o host.
 
+## Filtros das dashboards
+
+As dashboards gerenciadas iniciam em `All`, mas todos os filtros são
+multisseleção e alteram efetivamente as consultas. Selecione primeiro os
+filtros da esquerda, pois os seguintes são encadeados:
+
+- APM: **Aplicação → Rota ativa → Host → Aplicação/container**. A lista de
+  rotas é limitada às 200 rotas com tráfego mais recente para evitar um menu
+  inutilizável quando scanners geram milhares de caminhos diferentes.
+- Logs: **Aplicação OTel → Ambiente → Host → Aplicação/container → Stream**,
+  com busca por expressão regular no conteúdo. O nome amigável do container é
+  resolvido pelas métricas do cAdvisor e convertido internamente em um ID
+  oculto, usado para filtrar a label `filename` do Loki.
+- Linux/Docker: **Ambiente → Host → Aplicação/container**; Linux acrescenta
+  filesystem, interface de rede e busca nos logs.
+- Sintéticos: **Grupo de sondas → Alvo**.
+- VMware: **Endpoint → Máquina virtual → Datastore**.
+- Alertas e self-monitoring: **Job → Instância → Severidade → Alerta**, além
+  dos filtros de host/container para os painéis de logs.
+
+O filtro por nome de container não depende da exposição do socket Docker no
+leitor de logs: ele correlaciona o `id` já exportado pelo cAdvisor com o caminho
+`filename` dos logs JSON montados em modo somente leitura. A label
+`container_id` produzida por `config-docker-logs.alloy` continua disponível
+para investigação, mas não é requisito para o dropdown funcionar.
+
+Antes de publicar mudanças, execute:
+
+```bash
+./scripts/render-production-dashboards.sh
+python3 scripts/check-dashboard-filters.py
+```
+
 ## Rollback
 
 Remova `beyla` de `COMPOSE_PROFILES` (ou remova o drop-in), execute `systemctl daemon-reload` e reinicie

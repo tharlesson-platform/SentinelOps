@@ -26,7 +26,7 @@
   "panels": [
     {
       "type": "stat",
-      "title": "Serviços APM com métricas",
+      "title": "Aplicações selecionadas com métricas",
       "id": 1,
       "gridPos": {
         "h": 4,
@@ -40,7 +40,7 @@
       },
       "targets": [
         {
-          "expr": "count(http_server_request_duration_seconds_count{job=~\"tqi-platform/.+\"})",
+          "expr": "count(count by (job) (http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route=~\"$route\"}))",
           "refId": "A"
         }
       ]
@@ -61,9 +61,9 @@
       },
       "targets": [
         {
-          "expr": "sum by (job) (rate(http_server_request_duration_seconds_count{job=~\"tqi-platform/.+\"}[5m]))",
+          "expr": "sum by (job, http_route) (rate(http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route=~\"$route\"}[5m]))",
           "refId": "A",
-          "legendFormat": "{{job}}"
+          "legendFormat": "{{job}} · {{http_route}}"
         }
       ]
     },
@@ -83,15 +83,15 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le, job) (rate(http_server_request_duration_seconds_bucket{job=~\"tqi-platform/.+\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le, job, http_route) (rate(http_server_request_duration_seconds_bucket{job=~\"(.*/)?$application\",http_route=~\"$route\"}[5m])))",
           "refId": "A",
-          "legendFormat": "{{job}}"
+          "legendFormat": "{{job}} · {{http_route}}"
         }
       ]
     },
     {
       "type": "stat",
-      "title": "Logs reais dos contêineres",
+      "title": "Logs filtrados da aplicação / container",
       "id": 4,
       "gridPos": {
         "h": 4,
@@ -100,13 +100,17 @@
         "y": 0
       },
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "loki",
+        "uid": "loki"
       },
       "targets": [
         {
-          "expr": "{job=\"docker-container\",host_name=\"tqi-platform\"}",
+          "expr": "{job=\"docker-container\",host_name=~\"$host\",filename=~\".*/$container_id/.*\",deployment_environment=~\"$environment\"}",
           "refId": "A"
+        },
+        {
+          "expr": "{service_name=~\"$application\"}",
+          "refId": "B"
         }
       ]
     },
@@ -126,8 +130,9 @@
       },
       "targets": [
         {
-          "expr": "sum by (job) (rate(http_server_request_duration_seconds_count{job=~\"$service\",http_response_status_code=~\"5..\"}[5m]))",
-          "refId": "A"
+          "expr": "sum by (job, http_route) (rate(http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route=~\"$route\",http_response_status_code=~\"5..\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{job}} · {{http_route}}"
         }
       ]
     },
@@ -147,7 +152,7 @@
       },
       "targets": [
         {
-          "expr": "1 - sum(rate(http_server_request_duration_seconds_count{job=~\"$service\",http_response_status_code=~\"5..\"}[30m])) / clamp_min(sum(rate(http_server_request_duration_seconds_count{job=~\"$service\"}[30m])), 0.000001)",
+          "expr": "1 - sum(rate(http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route=~\"$route\",http_response_status_code=~\"5..\"}[30m])) / clamp_min(sum(rate(http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route=~\"$route\"}[30m])), 0.000001)",
           "refId": "A"
         }
       ]
@@ -168,9 +173,9 @@
       },
       "targets": [
         {
-          "expr": "sum by (job,http_route) (rate(http_server_request_duration_seconds_count{job=~\"$service\"}[5m]))",
-          "legendFormat": "{{job}} {{http_route}}",
-          "refId": "A"
+          "expr": "sum by (job, http_route) (rate(http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route=~\"$route\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{job}} · {{http_route}}"
         }
       ]
     },
@@ -190,25 +195,25 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum by (le,job) (rate(http_server_request_duration_seconds_bucket{job=~\"$service\"}[5m])))",
-          "legendFormat": "p50 {{job}}",
-          "refId": "A"
+          "expr": "histogram_quantile(0.50, sum by (le, job, http_route) (rate(http_server_request_duration_seconds_bucket{job=~\"(.*/)?$application\",http_route=~\"$route\"}[5m])))",
+          "refId": "A",
+          "legendFormat": "p50 {{job}} · {{http_route}}"
         },
         {
-          "expr": "histogram_quantile(0.95, sum by (le,job) (rate(http_server_request_duration_seconds_bucket{job=~\"$service\"}[5m])))",
-          "legendFormat": "p95 {{job}}",
-          "refId": "B"
+          "expr": "histogram_quantile(0.95, sum by (le, job, http_route) (rate(http_server_request_duration_seconds_bucket{job=~\"(.*/)?$application\",http_route=~\"$route\"}[5m])))",
+          "refId": "B",
+          "legendFormat": "p95 {{job}} · {{http_route}}"
         },
         {
-          "expr": "histogram_quantile(0.99, sum by (le,job) (rate(http_server_request_duration_seconds_bucket{job=~\"$service\"}[5m])))",
-          "legendFormat": "p99 {{job}}",
-          "refId": "C"
+          "expr": "histogram_quantile(0.99, sum by (le, job, http_route) (rate(http_server_request_duration_seconds_bucket{job=~\"(.*/)?$application\",http_route=~\"$route\"}[5m])))",
+          "refId": "C",
+          "legendFormat": "p99 {{job}} · {{http_route}}"
         }
       ]
     },
     {
       "type": "logs",
-      "title": "Logs reais dos contêineres",
+      "title": "Logs filtrados da aplicação / container",
       "id": 9,
       "gridPos": {
         "h": 9,
@@ -222,8 +227,12 @@
       },
       "targets": [
         {
-          "expr": "{job=\"docker-container\",host_name=\"tqi-platform\"}",
+          "expr": "{job=\"docker-container\",host_name=~\"$host\",filename=~\".*/$container_id/.*\",deployment_environment=~\"$environment\"}",
           "refId": "A"
+        },
+        {
+          "expr": "{service_name=~\"$application\"}",
+          "refId": "B"
         }
       ]
     },
@@ -243,7 +252,7 @@
       },
       "targets": [
         {
-          "query": "{ resource.service.namespace = \"tqi-platform\" }",
+          "query": "{ resource.service.name =~ \"$application\" && span.http.route =~ \"$route\" }",
           "queryType": "traceql",
           "refId": "A"
         }
@@ -267,7 +276,7 @@
         {
           "queryType": "profile",
           "profileTypeId": "process_cpu:cpu:nanoseconds:cpu:nanoseconds",
-          "labelSelector": "{service_name=~\"$service\"}",
+          "labelSelector": "{service_name=~\"$application\"}",
           "refId": "A"
         }
       ]
@@ -283,7 +292,7 @@
   "templating": {
     "list": [
       {
-        "name": "service",
+        "name": "application",
         "label": "Aplicação",
         "type": "query",
         "datasource": {
@@ -291,13 +300,137 @@
           "uid": "prometheus"
         },
         "query": {
-          "query": "query_result(label_replace(count by (job) (http_server_request_duration_seconds_count{job=~\"tqi-platform/.+\"}), \"service\", \"$1\", \"job\", \"(.*)\"))",
-          "refId": "service"
+          "query": "label_values(http_server_request_duration_seconds_count, job)",
+          "refId": "var-application"
         },
-        "regex": "/service=\"([^\"]+)\"/",
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0,
+        "regex": "/([^\\/\"]+)$/"
+      },
+      {
+        "name": "route",
+        "label": "Rota ativa (top 200)",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "query_result(topk(200, sum by (http_route) (rate(http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route!=\"\"}[15m]))))",
+          "refId": "var-route"
+        },
         "includeAll": true,
         "allValue": ".*",
-        "refresh": 1
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0,
+        "regex": "/http_route=\"([^\"]+)\"/"
+      },
+      {
+        "name": "environment",
+        "label": "Ambiente",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(up{job=\"linux-node\"}, deployment_environment)",
+          "refId": "var-environment"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "host",
+        "label": "Host (logs/containers)",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(node_uname_info{deployment_environment=~\"$environment\"}, instance)",
+          "refId": "var-host"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "container",
+        "label": "Aplicação / container",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\"}, name)",
+          "refId": "var-container"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "container_id",
+        "label": "Container ID",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\"}, id)",
+          "refId": "var-container_id"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 2,
+        "regex": "/.*\\/([a-f0-9]{12,64})$/"
       }
     ]
   },
@@ -308,6 +441,6 @@
   "timezone": "browser",
   "title": "Application Overview",
   "uid": "sentinel-application-overview",
-  "version": 2,
-  "description": "APM real das aplicações Java instrumentadas no tqi-platform; não há métricas demo."
+  "version": 3,
+  "description": "Telemetria real com filtros encadeados de aplicação, rota, ambiente, host e container."
 }

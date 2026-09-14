@@ -44,6 +44,11 @@ jobs:
           SENTINELOPS_TEST_DATABASE_URL: postgres://sentinel_app:sentinel-ci-runtime-password@127.0.0.1:5432/sentinel?sslmode=disable
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
       - run: shellcheck -x scripts/*.sh scripts/lib/*.sh
+      - name: Validate managed dashboard render and filters
+        run: |
+          ./scripts/render-production-dashboards.sh
+          git diff --exit-code -- dashboards/managed
+          python3 scripts/check-dashboard-filters.py
       - run: python3 scripts/check-markdown-links.py
       - name: Validate Compose profiles
         run: |

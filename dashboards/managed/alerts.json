@@ -40,7 +40,7 @@
       },
       "targets": [
         {
-          "expr": "count(up == 1)",
+          "expr": "count(up{job=~\"$prometheus_job\",instance=~\"$prometheus_instance\"} == 1)",
           "refId": "A"
         }
       ]
@@ -91,7 +91,7 @@
     },
     {
       "type": "logs",
-      "title": "Logs reais dos contêineres",
+      "title": "Logs filtrados da aplicação / container",
       "id": 4,
       "gridPos": {
         "h": 9,
@@ -105,7 +105,7 @@
       },
       "targets": [
         {
-          "expr": "{job=\"docker-container\",host_name=\"tqi-platform\"}",
+          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\"}",
           "refId": "A"
         }
       ]
@@ -126,7 +126,7 @@
       },
       "targets": [
         {
-          "expr": "count(ALERTS{alertstate=\"firing\"})",
+          "expr": "count(ALERTS{alertstate=\"firing\",severity=~\"$severity\",alertname=~\"$alertname\"})",
           "refId": "A"
         }
       ]
@@ -142,14 +142,189 @@
   "templating": {
     "list": [
       {
+        "name": "prometheus_job",
+        "label": "Job Prometheus",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(up, job)",
+          "refId": "var-prometheus_job"
+        },
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "prometheus_instance",
+        "label": "Instância Prometheus",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(up{job=~\"$prometheus_job\"}, instance)",
+          "refId": "var-prometheus_instance"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "severity",
+        "label": "Severidade",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(ALERTS, severity)",
+          "refId": "var-severity"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "alertname",
+        "label": "Alerta",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(ALERTS{severity=~\"$severity\"}, alertname)",
+          "refId": "var-alertname"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
         "name": "environment",
         "label": "Ambiente",
-        "type": "custom",
-        "query": "production",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(up{job=\"linux-node\"}, deployment_environment)",
+          "refId": "var-environment"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
         "current": {
-          "text": "production",
-          "value": "production"
-        }
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "host",
+        "label": "Host",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(node_uname_info{deployment_environment=~\"$environment\"}, instance)",
+          "refId": "var-host"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "container",
+        "label": "Aplicação / container",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\"}, name)",
+          "refId": "var-container"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "container_id",
+        "label": "Container ID",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\"}, id)",
+          "refId": "var-container_id"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 2,
+        "regex": "/.*\\/([a-f0-9]{12,64})$/"
       }
     ]
   },
@@ -160,6 +335,6 @@
   "timezone": "browser",
   "title": "Alerts",
   "uid": "sentinel-alerts",
-  "version": 2,
-  "description": "Estado real do plano de controle e da ingestão SentinelOps."
+  "version": 3,
+  "description": "Plano de controle filtrável por job, instância, severidade e alerta."
 }

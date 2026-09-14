@@ -40,7 +40,7 @@
       },
       "targets": [
         {
-          "expr": "count(up{job=\"linux-node\"} == 1)",
+          "expr": "count(up{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\"} == 1)",
           "refId": "A"
         }
       ]
@@ -61,9 +61,9 @@
       },
       "targets": [
         {
-          "expr": "100 - avg by (instance) (rate(node_cpu_seconds_total{job=\"linux-node\",mode=\"idle\"}[5m])) * 100",
-          "legendFormat": "{{instance}}",
-          "refId": "A"
+          "expr": "100 - avg by (instance) (rate(node_cpu_seconds_total{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\",mode=\"idle\"}[5m])) * 100",
+          "refId": "A",
+          "legendFormat": "{{instance}}"
         }
       ]
     },
@@ -83,9 +83,9 @@
       },
       "targets": [
         {
-          "expr": "100 * (1 - node_memory_MemAvailable_bytes{job=\"linux-node\"} / node_memory_MemTotal_bytes{job=\"linux-node\"})",
-          "legendFormat": "{{instance}}",
-          "refId": "A"
+          "expr": "100 * (1 - node_memory_MemAvailable_bytes{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\"} / node_memory_MemTotal_bytes{job=\"linux-node\",deployment_environment=~\"$environment\",instance=~\"$host\"})",
+          "refId": "A",
+          "legendFormat": "{{instance}}"
         }
       ]
     },
@@ -105,7 +105,7 @@
       },
       "targets": [
         {
-          "expr": "{job=\"docker-container\",host_name=\"tqi-platform\"}",
+          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\"}",
           "refId": "A"
         }
       ]
@@ -126,7 +126,7 @@
       },
       "targets": [
         {
-          "expr": "count(container_last_seen{name!=\"\"})",
+          "expr": "count(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\"})",
           "refId": "A"
         }
       ]
@@ -144,12 +144,95 @@
       {
         "name": "environment",
         "label": "Ambiente",
-        "type": "custom",
-        "query": "production",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(up{job=\"linux-node\"}, deployment_environment)",
+          "refId": "var-environment"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
         "current": {
-          "text": "production",
-          "value": "production"
-        }
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "host",
+        "label": "Host",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(node_uname_info{deployment_environment=~\"$environment\"}, instance)",
+          "refId": "var-host"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "container",
+        "label": "Aplicação / container",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\"}, name)",
+          "refId": "var-container"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "container_id",
+        "label": "Container ID",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\"}, id)",
+          "refId": "var-container_id"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 2,
+        "regex": "/.*\\/([a-f0-9]{12,64})$/"
       }
     ]
   },
@@ -160,6 +243,6 @@
   "timezone": "browser",
   "title": "NOC Overview",
   "uid": "sentinel-noc-overview",
-  "version": 2,
-  "description": "Métricas reais da frota Linux recebidas pelos coletores SentinelOps."
+  "version": 3,
+  "description": "Frota Linux e Docker com filtros encadeados de ambiente, host e aplicação/container."
 }

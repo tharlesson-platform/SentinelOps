@@ -149,3 +149,5 @@ for dashboard in "$dashboard_dir"/*.json; do
       ;;
   esac
 done
+
+python3 "$root_dir/scripts/apply-dashboard-filters.py" "$dashboard_dir"

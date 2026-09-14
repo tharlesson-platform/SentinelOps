@@ -9,7 +9,7 @@ GO_IMAGE := golang:1.26.6-alpine3.23@sha256:e57c41c1d5864341031181b0db34b9a537bb
 GO_TEST_IMAGE := golang:1.26.6-bookworm@sha256:116d58cbd88c1297624acc6e967a060012422bacf9930927e23fb719189c6f36
 NODE_IMAGE := node:26.7.0-alpine3.23@sha256:ce3cc39fe3b8b2602d3b1c4d63d301e46b48c550ecb627869853ddcdda418b63
 
-.PHONY: bootstrap prepare-images up local-demo prove-local prove-ha prove-ha-manifests prove-resilience prove-dashboards prove-apm validate-release down reset seed test test-synthetics check logs doctor credentials generate lint build install-server install-collector bootstrap-apm collector-bundle harness-doctor harness-validate-specs harness-check harness-integration harness-integration-compose harness-e2e harness-eval-ai harness-release harness-production
+.PHONY: bootstrap prepare-images up local-demo prove-local prove-ha prove-ha-manifests prove-resilience prove-dashboards prove-apm validate-release down reset seed test test-synthetics check dashboard-filters logs doctor credentials generate lint build install-server install-collector bootstrap-apm collector-bundle harness-doctor harness-validate-specs harness-check harness-integration harness-integration-compose harness-e2e harness-eval-ai harness-release harness-production
 
 bootstrap:
 	@chmod +x scripts/*.sh
@@ -83,7 +83,10 @@ lint:
 build:
 	$(COMPOSE) build migrate api worker agent web demo-api vmware-exporter postgres-exporter
 
-check: test lint
+check: test lint dashboard-filters
+
+dashboard-filters:
+	@python3 scripts/check-dashboard-filters.py
 
 logs:
 	@test -f $(IMAGE_LOCK) || { echo "Execute make prepare-images primeiro" >&2; exit 2; }

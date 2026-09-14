@@ -26,7 +26,7 @@
   "panels": [
     {
       "type": "stat",
-      "title": "Alvos Prometheus saudáveis",
+      "title": "Eventos no período",
       "id": 1,
       "gridPos": {
         "h": 5,
@@ -35,19 +35,23 @@
         "y": 0
       },
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "loki",
+        "uid": "loki"
       },
       "targets": [
         {
-          "expr": "count(up == 1)",
+          "expr": "sum(count_over_time({service_name=~\"$application\"} |~ \"$search\" [$__range]))",
           "refId": "A"
+        },
+        {
+          "expr": "sum(count_over_time({job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\",stream=~\"$stream\"} |~ \"$search\" [$__range]))",
+          "refId": "B"
         }
       ]
     },
     {
       "type": "timeseries",
-      "title": "Séries ativas no TSDB",
+      "title": "Volume de logs por aplicação/container",
       "id": 2,
       "gridPos": {
         "h": 8,
@@ -56,20 +60,25 @@
         "y": 0
       },
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "loki",
+        "uid": "loki"
       },
       "targets": [
         {
-          "expr": "prometheus_tsdb_head_series",
-          "legendFormat": "series",
-          "refId": "A"
+          "expr": "sum by (service_name) (count_over_time({service_name=~\"$application\"} |~ \"$search\" [$__interval]))",
+          "refId": "A",
+          "legendFormat": "{{service_name}}"
+        },
+        {
+          "expr": "sum by (host_name, container_id) (count_over_time({job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\",stream=~\"$stream\"} |~ \"$search\" [$__interval]))",
+          "refId": "B",
+          "legendFormat": "{{host_name}} · {{container_id}}"
         }
       ]
     },
     {
       "type": "timeseries",
-      "title": "Amostras ingeridas por segundo",
+      "title": "Erros por intervalo",
       "id": 3,
       "gridPos": {
         "h": 8,
@@ -78,20 +87,23 @@
         "y": 0
       },
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "loki",
+        "uid": "loki"
       },
       "targets": [
         {
-          "expr": "rate(prometheus_tsdb_head_samples_appended_total[5m])",
-          "legendFormat": "samples/s",
+          "expr": "sum(count_over_time({service_name=~\"$application\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__interval]))",
           "refId": "A"
+        },
+        {
+          "expr": "sum(count_over_time({job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\",stream=~\"$stream\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__interval]))",
+          "refId": "B"
         }
       ]
     },
     {
       "type": "logs",
-      "title": "Logs reais dos contêineres",
+      "title": "Logs filtrados",
       "id": 4,
       "gridPos": {
         "h": 9,
@@ -105,14 +117,18 @@
       },
       "targets": [
         {
-          "expr": "{job=\"docker-container\",host_name=\"tqi-platform\"}",
+          "expr": "{service_name=~\"$application\"} |~ \"$search\"",
           "refId": "A"
+        },
+        {
+          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\",stream=~\"$stream\"} |~ \"$search\"",
+          "refId": "B"
         }
       ]
     },
     {
       "type": "stat",
-      "title": "Alertas em firing",
+      "title": "Erros no período",
       "id": 5,
       "gridPos": {
         "h": 9,
@@ -121,13 +137,17 @@
         "y": 8
       },
       "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
+        "type": "loki",
+        "uid": "loki"
       },
       "targets": [
         {
-          "expr": "count(ALERTS{alertstate=\"firing\"})",
+          "expr": "sum(count_over_time({service_name=~\"$application\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__range]))",
           "refId": "A"
+        },
+        {
+          "expr": "sum(count_over_time({job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/$container_id/.*\",stream=~\"$stream\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__range]))",
+          "refId": "B"
         }
       ]
     }
@@ -142,13 +162,153 @@
   "templating": {
     "list": [
       {
+        "name": "application",
+        "label": "Aplicação OTel",
+        "type": "query",
+        "datasource": {
+          "type": "loki",
+          "uid": "loki"
+        },
+        "query": {
+          "query": "label_values({service_name=~\".+\"}, service_name)",
+          "refId": "var-application"
+        },
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
         "name": "environment",
         "label": "Ambiente",
-        "type": "custom",
-        "query": "production",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(up{job=\"linux-node\"}, deployment_environment)",
+          "refId": "var-environment"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
         "current": {
-          "text": "production",
-          "value": "production"
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "host",
+        "label": "Host",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(node_uname_info{deployment_environment=~\"$environment\"}, instance)",
+          "refId": "var-host"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "container",
+        "label": "Aplicação / container",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name!=\"\"}, name)",
+          "refId": "var-container"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "container_id",
+        "label": "Container ID",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(container_last_seen{deployment_environment=~\"$environment\",instance=~\"$host\",name=~\"$container\"}, id)",
+          "refId": "var-container_id"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 2,
+        "regex": "/.*\\/([a-f0-9]{12,64})$/"
+      },
+      {
+        "name": "stream",
+        "label": "Stream",
+        "type": "query",
+        "datasource": {
+          "type": "loki",
+          "uid": "loki"
+        },
+        "query": {
+          "query": "label_values({job=\"docker-container\",host_name=~\"$host\",filename=~\".*/$container_id/.*\"}, stream)",
+          "refId": "var-stream"
+        },
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 1,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
+      },
+      {
+        "name": "search",
+        "label": "Buscar no conteúdo (regex)",
+        "type": "textbox",
+        "query": ".*",
+        "current": {
+          "selected": true,
+          "text": ".*",
+          "value": ".*"
         }
       }
     ]
@@ -160,6 +320,6 @@
   "timezone": "browser",
   "title": "Logs",
   "uid": "sentinel-logs",
-  "version": 2,
-  "description": "Estado real do plano de controle e da ingestão SentinelOps."
+  "version": 3,
+  "description": "Logs pesquisáveis por aplicação OTel ou aplicação/container Docker, ambiente, host, stream e conteúdo."
 }
