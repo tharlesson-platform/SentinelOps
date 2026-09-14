@@ -24,5 +24,8 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-[ -n "$CONFIG" ] && [ -n "$OUTPUT" ] || { usage >&2; exit 2; }
+if [ -z "$CONFIG" ] || [ -z "$OUTPUT" ]; then
+  usage >&2
+  exit 2
+fi
 exec go run "$ROOT/apps/cloudinventory" --config "$CONFIG" --output "$OUTPUT"

@@ -89,7 +89,9 @@ raise SystemExit(0 if not (address.is_loopback or address.is_unspecified or addr
 PY
   syslog_port=$(env_value SENTINEL_SYSLOG_PORT)
   case "$syslog_port" in ''|*[!0-9]*) die "SENTINEL_SYSLOG_PORT deve ser inteiro entre 1 e 65535";; esac
-  [ "$syslog_port" -ge 1 ] && [ "$syslog_port" -le 65535 ] || die "SENTINEL_SYSLOG_PORT deve ser inteiro entre 1 e 65535"
+  if [ "$syslog_port" -lt 1 ] || [ "$syslog_port" -gt 65535 ]; then
+    die "SENTINEL_SYSLOG_PORT deve ser inteiro entre 1 e 65535"
+  fi
 }
 
 copy_tls_file() {
