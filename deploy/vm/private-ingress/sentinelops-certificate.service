@@ -1,0 +1,11 @@
+[Unit]
+Description=Renovar TLS interno do SentinelOps via Azure DNS-01
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/renew-sentinelops-certificate
+TimeoutStartSec=600
+UMask=0077

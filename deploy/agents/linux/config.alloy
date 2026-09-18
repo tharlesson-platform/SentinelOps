@@ -16,6 +16,11 @@ discovery.relabel "linux_node" {
     target_label = "instance"
     replacement = sys.env("SENTINEL_HOST_NAME")
   }
+  // Explicit shared identity for metrics, Docker logs and host navigation.
+  rule {
+    target_label = "host_name"
+    replacement = sys.env("SENTINEL_HOST_NAME")
+  }
   rule {
     target_label = "deployment_environment"
     replacement = sys.env("SENTINEL_ENVIRONMENT")

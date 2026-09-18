@@ -1,0 +1,11 @@
+[Unit]
+Description=Verificar diariamente o certificado do SentinelOps
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+RandomizedDelaySec=30m
+Persistent=true
+Unit=sentinelops-certificate.service
+
+[Install]
+WantedBy=timers.target
