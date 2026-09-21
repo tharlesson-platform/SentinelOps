@@ -74,6 +74,10 @@ def wait_healthy(image,count,guard):
  raise RuntimeError('prontidão da API excedeu prazo')
 def remove(item):
  now=inspect([item['Id']])[0];assert now['Image']==item['Image'];run(['docker','stop','-t','30',item['Id']]);run(['docker','rm',item['Id']])
+def resolved_api_ips():
+ # BusyBox getent hosts retorna somente um peer; nslookup expõe o RRset A completo.
+ answer=run(['docker','exec',EDGE,'nslookup','-type=A','api','127.0.0.11'])
+ return set(re.findall(r'(?m)^Address:\s+(\d+\.\d+\.\d+\.\d+)\s*$',answer))
 def replace_replicas(image,edge,guard):
  current=apis();wanted=[x for x in current if good(x) and x['Image']==image]
  # Healthy não equivale a aprovada: uma candidata rejeitada pelo gate nunca entra no rollback.
@@ -104,7 +108,7 @@ def replace_replicas(image,edge,guard):
  final=wait_healthy(image,2,guard);assert len(apis())==2
  expected={ip(x) for x in final};deadline=time.monotonic()+15
  while time.monotonic()<deadline:
-  resolved={line.split()[0] for line in run(['docker','exec',EDGE,'getent','hosts','api']).splitlines() if line.strip()}
+  resolved=resolved_api_ips()
   if resolved==expected:break
   time.sleep(.2)
  else:raise RuntimeError('DNS api não convergiu para as duas réplicas confirmadas')
@@ -118,6 +122,8 @@ def prepare():
  assert (ROOT/'DEPLOYED_COMMIT').read_text().strip()==(RELEASE/'base-commit.txt').read_text().strip(),'base mudou'
  assert all(set(x['NetworkSettings']['Networks'])=={'sentinelops_control','sentinelops_telemetry'} for x in current)
  probe();auth(BASE);run(COMPOSE+['config','--quiet']);run(['docker','exec',EDGE,'nginx','-t'])
+ subprocess.run(['python3',str(RELEASE/'validate-runtime.py'),str(RELEASE/'before-runtime.json'),'baseline'],check=True)
+ assert all(x['passed'] for x in read_json(RELEASE/'before-runtime.json')['checks'].values()),'baseline funcional não aprovada'
  assert int(next(x.split()[1] for x in Path('/proc/meminfo').read_text().splitlines() if x.startswith('MemAvailable:')))>1024*1024
  BACKUP.mkdir(mode=0o700)
  shutil.copytree(WEB,BACKUP/'web');shutil.copy2(LOCK,BACKUP/'images.lock.yml');shutil.copy2(EDGE_CONFIG,BACKUP/'edge.conf');shutil.copy2(ROOT/'DEPLOYED_COMMIT',BACKUP/'DEPLOYED_COMMIT')
@@ -148,6 +154,7 @@ def publish_web():
  assert sha(WEB/'config.js')==sha(BACKUP/'web/config.js')
 
 def deploy():
+ assert all(x['passed'] for x in read_json(RELEASE/'before-runtime.json')['checks'].values()),'baseline funcional ausente ou reprovada'
  prepared=read_json(RELEASE/'prepared.json');assert LOCK.read_bytes()==(BACKUP/'images.lock.yml').read_bytes();assert EDGE_CONFIG.read_bytes()==(BACKUP/'edge.conf').read_bytes()
  current=apis()
  assert {x['Id'] for x in current}=={x['id'] for x in read_json(RELEASE/'before-api.json')}
