@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,39 @@ import (
 
 	"github.com/sentinelops/sentinelops/internal/telemetryquery"
 )
+
+func TestAPMUndefinedQuantilesProduceValidJSONWithMissingValues(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		value := "1"
+		query := r.URL.Query().Get("query")
+		if strings.Contains(query, "histogram_quantile(0.95") {
+			value = "NaN"
+		}
+		if strings.Contains(query, "histogram_quantile(0.99") {
+			value = "+Inf"
+		}
+		fmt.Fprintf(w, `{"status":"success","data":{"resultType":"vector","result":[{"metric":{"service_name":"api","host_name":"node","deployment_environment":"prod"},"value":[1000,%q]}]}}`, value)
+	}))
+	defer backend.Close()
+	client, err := telemetryquery.New(telemetryquery.Options{GatewayURL: backend.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := Server{telemetry: client}
+	results := s.instantQueries(context.Background(), "tenant", map[string]string{"rps": "rate(count[5m])", "p95": "histogram_quantile(0.95, fixture)", "p99": "histogram_quantile(0.99, fixture)"})
+	items := buildAPMServices(results)
+	if len(items) != 1 || items[0].RequestsPerS == nil || *items[0].RequestsPerS != 1 || items[0].P95Seconds != nil || items[0].P99Seconds != nil {
+		t.Fatalf("invalid missing-value contract: %#v", items)
+	}
+	w := httptest.NewRecorder()
+	write(w, http.StatusOK, map[string]any{"items": items, "sources": statusFromInstantResults(results)})
+	if w.Code != 200 || !json.Valid(w.Body.Bytes()) || !strings.Contains(w.Body.String(), `"p95Seconds":null`) {
+		t.Fatalf("APM must return valid JSON with null quantiles: status=%d", w.Code)
+	}
+	if statusFromInstantResults(map[string]instantResult{"p95": results["p95"]}).State != "no_data" {
+		t.Fatal("undefined-only metrics must report no_data")
+	}
+}
 
 func TestObservedIdentityDoesNotGuessExporterEquivalence(t *testing.T) {
 	hosts := buildHosts(map[string]instantResult{"identity": {samples: []telemetryquery.VectorSample{{Labels: map[string]string{"instance": "10.0.0.1:9100", "nodename": "node-a"}}}}})

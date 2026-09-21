@@ -52,3 +52,9 @@ Antes de uma publicação separadamente autorizada: revisar este diff junto das 
 Revisão independente: `docs/reviews/2026-09-18-renovacao-ui-sre.md`.
 
 Ajuste complementar solicitado pela tarefa de origem: envelhecimento automático do SourceBanner resolvido e revisado independentemente. Reexecutados build/typecheck, os 15 testes unitários e as 19 jornadas Playwright; `git diff --check` limpo. Nenhuma alteração de backend ou integração foi necessária neste complemento.
+
+## Correção encontrada na preparação do deploy — 21/09/2026
+
+A revalidação autenticada da instalação anterior reproduziu três respostas APM HTTP 200 com corpo vazio, enquanto o Prometheus retornava valores não finitos nos percentis p95/p99. O cliente de consultas agora omite somente amostras `NaN` e infinitas, preservando zeros reais, valores finitos e seus timestamps. Percentis ausentes permanecem `null`; consultas sem amostras finitas resultam em `no_data`. Nos gráficos, a lacuna temporal continua separando os segmentos. A disponibilidade da fonte não significa cobertura de todas as métricas.
+
+Testes Go cobrem vetores mistos, séries com lacunas, séries sem valores finitos e o caminho cliente → APM → resposta JSON com percentis ausentes. `go test ./internal/httpapi ./internal/telemetryquery` e `git diff --check` passaram. A correção recebeu revisão independente antes da geração da nova imagem; esse resultado ainda é distinto da confirmação de implantação.

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -112,6 +113,11 @@ func (c *Client) PrometheusInstant(ctx context.Context, organizationID, query st
 		if err != nil {
 			return nil, fmt.Errorf("decode prometheus vector sample: %w", err)
 		}
+		// Prometheus represents undefined values (for example an idle quantile)
+		// as NaN. Keep missing observations out of JSON, without inventing zero.
+		if math.IsNaN(point.Value) || math.IsInf(point.Value, 0) {
+			continue
+		}
 		result = append(result, VectorSample{Labels: item.Metric, Timestamp: point.Timestamp, Value: point.Value})
 	}
 	return result, nil
@@ -136,6 +142,9 @@ func (c *Client) PrometheusRange(ctx context.Context, organizationID, query stri
 			point, err := decodePoint(raw)
 			if err != nil {
 				return nil, fmt.Errorf("decode prometheus range sample: %w", err)
+			}
+			if math.IsNaN(point.Value) || math.IsInf(point.Value, 0) {
+				continue
 			}
 			points = append(points, point)
 		}
