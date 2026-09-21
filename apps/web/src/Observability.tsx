@@ -662,6 +662,7 @@ function Logs({ api, route, update, refresh }: Props) {
 }
 function Traces({ api, route, update, refresh }: Props) {
   const c = route.context;
+  const traceStatus = route.traceStatus || (route.errors ? "span-error" : "all");
   const blocked = appliedScope(c, "traces");
   const result = useQuery(
     JSON.stringify([
@@ -670,6 +671,7 @@ function Traces({ api, route, update, refresh }: Props) {
       route.window,
       route.end,
       route.errors,
+      traceStatus,
       refresh,
     ]),
     (signal) =>
@@ -679,6 +681,7 @@ function Traces({ api, route, update, refresh }: Props) {
           container: c.container,
           service: c.service,
           error: route.errors,
+          traceStatus,
           window: route.window,
           end: route.end,
           limit: 100,
@@ -703,14 +706,22 @@ function Traces({ api, route, update, refresh }: Props) {
         host.name, container.name e service.name correspondentes. Até 100
         requisições; refine o período se atingir o limite.
       </p>
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={route.errors}
-          onChange={(e) => update({ errors: e.target.checked }, true)}
-        />
-        Somente erros
+      <label>
+        Resultado da requisição
+        <select
+          value={traceStatus}
+          onChange={(e) => update({ traceStatus: e.target.value, errors: false })}
+        >
+          <option value="all">Todos</option>
+          <option value="span-error">Span com status Error</option>
+          <option value="4xx">HTTP 4xx</option>
+          <option value="5xx">HTTP 5xx</option>
+          {!["all", "span-error", "4xx", "5xx"].includes(traceStatus) && (
+            <option value={traceStatus} disabled>Filtro inválido — escolha uma opção</option>
+          )}
+        </select>
       </label>
+      <p>HTTP 4xx/5xx filtra o código da resposta, independentemente do status do span.</p>
       {!blocked && (
         <>
           <QueryStatus
@@ -783,7 +794,7 @@ function APM({ api, route, update, refresh }: Props) {
         <div className="apm-row header">
           <span>Aplicação</span>
           <span>Requisições/s</span>
-          <span>Erros</span>
+          <span>HTTP 5xx</span>
           <span>95% abaixo de</span>
           <span>99% abaixo de</span>
         </div>

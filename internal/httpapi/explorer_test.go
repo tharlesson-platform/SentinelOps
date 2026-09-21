@@ -95,6 +95,73 @@ func TestExactMetricSelectorDoesNotPermitExpressionInjection(t *testing.T) {
 	}
 }
 
+func TestTraceCatalogUsesCanonicalServiceAndHost(t *testing.T) {
+	ds, err := dashboards.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, d := range ds {
+		application := false
+		for _, v := range d.Templating.List {
+			if v.Name == "trace_service" || v.Name == "trace_host" {
+				t.Fatal("cartesian association variable remains")
+			}
+			if v.Name == "application" {
+				application = true
+				if !strings.Contains(v.Expression(), "service_name)") || !strings.Contains(v.Expression(), `host_name=~"$host"`) {
+					t.Fatalf("invalid service discovery %s", v.Expression())
+				}
+			}
+		}
+		if !application {
+			continue
+		}
+		for _, p := range d.Panels {
+			for _, target := range p.Targets {
+				expr := target.Expr
+				if expr == "" {
+					expr = target.Query
+				}
+				if !strings.Contains(expr, "$application") {
+					continue
+				}
+				if strings.Contains(expr, "target_info") || strings.Contains(expr, "group_left") || strings.Contains(expr, `job=~`) || strings.Contains(expr, "service.namespace") {
+					t.Fatalf("heuristic identity remains: %s", expr)
+				}
+				for _, scenario := range []struct{ service, host, wantService, wantHost string }{
+					{"worklog", "tqi-platform", "worklog", "tqi-platform"},
+					{"worklog", "easy-vm", "worklog", "easy-vm"},
+					{"worklog", "__all__", "worklog", ".*"},
+					{"__all__", "tqi-platform", ".+", "tqi-platform"},
+					{"tqi-platform/worklog", "tqi-platform", "tqi-platform/worklog", "tqi-platform"},
+				} {
+					q, _, err := renderTemplate(expr, d, map[string]string{"application": scenario.service, "host": scenario.host}, time.Hour, time.Minute)
+					if err != nil {
+						t.Fatal(err)
+					}
+					serviceMatcher, hostMatcher := `service_name=~"`+scenario.wantService+`"`, `host_name=~"`+scenario.wantHost+`"`
+					if target.Query != "" {
+						serviceMatcher, hostMatcher = `resource.service.name =~ "`+scenario.wantService+`"`, `resource.host.name =~ "`+scenario.wantHost+`"`
+					}
+					if !strings.Contains(q, serviceMatcher) || !strings.Contains(q, hostMatcher) {
+						t.Fatalf("%s/%d inconsistent selection: %s", d.UID, p.ID, q)
+					}
+					if target.Query == "" && (!strings.Contains(q, `host_name!~".*;.*"`) || !strings.Contains(q, `host_name!=""`)) {
+						t.Fatalf("invalid historical identities accepted: %s", q)
+					}
+				}
+				if target.Query != "" {
+					count++
+				}
+			}
+		}
+	}
+	if count != 10 {
+		t.Fatalf("expected ten canonical trace panels, got %d", count)
+	}
+}
+
 func TestLogsCatalogNativeTemplatesKeepDisjointTargetsAndDiscovery(t *testing.T) {
 	ds, err := dashboards.Load()
 	if err != nil {

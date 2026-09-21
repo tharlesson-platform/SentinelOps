@@ -14,6 +14,16 @@ describe("jornada compartilhável", () => {
     expect(readRoute("?page=bad&window=bad").page).toBe("overview");
     expect(readRoute("?window=bad").window).toBe("1h");
   });
+  it("preserva classe HTTP, recurso e período em URL e links antigos", () => {
+    for (const traceStatus of ["all", "span-error", "4xx", "5xx"]) {
+      const route = readRoute(`?page=traces&service=api&hostName=node-a&container=web&window=6h&end=1800000000&traceStatus=${traceStatus}`);
+      expect(readRoute(routeSearch(route))).toEqual(route);
+      expect(route.traceStatus).toBe(traceStatus);
+    }
+    expect(readRoute("?page=traces&errors=true").traceStatus).toBe("span-error");
+    expect(readRoute("?errors=true&traceStatus=4xx").traceStatus).toBe("4xx");
+    expect(readRoute("?traceStatus=invalid").traceStatus).toBe("invalid");
+  });
   it("envia ID do trace e limites absolutos à fonte configurada", () => {
     const url = new URL(
       exploreURL("tempo", { window: "1h", end: 1800000000 }, "abc"),

@@ -38,6 +38,7 @@ export type Route = {
   logSearch: string;
   severity: string;
   errors: boolean;
+  traceStatus?: string;
   explorerMode?: string;
   metric?: string;
   dashboard?: string;
@@ -79,6 +80,8 @@ export function readRoute(search = location.search): Route {
     logSearch: p.get("search") || "",
     severity: p.get("severity") || "",
     errors: p.get("errors") === "true",
+    // Preserve unknown values so the API rejects them instead of widening scope.
+    traceStatus: p.get("traceStatus") || (p.get("errors") === "true" ? "span-error" : "all"),
     ...Object.fromEntries(
       [
         "explorerMode",
@@ -108,6 +111,7 @@ export function routeSearch(r: Route) {
     search: r.logSearch,
     severity: r.severity,
     errors: r.errors ? "true" : "",
+    traceStatus: r.traceStatus,
     explorerMode: r.explorerMode,
     metric: r.metric,
     dashboard: r.dashboard,

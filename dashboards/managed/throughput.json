@@ -40,11 +40,11 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(http_server_request_duration_seconds_count{job=~\"$application\",http_route=~\"$route\"}[5m]))",
+          "expr": "sum(rate(http_server_request_duration_seconds_count{service_name=~\"$application\",host_name=~\"$host\",host_name!=\"\",host_name!~\".*;.*\",service_name!~\".*;.*\",http_route=~\"$route\"}[5m]))",
           "refId": "A"
         }
       ],
-      "description": "Requisições por segundo. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "description": "Requisições por segundo. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados. Identidade APM: aplicação usa service.name e host usa host.name em métricas e traces. Todos os hosts inclui serviços homônimos nos hosts selecionados; séries sem identidade ou com labels concatenadas inválidas não são atribuídas.",
       "fieldConfig": {
         "defaults": {
           "unit": "reqps",
@@ -98,13 +98,13 @@
       },
       "targets": [
         {
-          "expr": "topk(10, sum by (job, http_route) (rate(http_server_request_duration_seconds_count{job=~\"$application\",http_route=~\"$route\"}[5m])))",
+          "expr": "topk(10, sum by (service_name, http_route) (rate(http_server_request_duration_seconds_count{service_name=~\"$application\",host_name=~\"$host\",host_name!=\"\",host_name!~\".*;.*\",service_name!~\".*;.*\",http_route=~\"$route\"}[5m])))",
           "refId": "A",
-          "legendFormat": "{{job}} · {{http_route}}",
+          "legendFormat": "{{service_name}} · {{http_route}}",
           "maxDataPoints": 600
         }
       ],
-      "description": "Top 10 rotas por volume. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "description": "Top 10 rotas por volume. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados. Identidade APM: aplicação usa service.name e host usa host.name em métricas e traces. Todos os hosts inclui serviços homônimos nos hosts selecionados; séries sem identidade ou com labels concatenadas inválidas não são atribuídas.",
       "fieldConfig": {
         "defaults": {
           "unit": "short",
@@ -175,13 +175,13 @@
       },
       "targets": [
         {
-          "expr": "sum by (job) (rate(http_server_request_duration_seconds_count{job=~\"$application\",http_route=~\"$route\"}[5m]))",
+          "expr": "sum by (service_name) (rate(http_server_request_duration_seconds_count{service_name=~\"$application\",host_name=~\"$host\",host_name!=\"\",host_name!~\".*;.*\",service_name!~\".*;.*\",http_route=~\"$route\"}[5m]))",
           "refId": "A",
-          "legendFormat": "{{job}}",
+          "legendFormat": "{{service_name}}",
           "maxDataPoints": 600
         }
       ],
-      "description": "Throughput por aplicação. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "description": "Throughput por aplicação. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados. Identidade APM: aplicação usa service.name e host usa host.name em métricas e traces. Todos os hosts inclui serviços homônimos nos hosts selecionados; séries sem identidade ou com labels concatenadas inválidas não são atribuídas.",
       "fieldConfig": {
         "defaults": {
           "unit": "short",
@@ -316,12 +316,12 @@
       },
       "targets": [
         {
-          "query": "{ resource.service.name =~ \"$application\" }",
+          "query": "{ resource.host.name != \"\" && resource.host.name =~ \"$host\" && resource.service.name =~ \"$application\" }",
           "queryType": "traceql",
           "refId": "A"
         }
       ],
-      "description": "Traces da aplicação selecionada. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados."
+      "description": "Traces da aplicação selecionada. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados. Identidade APM: aplicação usa service.name e host usa host.name em métricas e traces. Todos os hosts inclui serviços homônimos nos hosts selecionados; séries sem identidade ou com labels concatenadas inválidas não são atribuídas."
     }
   ],
   "refresh": "15s",
@@ -334,29 +334,6 @@
   ],
   "templating": {
     "list": [
-      {
-        "name": "application",
-        "label": "Aplicação APM (service.name)",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "query": {
-          "query": "label_values(http_server_request_duration_seconds_count, job)",
-          "refId": "var-application"
-        },
-        "includeAll": true,
-        "allValue": ".+",
-        "multi": true,
-        "refresh": 1,
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        },
-        "hide": 0
-      },
       {
         "name": "route",
         "label": "Rota APM (regex; padrão: todas)",
@@ -393,7 +370,7 @@
       },
       {
         "name": "host",
-        "label": "Host (logs/containers)",
+        "label": "Host",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -459,6 +436,29 @@
         },
         "hide": 2,
         "regex": "/.*(?:\\/|docker-)([a-f0-9]{64})(?:\\.scope)?$/"
+      },
+      {
+        "name": "application",
+        "label": "Aplicação APM (service.name)",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(http_server_request_duration_seconds_count{host_name=~\"$host\",host_name!=\"\",host_name!~\".*;.*\",service_name!=\"\",service_name!~\".*;.*\"}, service_name)",
+          "refId": "var-application"
+        },
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "refresh": 2,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
       }
     ]
   },

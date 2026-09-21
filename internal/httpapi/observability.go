@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"regexp"
 	"sort"
 	"strconv"
@@ -290,32 +291,54 @@ func (s *Server) observedAPM(w http.ResponseWriter, r *http.Request) {
 	write(w, http.StatusOK, map[string]any{"items": items, "sources": map[string]sourceStatus{"prometheus": statusFromInstantResults(results)}})
 }
 
+func observedTraceQuery(params url.Values) (string, *apiError) {
+	clauses := []string{}
+	for _, filter := range []struct{ query, attribute string }{{"service", "resource.service.name"}, {"host", "resource.host.name"}, {"container", "resource.container.name"}} {
+		value := strings.TrimSpace(params.Get(filter.query))
+		if value == "" {
+			continue
+		}
+		if !validSelector(value) {
+			return "", &apiError{Code: "invalid_filter", Message: filter.query + " inválido"}
+		}
+		clauses = append(clauses, filter.attribute+" = "+strconv.Quote(value))
+	}
+	// An explicit outcome supersedes the legacy boolean, including all/4xx.
+	// Both HTTP attribute names stay inside the same resource-scoped spanset.
+	traceStatus := params.Get("traceStatus")
+	if traceStatus == "" && strings.EqualFold(params.Get("error"), "true") {
+		traceStatus = "span-error"
+	}
+	switch traceStatus {
+	case "", "all":
+	case "span-error":
+		clauses = append(clauses, `status = error`)
+	case "4xx":
+		clauses = append(clauses, `((span.http.response.status_code >= 400 && span.http.response.status_code < 500) || (span.http.status_code >= 400 && span.http.status_code < 500))`)
+	case "5xx":
+		clauses = append(clauses, `((span.http.response.status_code >= 500 && span.http.response.status_code < 600) || (span.http.status_code >= 500 && span.http.status_code < 600))`)
+	default:
+		return "", &apiError{Code: "invalid_trace_status", Message: "Resultado deve ser all, span-error, 4xx ou 5xx"}
+	}
+	traceQL := `{ true }`
+	if len(clauses) > 0 {
+		traceQL = `{ ` + strings.Join(clauses, ` && `) + ` }`
+	}
+	return traceQL, nil
+}
+
 func (s *Server) searchObservedTraces(w http.ResponseWriter, r *http.Request) {
+	traceQL, queryErr := observedTraceQuery(r.URL.Query())
+	if queryErr != nil {
+		fail(w, r, http.StatusBadRequest, queryErr.Code, queryErr.Message)
+		return
+	}
 	if !s.allowObservabilityQuery(w, r) {
 		return
 	}
 	start, end, _, ok := parseTelemetryWindow(w, r)
 	if !ok {
 		return
-	}
-	clauses := []string{}
-	for _, filter := range []struct{ query, attribute string }{{"service", "resource.service.name"}, {"host", "resource.host.name"}, {"container", "resource.container.name"}} {
-		value := strings.TrimSpace(r.URL.Query().Get(filter.query))
-		if value == "" {
-			continue
-		}
-		if !validSelector(value) {
-			fail(w, r, http.StatusBadRequest, "invalid_filter", filter.query+" inválido")
-			return
-		}
-		clauses = append(clauses, filter.attribute+" = "+strconv.Quote(value))
-	}
-	if strings.EqualFold(r.URL.Query().Get("error"), "true") {
-		clauses = append(clauses, `status = error`)
-	}
-	traceQL := `{ true }`
-	if len(clauses) > 0 {
-		traceQL = `{ ` + strings.Join(clauses, ` && `) + ` }`
 	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	traces, err := s.telemetry.TempoSearch(r.Context(), getPrincipal(r.Context()).OrganizationID, traceQL, start, end, limit)

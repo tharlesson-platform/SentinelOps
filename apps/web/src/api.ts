@@ -360,6 +360,7 @@ export class API {
       container?: string;
       service?: string;
       error?: boolean;
+      traceStatus?: string;
       window?: string;
       limit?: number;
       end?: number;

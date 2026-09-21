@@ -40,11 +40,11 @@
       },
       "targets": [
         {
-          "expr": "count(count by (job) (http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route=~\"$route\"}))",
+          "expr": "count(count by (service_name) (http_server_request_duration_seconds_count{service_name=~\"$application\",host_name=~\"$host\",host_name!=\"\",host_name!~\".*;.*\",service_name!~\".*;.*\",http_route=~\"$route\"}))",
           "refId": "A"
         }
       ],
-      "description": "Aplicações selecionadas com métricas. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "description": "Aplicações selecionadas com métricas. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados. Identidade APM: aplicação usa service.name e host usa host.name em métricas e traces. Todos os hosts inclui serviços homônimos nos hosts selecionados; séries sem identidade ou com labels concatenadas inválidas não são atribuídas.",
       "fieldConfig": {
         "defaults": {
           "unit": "short",
@@ -98,11 +98,11 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route=~\"$route\"}[5m]))",
+          "expr": "sum(rate(http_server_request_duration_seconds_count{service_name=~\"$application\",host_name=~\"$host\",host_name!=\"\",host_name!~\".*;.*\",service_name!~\".*;.*\",http_route=~\"$route\"}[5m]))",
           "refId": "A"
         }
       ],
-      "description": "Requisições por segundo. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "description": "Requisições por segundo. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados. Identidade APM: aplicação usa service.name e host usa host.name em métricas e traces. Todos os hosts inclui serviços homônimos nos hosts selecionados; séries sem identidade ou com labels concatenadas inválidas não são atribuídas.",
       "fieldConfig": {
         "defaults": {
           "unit": "reqps",
@@ -156,11 +156,11 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{job=~\"(.*/)?$application\",http_route=~\"$route\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{service_name=~\"$application\",host_name=~\"$host\",host_name!=\"\",host_name!~\".*;.*\",service_name!~\".*;.*\",http_route=~\"$route\"}[5m])))",
           "refId": "A"
         }
       ],
-      "description": "Latência p95. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "description": "Latência p95. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados. Identidade APM: aplicação usa service.name e host usa host.name em métricas e traces. Todos os hosts inclui serviços homônimos nos hosts selecionados; séries sem identidade ou com labels concatenadas inválidas não são atribuídas.",
       "fieldConfig": {
         "defaults": {
           "unit": "s",
@@ -278,11 +278,11 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route=~\"$route\",http_response_status_code=~\"5..\"}[5m]))",
+          "expr": "sum(rate(http_server_request_duration_seconds_count{service_name=~\"$application\",host_name=~\"$host\",host_name!=\"\",host_name!~\".*;.*\",service_name!~\".*;.*\",http_route=~\"$route\",http_response_status_code=~\"5..\"}[5m]))",
           "refId": "A"
         }
       ],
-      "description": "Erros HTTP 5xx. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "description": "Erros HTTP 5xx. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados. Identidade APM: aplicação usa service.name e host usa host.name em métricas e traces. Todos os hosts inclui serviços homônimos nos hosts selecionados; séries sem identidade ou com labels concatenadas inválidas não são atribuídas.",
       "fieldConfig": {
         "defaults": {
           "unit": "reqps",
@@ -340,11 +340,11 @@
       },
       "targets": [
         {
-          "expr": "1 - sum(rate(http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route=~\"$route\",http_response_status_code=~\"5..\"}[30m])) / clamp_min(sum(rate(http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route=~\"$route\"}[30m])), 0.000001)",
+          "expr": "1 - sum(rate(http_server_request_duration_seconds_count{service_name=~\"$application\",host_name=~\"$host\",host_name!=\"\",host_name!~\".*;.*\",service_name!~\".*;.*\",http_route=~\"$route\",http_response_status_code=~\"5..\"}[30m])) / clamp_min(sum(rate(http_server_request_duration_seconds_count{service_name=~\"$application\",host_name=~\"$host\",host_name!=\"\",host_name!~\".*;.*\",service_name!~\".*;.*\",http_route=~\"$route\"}[30m])), 0.000001)",
           "refId": "A"
         }
       ],
-      "description": "SLO de disponibilidade. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "description": "SLO de disponibilidade. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados. Identidade APM: aplicação usa service.name e host usa host.name em métricas e traces. Todos os hosts inclui serviços homônimos nos hosts selecionados; séries sem identidade ou com labels concatenadas inválidas não são atribuídas.",
       "fieldConfig": {
         "defaults": {
           "unit": "percentunit",
@@ -406,13 +406,13 @@
       },
       "targets": [
         {
-          "expr": "topk(10, (sum by (job, http_route) (rate(http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route=~\"$route\"}[5m]))) > 0)",
+          "expr": "topk(10, (sum by (service_name, http_route) (rate(http_server_request_duration_seconds_count{service_name=~\"$application\",host_name=~\"$host\",host_name!=\"\",host_name!~\".*;.*\",service_name!~\".*;.*\",http_route=~\"$route\"}[5m]))) > 0)",
           "refId": "A",
-          "legendFormat": "{{job}} · {{http_route}}",
+          "legendFormat": "{{service_name}} · {{http_route}}",
           "maxDataPoints": 600
         }
       ],
-      "description": "RED - volume por serviço e rota. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "description": "RED - volume por serviço e rota. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados. Identidade APM: aplicação usa service.name e host usa host.name em métricas e traces. Todos os hosts inclui serviços homônimos nos hosts selecionados; séries sem identidade ou com labels concatenadas inválidas não são atribuídas.",
       "fieldConfig": {
         "defaults": {
           "unit": "short",
@@ -483,25 +483,25 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum by (le, job) (rate(http_server_request_duration_seconds_bucket{job=~\"(.*/)?$application\",http_route=~\"$route\"}[5m])))",
+          "expr": "histogram_quantile(0.50, sum by (le, service_name) (rate(http_server_request_duration_seconds_bucket{service_name=~\"$application\",host_name=~\"$host\",host_name!=\"\",host_name!~\".*;.*\",service_name!~\".*;.*\",http_route=~\"$route\"}[5m])))",
           "refId": "A",
-          "legendFormat": "p50 · {{job}}",
+          "legendFormat": "p50 · {{service_name}}",
           "maxDataPoints": 600
         },
         {
-          "expr": "histogram_quantile(0.95, sum by (le, job) (rate(http_server_request_duration_seconds_bucket{job=~\"(.*/)?$application\",http_route=~\"$route\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le, service_name) (rate(http_server_request_duration_seconds_bucket{service_name=~\"$application\",host_name=~\"$host\",host_name!=\"\",host_name!~\".*;.*\",service_name!~\".*;.*\",http_route=~\"$route\"}[5m])))",
           "refId": "B",
-          "legendFormat": "p95 · {{job}}",
+          "legendFormat": "p95 · {{service_name}}",
           "maxDataPoints": 600
         },
         {
-          "expr": "histogram_quantile(0.99, sum by (le, job) (rate(http_server_request_duration_seconds_bucket{job=~\"(.*/)?$application\",http_route=~\"$route\"}[5m])))",
+          "expr": "histogram_quantile(0.99, sum by (le, service_name) (rate(http_server_request_duration_seconds_bucket{service_name=~\"$application\",host_name=~\"$host\",host_name!=\"\",host_name!~\".*;.*\",service_name!~\".*;.*\",http_route=~\"$route\"}[5m])))",
           "refId": "C",
-          "legendFormat": "p99 · {{job}}",
+          "legendFormat": "p99 · {{service_name}}",
           "maxDataPoints": 600
         }
       ],
-      "description": "RED - latência p50/p95/p99. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "description": "RED - latência p50/p95/p99. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados. Identidade APM: aplicação usa service.name e host usa host.name em métricas e traces. Todos os hosts inclui serviços homônimos nos hosts selecionados; séries sem identidade ou com labels concatenadas inválidas não são atribuídas.",
       "fieldConfig": {
         "defaults": {
           "unit": "s",
@@ -612,12 +612,12 @@
       },
       "targets": [
         {
-          "query": "{ resource.service.name =~ \"$application\" }",
+          "query": "{ resource.host.name != \"\" && resource.host.name =~ \"$host\" && resource.service.name =~ \"$application\" }",
           "queryType": "traceql",
           "refId": "A"
         }
       ],
-      "description": "Traces da aplicação selecionada. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados."
+      "description": "Traces da aplicação selecionada. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados. Identidade APM: aplicação usa service.name e host usa host.name em métricas e traces. Todos os hosts inclui serviços homônimos nos hosts selecionados; séries sem identidade ou com labels concatenadas inválidas não são atribuídas."
     },
     {
       "type": "stat",
@@ -693,29 +693,6 @@
   "templating": {
     "list": [
       {
-        "name": "application",
-        "label": "Aplicação APM (service.name)",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "query": {
-          "query": "label_values(http_server_request_duration_seconds_count, job)",
-          "refId": "var-application"
-        },
-        "includeAll": true,
-        "allValue": ".+",
-        "multi": true,
-        "refresh": 1,
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        },
-        "hide": 0
-      },
-      {
         "name": "route",
         "label": "Rota APM (regex; padrão: todas)",
         "type": "textbox",
@@ -751,7 +728,7 @@
       },
       {
         "name": "host",
-        "label": "Host (logs/containers)",
+        "label": "Host",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -817,6 +794,29 @@
         },
         "hide": 2,
         "regex": "/.*(?:\\/|docker-)([a-f0-9]{64})(?:\\.scope)?$/"
+      },
+      {
+        "name": "application",
+        "label": "Aplicação APM (service.name)",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(http_server_request_duration_seconds_count{host_name=~\"$host\",host_name!=\"\",host_name!~\".*;.*\",service_name!=\"\",service_name!~\".*;.*\"}, service_name)",
+          "refId": "var-application"
+        },
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "refresh": 2,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
       }
     ]
   },

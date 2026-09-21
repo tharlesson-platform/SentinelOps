@@ -120,6 +120,33 @@ const resource = (page: Page, host: string) =>
 test.beforeEach(async ({ page }) => {
   await fixture(page);
 });
+test("classes HTTP: UI, URL, voltar e request preservam recurso e janela", async ({ page }) => {
+  const requests: URL[] = [];
+  page.on("request", (r) => {
+    if (r.url().includes("/observability/traces?")) requests.push(new URL(r.url()));
+  });
+  await page.goto("/sentinelops/?page=traces&service=api&hostName=node-a&container=web&window=6h&end=1800000000&errors=true");
+  const outcome = page.getByRole("combobox", { name: "Resultado da requisição", exact: true });
+  await expect(outcome).toHaveValue("span-error");
+  await expect.poll(() => requests.at(-1)?.searchParams.get("traceStatus")).toBe("span-error");
+  await outcome.selectOption("4xx");
+  await expect.poll(() => requests.at(-1)?.searchParams.get("traceStatus")).toBe("4xx");
+  expect(Object.fromEntries(requests.at(-1)!.searchParams)).toMatchObject({ error: "false", host: "node-a", service: "api", container: "web", start: "1799978400", end: "1800000000", limit: "100" });
+  await outcome.selectOption("5xx");
+  await expect.poll(() => requests.at(-1)?.searchParams.get("traceStatus")).toBe("5xx");
+  await page.goBack();
+  await expect(outcome).toHaveValue("4xx");
+  await expect.poll(() => requests.at(-1)?.searchParams.get("traceStatus")).toBe("4xx");
+  await page.reload();
+  await expect(outcome).toHaveValue("4xx");
+  for (const value of ["all", "span-error"]) {
+    await outcome.selectOption(value);
+    await expect.poll(() => requests.at(-1)?.searchParams.get("traceStatus")).toBe(value);
+    expect(requests.at(-1)?.searchParams.get("host")).toBe("node-a");
+  }
+  await page.goto("/sentinelops/?page=apm");
+  await expect(page.locator(".apm-row.header")).toContainText("HTTP 5xx");
+});
 test("escolha explícita, homônimos, filtro global e container → métricas → logs → voltar → reload", async ({
   page,
 }) => {

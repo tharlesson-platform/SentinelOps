@@ -316,12 +316,12 @@
       },
       "targets": [
         {
-          "query": "{ resource.service.name =~ \"$application\" }",
+          "query": "{ resource.host.name != \"\" && resource.host.name =~ \"$host\" && resource.service.name =~ \"$application\" }",
           "queryType": "traceql",
           "refId": "A"
         }
       ],
-      "description": "Traces da aplicação selecionada. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados."
+      "description": "Traces da aplicação selecionada. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados. Identidade APM: aplicação usa service.name e host usa host.name em métricas e traces. Todos os hosts inclui serviços homônimos nos hosts selecionados; séries sem identidade ou com labels concatenadas inválidas não são atribuídas."
     }
   ],
   "refresh": "15s",
@@ -334,29 +334,6 @@
   ],
   "templating": {
     "list": [
-      {
-        "name": "application",
-        "label": "Aplicação APM (service.name)",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "query": {
-          "query": "label_values(http_server_request_duration_seconds_count, job)",
-          "refId": "var-application"
-        },
-        "includeAll": true,
-        "allValue": ".+",
-        "multi": true,
-        "refresh": 1,
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        },
-        "hide": 0
-      },
       {
         "name": "environment",
         "label": "Ambiente",
@@ -382,7 +359,7 @@
       },
       {
         "name": "host",
-        "label": "Host (logs/containers)",
+        "label": "Host",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -448,6 +425,29 @@
         },
         "hide": 2,
         "regex": "/.*(?:\\/|docker-)([a-f0-9]{64})(?:\\.scope)?$/"
+      },
+      {
+        "name": "application",
+        "label": "Aplicação APM (service.name)",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(http_server_request_duration_seconds_count{host_name=~\"$host\",host_name!=\"\",host_name!~\".*;.*\",service_name!=\"\",service_name!~\".*;.*\"}, service_name)",
+          "refId": "var-application"
+        },
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "refresh": 2,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
       }
     ]
   },

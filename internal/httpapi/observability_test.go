@@ -6,12 +6,65 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/sentinelops/sentinelops/internal/telemetryquery"
 )
+
+func TestObservedTraceHTTPOutcomesKeepResourceScope(t *testing.T) {
+	resource := `resource.service.name = "api" && resource.host.name = "node-a" && resource.container.name = "web"`
+	for _, tc := range []struct{ outcome, legacy, clause string }{
+		{"", "", ""}, {"all", "true", ""},
+		{"", "true", `status = error`}, {"span-error", "false", `status = error`},
+		{"4xx", "true", `((span.http.response.status_code >= 400 && span.http.response.status_code < 500) || (span.http.status_code >= 400 && span.http.status_code < 500))`},
+		{"5xx", "false", `((span.http.response.status_code >= 500 && span.http.response.status_code < 600) || (span.http.status_code >= 500 && span.http.status_code < 600))`},
+	} {
+		t.Run(tc.outcome+"/legacy="+tc.legacy, func(t *testing.T) {
+			params := url.Values{"service": {"api"}, "host": {"node-a"}, "container": {"web"}, "traceStatus": {tc.outcome}, "error": {tc.legacy}, "start": {"1799996400"}, "end": {"1800000000"}, "limit": {"100"}}
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/observability/traces?"+params.Encode(), nil)
+			query, err := observedTraceQuery(req.URL.Query())
+			want := resource
+			if tc.clause != "" {
+				want += " && " + tc.clause
+			}
+			if err != nil || query != "{ "+want+" }" {
+				t.Fatalf("scope/result changed: %s %#v", query, err)
+			}
+			w := httptest.NewRecorder()
+			start, end, _, ok := parseTelemetryWindow(w, req)
+			if !ok || end.Unix() != 1800000000 || end.Sub(start) != time.Hour {
+				t.Fatal("time window changed")
+			}
+		})
+	}
+}
+
+func TestObservedTraceHTTPOutcomesRejectInvalidBeforeBackend(t *testing.T) {
+	for _, value := range []string{"4..", "error", "ALL", "4xx || true", "4xx "} {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/observability/traces?traceStatus="+url.QueryEscape(value), nil)
+		w := httptest.NewRecorder()
+		// No store/telemetry: invalid enums must fail before contacting either.
+		(&Server{}).searchObservedTraces(w, req)
+		if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "invalid_trace_status") {
+			t.Fatalf("invalid value widened: %q %d %s", value, w.Code, w.Body.String())
+		}
+	}
+}
+
+func TestObservedTraceHTTPOutcomesQuoteResourceAndNeverRequireError(t *testing.T) {
+	params := url.Values{"service": {`api" || true`}, "traceStatus": {"4xx"}, "error": {"true"}}
+	query, err := observedTraceQuery(params)
+	if err != nil || !strings.HasPrefix(query, `{ resource.service.name = "api\" || true" && ((`) || strings.Contains(query, "status = error") {
+		t.Fatalf("unsafe/incompatible query: %s %#v", query, err)
+	}
+	params.Set("service", "bad\nvalue")
+	if _, err := observedTraceQuery(params); err == nil || err.Code != "invalid_filter" {
+		t.Fatal("invalid resource accepted")
+	}
+}
 
 func TestAPMUndefinedQuantilesProduceValidJSONWithMissingValues(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

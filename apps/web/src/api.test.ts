@@ -2,6 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "./api";
 
 describe("API", () => {
+  it("encaminha classe HTTP e filtros exatos sem mudar a janela", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ data: { items: [] } })));
+    vi.stubGlobal("fetch", fetchMock);
+    await new API("token").traces({ traceStatus: "4xx", error: true, service: "api", host: "node-a", container: "web", window: "6h", end: 1800000000, limit: 100 });
+    const url = new URL(String(fetchMock.mock.calls[0][0]), "https://example.test");
+    expect(Object.fromEntries(url.searchParams)).toMatchObject({ traceStatus: "4xx", error: "true", service: "api", host: "node-a", container: "web", start: "1799978400", end: "1800000000", limit: "100" });
+  });
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();

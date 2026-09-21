@@ -171,14 +171,14 @@ groups:
   - name: sentinelops-applications
     rules:
       - alert: ApplicationErrorRateHigh
-        expr: sum by (job) (rate(http_server_request_duration_seconds_count{job=~"tqi-platform/.+",http_response_status_code=~"5.."}[5m])) / clamp_min(sum by (job) (rate(http_server_request_duration_seconds_count{job=~"tqi-platform/.+"}[5m])), 0.000001) > 0.05
+        expr: sum by (host_name,service_name,container_id) (rate(http_server_request_duration_seconds_count{host_name=~"tqi-platform|easy-vm",service_name!="",container_id!="",http_response_status_code=~"5.."}[5m])) / clamp_min(sum by (host_name,service_name,container_id) (rate(http_server_request_duration_seconds_count{host_name=~"tqi-platform|easy-vm",service_name!="",container_id!=""}[5m])), 0.000001) > 0.05
         for: 10m
         labels: { severity: warning, team: platform }
         annotations:
           summary: Taxa de erro da aplicação acima de 5%
           runbook_url: docs/runbooks/operational-response.md
       - alert: ApplicationLatencyP95High
-        expr: histogram_quantile(0.95, sum by (le,job) (rate(http_server_request_duration_seconds_bucket{job=~"tqi-platform/.+"}[5m]))) > 1
+        expr: histogram_quantile(0.95, sum by (le,host_name,service_name,container_id) (rate(http_server_request_duration_seconds_bucket{host_name=~"tqi-platform|easy-vm",service_name!="",container_id!=""}[5m]))) > 1
         for: 10m
         labels: { severity: warning, team: platform }
         annotations:

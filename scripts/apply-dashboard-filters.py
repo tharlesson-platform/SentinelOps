@@ -201,6 +201,61 @@ def trace_target(query: str, ref_id: str = "A") -> dict[str, object]:
     return {"query": query, "queryType": "traceql", "refId": ref_id}
 
 
+def apply_trace_service_identity(dashboard: dict[str, object]) -> None:
+    """Use the same observed service and host identity in metrics and traces."""
+    variables = dashboard.get("templating", {}).get("list", [])
+    if not any(v["name"] == "application" for v in variables):
+        return
+    variables[:] = [v for v in variables if v["name"] not in {"trace_service", "trace_host"}]
+    for variable in variables:
+        if variable["name"] == "application":
+            variable["label"] = "Aplicação APM (service.name)"
+            variable["query"]["query"] = (
+                'label_values(http_server_request_duration_seconds_count{'
+                'host_name=~"$host",host_name!="",host_name!~".*;.*",'
+                'service_name!="",service_name!~".*;.*"}, service_name)'
+            )
+            variable["refresh"] = 2
+        elif variable["name"] == "host":
+            variable["label"] = "Host"
+    # Grafana resolves dependencies in order: host precedes its service list.
+    application = next(v for v in variables if v["name"] == "application")
+    variables.remove(application)
+    variables.append(application)
+    for panel in dashboard.get("panels", []):
+        changed = False
+        for target in panel.get("targets", []):
+            expression = str(target.get("expr", ""))
+            if "$application" in expression:
+                for old in ('job=~"(.*/)?$application"', 'job=~"$application"'):
+                    expression = expression.replace(old, (
+                        'service_name=~"$application",host_name=~"$host",'
+                        'host_name!="",host_name!~".*;.*",service_name!~".*;.*"'
+                    ))
+                expression = re.sub(r'(by\s*\([^)]*)\bjob\b', r'\1service_name', expression)
+                target["expr"] = expression
+                if "legendFormat" in target:
+                    target["legendFormat"] = target["legendFormat"].replace("{{job}}", "{{service_name}}")
+                changed = True
+            query = str(target.get("query", ""))
+            if 'resource.service.name =~ "$application"' in query:
+                query = query.replace('resource.service.namespace =~ "$host"',
+                                      'resource.host.name =~ "$host"')
+                if 'resource.host.name =~ "$host"' not in query:
+                    query = query.replace('{ ', '{ resource.host.name =~ "$host" && ', 1)
+                query = query.replace('{ ', '{ resource.host.name != "" && ', 1)
+                target["query"] = query
+                changed = True
+            if changed:
+                marker = " Identidade APM: "
+                base = str(panel.get("description", "")).split(" Identidade dos traces: ", 1)[0].split(marker, 1)[0]
+                panel["description"] = base + marker + (
+                    "aplicação usa service.name e host usa host.name em métricas e traces. "
+                    "Todos os hosts inclui serviços homônimos nos hosts selecionados; "
+                    "séries sem identidade ou com labels concatenadas inválidas não são atribuídas."
+                )
+
+
 def panels_by_id(dashboard: dict[str, object]) -> dict[int, dict[str, object]]:
     return {panel["id"]: panel for panel in dashboard.get("panels", []) if "id" in panel}
 
@@ -1024,29 +1079,10 @@ def apply_tqi(dashboard: dict[str, object]) -> None:
     )
     panels = panels_by_id(dashboard)
     node = 'deployment_environment=~"$environment",instance=~"$host"'
-    target_info = (
-        'max by (job, instance, host_name) '
-        '(target_info{host_name=~"$host",telemetry_sdk_name="beyla"})'
-    )
-    count_rate = (
-        '(rate(http_server_request_duration_seconds_count{job=~"$host/(.*/)?$application",'
-        'http_route=~"$route"}[5m]) or '
-        '(rate(http_server_request_duration_seconds_count{job=~"(.*/)?$application",http_route=~"$route"}[5m]) '
-        f'* on (job, instance) group_left (host_name) {target_info}))'
-    )
-    bucket_rate = (
-        '(rate(http_server_request_duration_seconds_bucket{job=~"$host/(.*/)?$application",'
-        'http_route=~"$route"}[5m]) or '
-        '(rate(http_server_request_duration_seconds_bucket{job=~"(.*/)?$application",http_route=~"$route"}[5m]) '
-        f'* on (job, instance) group_left (host_name) {target_info}))'
-    )
-    error_rate = (
-        '(rate(http_server_request_duration_seconds_count{job=~"$host/(.*/)?$application",'
-        'http_route=~"$route",http_response_status_code=~"5.."}[5m]) or '
-        '(rate(http_server_request_duration_seconds_count{job=~"(.*/)?$application",http_route=~"$route",'
-        'http_response_status_code=~"5.."}[5m]) '
-        f'* on (job, instance) group_left (host_name) {target_info}))'
-    )
+    selector = 'job=~"$application",http_route=~"$route"'
+    count_rate = f'rate(http_server_request_duration_seconds_count{{{selector}}}[5m])'
+    bucket_rate = f'rate(http_server_request_duration_seconds_bucket{{{selector}}}[5m])'
+    error_rate = f'rate(http_server_request_duration_seconds_count{{{selector},http_response_status_code=~"5.."}}[5m])'
     set_panel(panels, 2, [prometheus_target(f'count(up{{job="linux-node",{node}}} == 1)')])
     set_panel(panels, 3, [prometheus_target(f'100 - avg(rate(node_cpu_seconds_total{{{node},mode="idle"}}[5m])) * 100')])
     set_panel(panels, 4, [prometheus_target(f'max(100 * (1 - node_memory_MemAvailable_bytes{{{node}}} / node_memory_MemTotal_bytes{{{node}}}))')])
@@ -1082,6 +1118,7 @@ def apply_tqi(dashboard: dict[str, object]) -> None:
         datasource=TEMPO,
         title="APM — traces por aplicação e host",
     )
+    panels[14]["description"] = "Traces OpenTelemetry por host e serviço."
     set_panel(
         panels,
         15,
@@ -1349,6 +1386,7 @@ def apply_filters(path: Path) -> None:
         raise ValueError(f"dashboard sem política de filtros: {path}")
 
     apply_docker_log_identity(dashboard)
+    apply_trace_service_identity(dashboard)
     apply_noc_ux(dashboard, name)
     dashboard["version"] = 3
     path.write_text(json.dumps(dashboard, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
