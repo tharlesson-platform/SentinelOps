@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   API,
+  telemetryWindow,
   ContainerDetails,
   ContainerSummary,
   HostDetails,
@@ -9,6 +10,8 @@ import {
   SourceStatus,
   TelemetrySeries,
 } from "./api";
+import { TelemetryChart } from "./TelemetryChart";
+import { resourceMetrics } from "./chartModel";
 import { Explorer, NativeProfiles } from "./Explorer";
 import { EntityContext, Route } from "./navigation";
 export type { EntityContext } from "./navigation";
@@ -66,6 +69,15 @@ export function useQuery<T>(
 }
 export function ObservabilityView(props: Props) {
   const { page, route, update } = props;
+  const [live, setLive] = useState(false);
+  useEffect(() => {
+    if (!live) return;
+    const timer = window.setInterval(
+      () => update({ end: Math.floor(Date.now() / 1000) }, true),
+      60000,
+    );
+    return () => window.clearInterval(timer);
+  }, [live, update]);
   return (
     <>
       <div className="page-head">
@@ -91,11 +103,37 @@ export function ObservabilityView(props: Props) {
             ))}
           </select>
           <small>
+            {live
+              ? "Atualização a cada 60s"
+              : "Janela fixa · leitura do período selecionado"}
+          </small>
+          <small>
             Até {new Date(route.end * 1000).toLocaleString("pt-BR")}
           </small>
+          <button
+            type="button"
+            onClick={() => update({ end: Math.floor(Date.now() / 1000) }, true)}
+          >
+            Trazer para agora
+          </button>
+          <span className="live-toggle">
+            <input
+              type="checkbox"
+              aria-label="Acompanhar ao vivo"
+              checked={live}
+              onChange={(e) => {
+                setLive(e.target.checked);
+                if (e.target.checked)
+                  update({ end: Math.floor(Date.now() / 1000) }, true);
+              }}
+            />{" "}
+            Acompanhar ao vivo (60s)
+          </span>
         </label>
       </div>
-      {page === "explorer" ? <Explorer {...props} /> : page === "hosts" || page === "docker" ? (
+      {page === "explorer" ? (
+        <Explorer {...props} />
+      ) : page === "hosts" || page === "docker" ? (
         <Inventory {...props} />
       ) : page === "metrics" ? (
         <Details {...props} />
@@ -122,7 +160,8 @@ const titles = {
   profiles: "Perfis de execução",
 };
 const descriptions = {
-  explorer: "Explore as métricas disponíveis e as visões do Grafana dentro do SentinelOps. Escolha uma fonte, os filtros e o período.",
+  explorer:
+    "Explore as métricas disponíveis e as visões do Grafana dentro do SentinelOps. Escolha uma fonte, os filtros e o período.",
   hosts:
     "Escolha um servidor para investigar processamento, memória, disco e rede.",
   docker:
@@ -137,7 +176,7 @@ function Inventory(props: Props) {
   const { api, page, route, update, refresh } = props;
   const docker = page === "docker";
   const inventory = useQuery<TelemetryList<HostSummary | ContainerSummary>>(
-    `${page}:${refresh}`,
+    `${page}:${refresh}:${route.end}`,
     (signal) => (docker ? api.containers({}, signal) : api.hosts("", signal)),
   );
   const items = inventory.data?.items || [];
@@ -250,7 +289,9 @@ function Inventory(props: Props) {
             >
               <span aria-hidden="true">{"host" in i ? "▣" : "▤"}</span>
               <div>
-                <strong>{i.name}</strong>
+                <strong>
+                  {"host" in i ? i.name : i.hostName || i.instance}
+                </strong>
                 <small>
                   {"host" in i ? i.host : i.instance} ·{" "}
                   {i.environment || "Ambiente não informado"}
@@ -300,8 +341,8 @@ function Details(props: Props) {
   ]);
   const result = useQuery<HostDetails | ContainerDetails>(
     key,
-    (signal) =>
-      c.container
+    async (signal) => {
+      const details = await (c.container
         ? api.containerDetails(
             c.container,
             c.host,
@@ -309,7 +350,37 @@ function Details(props: Props) {
             route.end,
             signal,
           )
-        : api.hostDetails(c.host!, route.window, route.end, signal),
+        : api.hostDetails(c.host!, route.window, route.end, signal));
+      if (!c.container) {
+        const params = telemetryWindow(route.window, route.end);
+        params.set("metric", "node_memory_SwapTotal_bytes");
+        params.set("filters", JSON.stringify({ instance: c.host }));
+        try {
+          const capacity = await api.request<{
+            stepSeconds?: number;
+            result?: { series?: TelemetrySeries[] };
+          }>(`/api/v1/observability/explorer/metric?${params}`, { signal });
+          details.metrics.swapCapacity = capacity.result?.series || [];
+          details.metricSteps = {
+            swapUsed: capacity.stepSeconds || details.stepSeconds,
+          };
+          if (
+            details.metrics.swapCapacity.some((s) =>
+              s.points.some((p) => p.value > 0),
+            )
+          ) {
+            params.set("metric", "node_memory_SwapFree_bytes");
+            const free = await api.request<{
+              result?: { series?: TelemetrySeries[] };
+            }>(`/api/v1/observability/explorer/metric?${params}`, { signal });
+            details.metrics.swapFree = free.result?.series || [];
+          }
+        } catch {
+          details.metrics.swapCapacity = [];
+        }
+      }
+      return details;
+    },
     !!c.host,
   );
   if (!c.host)
@@ -378,14 +449,18 @@ function Details(props: Props) {
             cada {result.data.stepSeconds}s
           </p>
           <div className="chart-grid">
-            {Object.entries(result.data.metrics).map(([name, series]) => (
+            {Object.entries(
+              resourceMetrics(result.data.metrics, !!c.container),
+            ).map(([name, series]) => (
               <MiniChart
                 key={name}
                 name={name}
                 series={series || []}
                 start={result.data!.start}
                 end={result.data!.end}
-                step={result.data!.stepSeconds}
+                step={
+                  result.data!.metricSteps?.[name] || result.data!.stepSeconds
+                }
               />
             ))}
           </div>
@@ -643,7 +718,9 @@ function Traces({ api, route, update, refresh }: Props) {
   );
 }
 function APM({ api, route, update, refresh }: Props) {
-  const result = useQuery(`apm:${refresh}`, (signal) => api.apm(signal));
+  const result = useQuery(`apm:${refresh}:${route.end}`, (signal) =>
+    api.apm(signal),
+  );
   return (
     <>
       <QueryStatus
@@ -827,6 +904,16 @@ function NoData({ text }: { text: string }) {
   );
 }
 const chartMeta: Record<string, [string, string, string]> = {
+  cpuUsed: [
+    "CPU em uso",
+    "%",
+    "Quanto da capacidade de processamento do servidor está sendo utilizada. Menor significa mais capacidade livre.",
+  ],
+  memoryPercent: [
+    "Memória em uso do limite",
+    "%",
+    "Memória utilizada dividida pelo limite informado pelo coletor. Sem limite válido, o percentual fica sem dados.",
+  ],
   cpuByMode: [
     "Processamento por modo",
     "%",
@@ -853,7 +940,11 @@ const chartMeta: Record<string, [string, string, string]> = {
     "%",
     "Proporção da memória total do servidor.",
   ],
-  swapUsed: ["Memória swap", "%", "Proporção de swap utilizada."],
+  swapUsed: [
+    "Memória swap",
+    "%",
+    "Percentual exibido apenas quando a fonte confirma capacidade de swap maior que zero. Sem swap configurado ou sem capacidade verificada: sem percentual.",
+  ],
   diskUsed: ["Espaço em disco", "%", "Uma série por sistema de arquivos."],
   diskRead: ["Leitura de disco", "bytes/s", "Dados lidos por segundo."],
   diskWrite: ["Escrita de disco", "bytes/s", "Dados gravados por segundo."],
@@ -880,180 +971,17 @@ const chartMeta: Record<string, [string, string, string]> = {
     "Compare com a quantidade de núcleos.",
   ],
 };
-const colors = [
-  "#3781b0",
-  "#d14555",
-  "#9574cc",
-  "#a07816",
-  "#009786",
-  "#70828f",
-];
-export function chartSegments(
-  series: TelemetrySeries,
-  start: number,
-  end: number,
-  max: number,
-  step: number,
-  min = 0,
-) {
-  const segments: string[][] = [];
-  let segment: string[] = [];
-  let previous: number | undefined;
-  for (const p of [...series.points].sort(
-    (a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp),
-  )) {
-    const t = Date.parse(p.timestamp);
-    if (
-      p.value == null ||
-      !Number.isFinite(p.value) ||
-      !Number.isFinite(t) ||
-      t < start ||
-      t > end
-    ) {
-      if (segment.length) segments.push(segment);
-      segment = [];
-      previous = undefined;
-      continue;
-    }
-    if (previous !== undefined && t - previous > step * 1500) {
-      if (segment.length) segments.push(segment);
-      segment = [];
-    }
-    segment.push(
-      `${(((t - start) / Math.max(end - start, 1)) * 480).toFixed(2)},${(100 - ((p.value - min) / (max > min ? max - min : 1)) * 90).toFixed(2)}`,
-    );
-    previous = t;
-  }
-  if (segment.length) segments.push(segment);
-  return segments;
-}
-export function MiniChart({
-  name,
-  series,
-  start,
-  end,
-  step,
-  meta,
-  legendFormat,
-}: {
-  legendFormat?: string;
-  meta?: [string,string,string];
+export { chartSegments } from "./TelemetryChart";
+export function MiniChart(props: {
   name: string;
   series: TelemetrySeries[];
   start: string;
   end: string;
   step: number;
+  meta?: [string, string, string];
+  legendFormat?: string;
 }) {
-  const [label, unit, description] = meta || chartMeta[name] || [
-    name,
-    "valor",
-    "Série informada pela fonte.",
-  ];
-  const max = Math.max(
-    0,
-    ...series
-      .flatMap((s) => s.points.map((p) => p.value ?? 0))
-      .filter(Number.isFinite),
-  );
-  const min = Math.min(0, ...series.flatMap(s=>s.points.map(p=>p.value ?? 0)).filter(Number.isFinite));
   return (
-    <article className="mini-chart">
-      <header>
-        <b>{label}</b>
-        <span>
-          {unit} · escala {number(min)}–{number(max)}
-        </span>
-      </header>
-      <p>{description}</p>
-      {series.some((s) =>
-        s.points.some((p) => p.value != null && Number.isFinite(p.value)),
-      ) ? (
-        <svg
-          viewBox="0 0 480 110"
-          role="img"
-          aria-label={`${label}: séries separadas no tempo, valores na tabela abaixo`}
-        >
-          {series.map((s, i) =>
-            chartSegments(s, Date.parse(start), Date.parse(end), max, step, min).map(
-              (segment, j) => (
-                <g key={`${i}-${j}`}>
-                  <polyline
-                    style={{ stroke: colors[i % colors.length] }}
-                    points={segment.join(" ")}
-                  />
-                  {segment.map((point, k) => (
-                    <circle
-                      key={k}
-                      cx={point.split(",")[0]}
-                      cy={point.split(",")[1]}
-                      r="1.5"
-                      fill={colors[i % colors.length]}
-                    />
-                  ))}
-                </g>
-              ),
-            ),
-          )}
-        </svg>
-      ) : (
-        <div className="chart-no-data">Sem amostras no período</div>
-      )}
-      <footer>
-        <time>{new Date(start).toLocaleTimeString("pt-BR")}</time>
-        <time>{new Date(end).toLocaleTimeString("pt-BR")}</time>
-      </footer>
-      <ul className="series-legend">
-        {series.map((s, i) => {
-          const last = [...s.points]
-            .filter((p) => p.value != null && Number.isFinite(p.value))
-            .sort(
-              (a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp),
-            )[0];
-          const sourceLegend = legendFormat?.replace(/\{\{\s*([^}]+?)\s*\}\}/g,(_token,key)=>s.labels[key]||"");
-          const name =
-            Object.entries(s.labels)
-              .filter(([key]) => key !== "__name__")
-              .map(([k, v]) => `${k}=${v}`)
-              .join(" · ") || "Série única";
-          return (
-            <li key={i}>
-              <i style={{ background: colors[i % colors.length] }} />
-              {sourceLegend && <b>{sourceLegend} · </b>}{name}
-              <br />
-              {last
-                ? `Última amostra: ${number(last.value)} ${unit} às ${new Date(last.timestamp).toLocaleTimeString("pt-BR")}${Date.parse(end) - Date.parse(last.timestamp) > step * 2000 ? " · amostra antiga" : ""}`
-                : "Sem amostras"}
-            </li>
-          );
-        })}
-      </ul>
-      <details>
-        <summary>Ver dados em tabela</summary>
-        <div className="chart-data">
-          <table>
-            <thead>
-              <tr>
-                <th>Série</th>
-                <th>Horário</th>
-                <th>Valor ({unit})</th>
-              </tr>
-            </thead>
-            <tbody>
-              {series.flatMap((s, i) =>
-                s.points.map((p, j) => (
-                  <tr key={`${i}-${j}`}>
-                    <td>
-                      {Object.values(s.labels).join(" · ") || "Série única"}
-                    </td>
-                    <td>{new Date(p.timestamp).toLocaleString("pt-BR")}</td>
-                    <td>{number(p.value)}</td>
-                  </tr>
-                )),
-              )}
-            </tbody>
-          </table>
-        </div>
-      </details>
-    </article>
+    <TelemetryChart {...props} meta={props.meta || chartMeta[props.name]} />
   );
 }

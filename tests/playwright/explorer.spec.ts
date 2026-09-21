@@ -185,8 +185,8 @@ test("catálogo pesquisa e pagina, filtro só consulta quando solicitado", async
   expect(JSON.parse(new URL(calls[1]).searchParams.get("filters")!)).toEqual({
     instance: "host-b",
   });
-  await expect(page.locator(".series-legend")).toContainText("host-a");
-  await expect(page.locator(".series-legend")).toContainText("host-b");
+  await expect(page.locator(".chart-legend")).toContainText("host-a");
+  await expect(page.locator(".chart-legend")).toContainText("host-b");
 });
 test("painel nativo preserva default, fração, literal e reload", async ({
   page,
@@ -201,7 +201,8 @@ test("painel nativo preserva default, fração, literal e reload", async ({
     "production",
   );
   await page.getByRole("button", { name: /Uso fracionário/ }).click();
-  await expect(page.locator(".stat-series")).toContainText("fração (0–1)");
+  await expect(page.locator(".stat-series")).toContainText("25 %");
+  await expect(page.locator(".stat-series")).toContainText("75 %");
   expect(JSON.parse(calls[0].searchParams.get("variables")!).environment).toBe(
     "production",
   );

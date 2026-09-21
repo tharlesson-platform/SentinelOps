@@ -130,6 +130,7 @@ export type HostDetails = {
   end: string;
   stepSeconds: number;
   metrics: Record<string, TelemetrySeries[]>;
+  metricSteps?: Record<string, number>;
   sources: { prometheus: SourceStatus };
 };
 export type ContainerDetails = {
@@ -139,6 +140,7 @@ export type ContainerDetails = {
   end: string;
   stepSeconds: number;
   metrics: Record<string, TelemetrySeries[]>;
+  metricSteps?: Record<string, number>;
   sources: { prometheus: SourceStatus };
 };
 export type LogEntry = {

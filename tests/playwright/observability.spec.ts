@@ -97,8 +97,14 @@ async function fixture(page: Page) {
       };
     else if (p.endsWith("/apm"))
       data = { items: [], sources: { prometheus: source("no_data") } };
-    else if (p.endsWith("/explorer/profiles/catalog")) data={types:[],labels:[],sources:{types:source("no_data"),labels:source("no_data")}};
-    else if (p.endsWith("/explorer/profiles/labels")) data={values:[],source:source("no_data"),truncated:false};
+    else if (p.endsWith("/explorer/profiles/catalog"))
+      data = {
+        types: [],
+        labels: [],
+        sources: { types: source("no_data"), labels: source("no_data") },
+      };
+    else if (p.endsWith("/explorer/profiles/labels"))
+      data = { values: [], source: source("no_data"), truncated: false };
     else if (p.endsWith("/assets/search")) data = { items: [] };
     await route.fulfill({ json: { data } });
   });
@@ -130,9 +136,7 @@ test("escolha explícita, homônimos, filtro global e container → métricas �
   await resource(page, "b").click();
   await expect(resource(page, "a")).toBeVisible();
   await expect(page.getByLabel("Servidor", { exact: true })).toHaveValue("");
-  await expect(
-    page.getByText("Última amostra:", { exact: false }),
-  ).toContainText("25");
+  await expect(page.locator(".chart-reading").first()).toContainText("25");
   await page
     .locator(".entity-actions")
     .getByRole("button", { name: "Métricas", exact: true })
@@ -197,9 +201,7 @@ test("troca A → B não permite detalhes antigos nem resposta fora de ordem", a
     page.getByText("Consultando Gráficos", { exact: false }),
   ).toBeVisible();
   await resource(page, "b").click();
-  await expect(
-    page.getByText("Última amostra:", { exact: false }),
-  ).toContainText("88");
+  await expect(page.locator(".chart-reading").first()).toContainText("88");
   releaseA();
   await expect(page.locator(".mini-chart")).not.toContainText("11 %");
 });
@@ -225,9 +227,7 @@ test("atualizar consulta a tela ativa e recupera erro sem manter detalhes anteri
   await expect(page.getByRole("alert")).toContainText("Falha controlada");
   failing = false;
   await page.getByRole("button", { name: "Tentar novamente" }).click();
-  await expect(
-    page.getByText("Última amostra:", { exact: false }),
-  ).toContainText("77");
+  await expect(page.locator(".chart-reading").first()).toContainText("77");
   await expect(page.getByRole("alert")).toHaveCount(0);
   const before = count;
   await page.getByRole("button", { name: "Atualizar dados" }).click();
@@ -335,7 +335,10 @@ test("traces e perfis têm encaminhamentos reais com período", async ({
     page.getByRole("link", { name: "Abrir ferramenta integrada" }),
   ).toHaveAttribute("href", /datasource.*pyroscope/);
   await expect(
-    page.getByText("A seleção de servidor/container de outras páginas não é convertida automaticamente.", { exact: false }),
+    page.getByText(
+      "A seleção de servidor/container de outras páginas não é convertida automaticamente.",
+      { exact: false },
+    ),
   ).toBeVisible();
 });
 test("mobile, teclado, temas e sair continuam acessíveis", async ({ page }) => {
@@ -617,4 +620,66 @@ test("fonte envelhece sem consultas e libera o relógio ao desmontar", async ({
   const afterUnmount = telemetryRequests;
   await page.clock.runFor(6 * 60 * 1000);
   expect(telemetryRequests).toBe(afterUnmount);
+});
+
+test("NOC: percentuais, eixos, série oculta não mascara capacidade e legenda acessível", async ({
+  page,
+}) => {
+  await page.route("**/observability/hosts/*?*", async (route) => {
+    const url = new URL(route.request().url());
+    const data = detail(url);
+    const end = Number(url.searchParams.get("end"));
+    const series = (value: number, labels: Record<string, string>) => ({
+      labels,
+      points: [
+        {
+          timestamp: new Date((end - 15) * 1000).toISOString(),
+          value: value - 1,
+        },
+        { timestamp: new Date(end * 1000).toISOString(), value },
+      ],
+    });
+    data.metrics = {
+      cpuByMode: [series(65, { mode: "idle" })],
+      memoryUsed: [series(45, { instance: "node-a" })],
+      diskUsed: [
+        series(95, { mountpoint: "/" }),
+        series(20, { mountpoint: "/mnt" }),
+      ],
+    } as typeof data.metrics;
+    await route.fulfill({ json: { data } });
+  });
+  await page.goto(
+    "/sentinelops/?page=hosts&host=exporter-a:9100&hostName=node-a",
+  );
+  const cpu = page
+    .locator(".noc-chart")
+    .filter({ has: page.locator("header b", { hasText: "CPU em uso" }) });
+  await expect(cpu.locator(".chart-reading")).toContainText("35 %");
+  await expect(cpu.locator(".chart-axis").first()).toContainText("0 %");
+  const disk = page
+    .locator(".noc-chart")
+    .filter({ has: page.locator("header b", { hasText: "Espaço em disco" }) });
+  await expect(disk.locator(".usage-state")).toContainText("Uso muito alto");
+  await disk.getByRole("button", { name: "/", exact: true }).click();
+  await expect(disk.locator(".chart-reading")).toContainText("95 %");
+  await expect(disk.locator(".usage-state")).toContainText("Uso muito alto");
+  await cpu.getByRole("slider").focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(cpu.locator(".chart-tooltip")).toContainText("amostra às");
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({
+    path: "artifacts/noc-charts-desktop.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBeTruthy();
+  await page.screenshot({
+    path: "artifacts/noc-charts-mobile.png",
+    fullPage: true,
+  });
 });

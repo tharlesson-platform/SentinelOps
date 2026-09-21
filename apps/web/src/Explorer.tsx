@@ -1,3 +1,4 @@
+import { formatMeasurement } from "./chartModel";
 import { useEffect, useState } from "react";
 import {
   API,
@@ -929,12 +930,7 @@ function Results({
                 return (
                   <article key={i}>
                     <strong>
-                      {last
-                        ? last.value.toLocaleString("pt-BR", {
-                            maximumFractionDigits: 4,
-                          })
-                        : "Sem dados"}{" "}
-                      {unit}
+                      {formatMeasurement(last?.value, unit)}
                     </strong>
                     <p>{labelsText(s.labels)}</p>
                     <small>
