@@ -11,6 +11,15 @@ from api_edge_drain import DrainTimeout
 def item(number,image):
  return {'Id':str(number),'Name':'api-'+str(number),'Image':image,'State':{'Status':'running','Health':{'Status':'healthy'}},'NetworkSettings':{'Networks':{'sentinelops_control':{'IPAddress':'172.20.0.'+str(number)},'sentinelops_telemetry':{}}},'RestartCount':0}
 class ReleaseTests(unittest.TestCase):
+ def test_bundle_rejects_root_assets_and_accepts_deployed_subpath(self):
+  with tempfile.TemporaryDirectory() as tmp:
+   r=Path(tmp);(r/'web/assets').mkdir(parents=True);(r/'web/assets/app.js').write_text('fixture')
+   with patch.object(release,'RELEASE',r):
+    (r/'web/index.html').write_text('<script src="/assets/app.js"></script><script src="/config.js"></script>')
+    with self.assertRaises(AssertionError):release.validate_web_bundle()
+    (r/'web/index.html').write_text('<script src="/sentinelops/assets/app.js"></script><script src="/sentinelops/config.js"></script>')
+    release.validate_web_bundle()
+
  def test_dns_uses_full_a_answer_without_resolver_address(self):
   with patch.object(release,'run',return_value='Server: 127.0.0.11\nAddress: 127.0.0.11:53\nName: api\nAddress: 172.18.0.7\nName: api\nAddress: 172.18.0.16\n'):
    self.assertEqual(release.resolved_api_ips(),{'172.18.0.7','172.18.0.16'})
@@ -57,7 +66,7 @@ class ReleaseTests(unittest.TestCase):
    (r/'prepared.json').write_text(json.dumps(prepared));(r/'before-api.json').write_text(json.dumps([{'id':'1'},{'id':'2'}]))
    (r/'before-runtime.json').write_text(json.dumps({'checks':{'fixture':{'passed':True}}}))
    edge=Mock();edge.pin.side_effect=error
-   with patch.multiple(release,ROOT=root,RELEASE=r,BACKUP=b,WEB=web,LOCK=root/'lock',EDGE_CONFIG=root/'edge'),patch.object(release,'apis',return_value=[item(1,'old'),item(2,'old')]),patch.object(release,'probe'),patch.object(release,'auth'),patch.object(release,'EdgeDrainer',return_value=edge),patch.object(release,'replace_replicas') as replace,patch.object(release,'set_image') as set_image:
+   with patch.object(release,'validate_web_bundle'),patch.multiple(release,ROOT=root,RELEASE=r,BACKUP=b,WEB=web,LOCK=root/'lock',EDGE_CONFIG=root/'edge'),patch.object(release,'apis',return_value=[item(1,'old'),item(2,'old')]),patch.object(release,'probe'),patch.object(release,'auth'),patch.object(release,'EdgeDrainer',return_value=edge),patch.object(release,'replace_replicas') as replace,patch.object(release,'set_image') as set_image:
     with self.assertRaises(type(error)):release.deploy()
     replace.assert_not_called();set_image.assert_not_called()
     return edge.restore_dynamic.call_count

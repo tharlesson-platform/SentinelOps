@@ -18,6 +18,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urlparse
 from api_edge_drain import EdgeDrainer, DrainTimeout
 
 ROOT=Path('/opt/sentinelops')
@@ -116,6 +117,7 @@ def replace_replicas(image,edge,guard):
  return final
 
 def prepare():
+ validate_web_bundle()
  assert (RELEASE/'out/app').read_bytes()[:4]==b'\x7fELF'
  current=apis();assert len(current)==2 and all(good(x) for x in current)
  assert len({x['Image'] for x in current})==1
@@ -144,7 +146,18 @@ def prepare():
  save('prepared.json',{'commit':commit,'base_image':old,'new_image':new['Id'],'binary_sha256':sha(RELEASE/'out/app'),'runtime_config_sha256':sha(WEB/'config.js'),'environment_sha256':sha(ROOT/'.env')})
  print('RELEASE_PREPARED',commit,flush=True)
 
+def validate_web_bundle():
+ base_path=urlparse(BASE).path.rstrip('/')+'/'
+ refs=re.findall(r'(?:src|href)=["\']([^"\']+)["\']',(RELEASE/'web/index.html').read_text())
+ assert refs and all(ref.startswith(base_path) for ref in refs),'bundle deve ser compilado com VITE_BASE_PATH='+base_path
+ for ref in refs:
+  relative=ref[len(base_path):]
+  assert '..' not in Path(relative).parts and relative,'referência web inválida'
+  assert relative=='config.js' or (RELEASE/'web'/relative).is_file(),'asset referenciado ausente'
+ assert base_path+'config.js' in refs,'configuração runtime ausente no HTML'
+
 def publish_web():
+ validate_web_bundle()
  for path in (RELEASE/'web').rglob('*'):
   if path.is_file() and path.name not in ('index.html','config.js'):
    dst=WEB/path.relative_to(RELEASE/'web');dst.parent.mkdir(parents=True,exist_ok=True);dst.parent.chmod(0o755);atomic(dst,path.read_bytes())
@@ -154,6 +167,7 @@ def publish_web():
  assert sha(WEB/'config.js')==sha(BACKUP/'web/config.js')
 
 def deploy():
+ validate_web_bundle()
  assert all(x['passed'] for x in read_json(RELEASE/'before-runtime.json')['checks'].values()),'baseline funcional ausente ou reprovada'
  prepared=read_json(RELEASE/'prepared.json');assert LOCK.read_bytes()==(BACKUP/'images.lock.yml').read_bytes();assert EDGE_CONFIG.read_bytes()==(BACKUP/'edge.conf').read_bytes()
  current=apis()
