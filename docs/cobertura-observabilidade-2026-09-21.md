@@ -6,6 +6,8 @@ API publicada no commit `8b4abdb09c988cb8400f64fed689164bdfd5de82`, após gate c
 
 Validação final do servidor: 24/24 verificações de ingress aprovadas; duas APIs saudáveis, zero reinícios; 21 containers alheios preservados; DNS, configuração original do edge e configuração runtime conferidos.
 
+A evolução posterior dos gráficos para operação NOC, publicada na mesma data, está registrada em [Leitura operacional dos gráficos](observabilidade-noc-2026-09-21.md). O código da API permanece nesta release; o frontend ganhou uma versão própria.
+
 ## Acesso às novas telas
 
 Na aplicação em `/sentinelops/`, os caminhos abaixo estão definidos no código publicado. A validação visual autenticada desses caminhos permanece pendente:

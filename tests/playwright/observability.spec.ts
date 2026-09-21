@@ -683,3 +683,22 @@ test("NOC: percentuais, eixos, série oculta não mascara capacidade e legenda a
     fullPage: true,
   });
 });
+
+test('NOC: acompanhamento ao vivo renova a janela e preserva o recurso; pausa interrompe consultas', async ({page}) => {
+  await page.clock.install();
+  let calls = 0;
+  page.on('request', request => {if(request.url().includes('/observability/containers/api?')) calls++;});
+  await openContainers(page);
+  await resource(page,'b').click();
+  await expect(page.locator('.chart-reading').first()).toContainText('25');
+  await page.getByRole('checkbox',{name:'Acompanhar ao vivo'}).check();
+  const before = calls;
+  await page.clock.fastForward(61000);
+  await expect.poll(()=>calls).toBeGreaterThan(before);
+  expect(new URL(page.url()).searchParams.get('host')).toBe('cadvisor-b:8080');
+  await expect(page.getByLabel('Período',{exact:true})).toHaveValue('1h');
+  await page.getByRole('checkbox',{name:'Acompanhar ao vivo'}).uncheck();
+  const paused = calls;
+  await page.clock.fastForward(61000);
+  expect(calls).toBe(paused);
+});
