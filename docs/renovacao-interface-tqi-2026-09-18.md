@@ -58,3 +58,7 @@ Ajuste complementar solicitado pela tarefa de origem: envelhecimento automático
 A revalidação autenticada da instalação anterior reproduziu três respostas APM HTTP 200 com corpo vazio, enquanto o Prometheus retornava valores não finitos nos percentis p95/p99. O cliente de consultas agora omite somente amostras `NaN` e infinitas, preservando zeros reais, valores finitos e seus timestamps. Percentis ausentes permanecem `null`; consultas sem amostras finitas resultam em `no_data`. Nos gráficos, a lacuna temporal continua separando os segmentos. A disponibilidade da fonte não significa cobertura de todas as métricas.
 
 Testes Go cobrem vetores mistos, séries com lacunas, séries sem valores finitos e o caminho cliente → APM → resposta JSON com percentis ausentes. `go test ./internal/httpapi ./internal/telemetryquery` e `git diff --check` passaram. A correção recebeu revisão independente antes da geração da nova imagem; esse resultado ainda é distinto da confirmação de implantação.
+
+## Resultado da implantação autorizada
+
+A etapa operacional foi concluída em 21/09/2026 para o commit `3b8192e`. Veja [resultado, verificações reais e limitações do deploy](deploy-interface-tqi-2026-09-21.md). Os resultados locais e pendências históricos acima foram preservados para distinguir o que foi testado em cada etapa.
