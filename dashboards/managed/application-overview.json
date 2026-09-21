@@ -200,7 +200,7 @@
     },
     {
       "type": "stat",
-      "title": "Logs da aplicação nos últimos 5 minutos",
+      "title": "Eventos da aplicação nos últimos 5 minutos",
       "id": 4,
       "gridPos": {
         "h": 4,
@@ -214,11 +214,17 @@
       },
       "targets": [
         {
-          "expr": "sum(count_over_time({job=\"docker-container\",filename=~\".*/(${container_id:regex})/.*\",host_name=~\"$host\",deployment_environment=~\"$environment\"} [5m]))",
-          "refId": "A"
+          "expr": "sum(count_over_time({job=\"docker-container\",container_id!=\"\",container_id=~\"${container_id:regex}\",host_name=~\"$host\",deployment_environment=~\"$environment\"} [5m]))",
+          "refId": "A",
+          "legendFormat": "Docker por ID"
+        },
+        {
+          "expr": "sum(count_over_time({job=\"docker-container\",container_id=\"\",filename=~\".*/(${container_id:regex})/.*\",host_name=~\"$host\",deployment_environment=~\"$environment\"} [5m]))",
+          "refId": "B",
+          "legendFormat": "Docker legado"
         }
       ],
-      "description": "Logs da aplicação nos últimos 5 minutos. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "description": "Contagem de eventos da aplicação nos últimos 5 minutos. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados. Consultas Docker separadas: A = Docker por ID (container_id); B = Docker legado por filename somente sem container_id. Conjuntos disjuntos; valores por consulta, sem total consolidado.",
       "fieldConfig": {
         "defaults": {
           "unit": "short",
@@ -248,7 +254,7 @@
           "fields": ""
         },
         "orientation": "auto",
-        "textMode": "value",
+        "textMode": "value_and_name",
         "wideLayout": true,
         "colorMode": "background",
         "graphMode": "none",
@@ -566,12 +572,19 @@
       },
       "targets": [
         {
-          "expr": "{job=\"docker-container\",filename=~\".*/(${container_id:regex})/.*\",host_name=~\"$host\",deployment_environment=~\"$environment\"}",
+          "expr": "{job=\"docker-container\",container_id!=\"\",container_id=~\"${container_id:regex}\",host_name=~\"$host\",deployment_environment=~\"$environment\"}",
           "refId": "A",
+          "legendFormat": "Docker por ID",
+          "maxLines": 200
+        },
+        {
+          "expr": "{job=\"docker-container\",container_id=\"\",filename=~\".*/(${container_id:regex})/.*\",host_name=~\"$host\",deployment_environment=~\"$environment\"}",
+          "refId": "B",
+          "legendFormat": "Docker legado",
           "maxLines": 200
         }
       ],
-      "description": "Logs da aplicação selecionada. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "description": "Logs da aplicação selecionada. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados. Consultas Docker separadas: A = Docker por ID (container_id); B = Docker legado por filename somente sem container_id. Conjuntos disjuntos; valores por consulta, sem total consolidado. Até 200 linhas por consulta (até 400 no conjunto), sem garantia de cobertura completa.",
       "options": {
         "showTime": true,
         "showLabels": false,

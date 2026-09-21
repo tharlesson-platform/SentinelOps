@@ -1,0 +1,71 @@
+diff --git a/vendor/go.opentelemetry.io/obi/pkg/docker/docker_api_client.go b/vendor/go.opentelemetry.io/obi/pkg/docker/docker_api_client.go
+index bfceb97..ae89186 100644
+--- a/vendor/go.opentelemetry.io/obi/pkg/docker/docker_api_client.go
++++ b/vendor/go.opentelemetry.io/obi/pkg/docker/docker_api_client.go
+@@ -20,6 +20,11 @@ import (
+ 
+ const composeServiceLabelKey = "com.docker.compose.service"
+ 
++func logicalServiceName(labels map[string]string) string {
++ if name := labels[composeServiceLabelKey]; name != "" { return name }
++ return labels["com.docker.swarm.service.name"]
++}
++
+ func cmlog() *slog.Logger {
+ 	return slog.With("component", "docker.ContainerStore")
+ }
+@@ -116,7 +121,7 @@ func (s *ContainerStore) ContainerInfo(ctx context.Context, pid app.PID) (Contai
+ 
+ 	composeSvcName := ""
+ 	if inspectInfo.Config != nil && len(inspectInfo.Config.Labels) > 0 {
+-		composeSvcName = inspectInfo.Config.Labels[composeServiceLabelKey]
++		composeSvcName = logicalServiceName(inspectInfo.Config.Labels)
+ 	}
+ 
+ 	return ContainerMeta{
+diff --git a/vendor/go.opentelemetry.io/obi/pkg/docker/sentinelops_test.go b/vendor/go.opentelemetry.io/obi/pkg/docker/sentinelops_test.go
+new file mode 100644
+index 0000000..ba7d864
+--- /dev/null
++++ b/vendor/go.opentelemetry.io/obi/pkg/docker/sentinelops_test.go
+@@ -0,0 +1,9 @@
++package docker
++import "testing"
++func TestSentinelLogicalService(t *testing.T) {
++ for _,tc:=range []struct{labels map[string]string;want string}{
++  {map[string]string{"com.docker.compose.service":"api","com.docker.swarm.service.name":"stack_api"},"api"},
++  {map[string]string{"com.docker.swarm.service.name":"tqi-data_postgres"},"tqi-data_postgres"},
++  {map[string]string{"com.docker.swarm.task.name":"task.1.random"},""},{nil,""},
++ } {if got:=logicalServiceName(tc.labels);got!=tc.want {t.Fatalf("got %q want %q",got,tc.want)}}
++}
+diff --git a/vendor/go.opentelemetry.io/obi/pkg/internal/helpers/container/container.go b/vendor/go.opentelemetry.io/obi/pkg/internal/helpers/container/container.go
+index 98f0b57..74e9031 100644
+--- a/vendor/go.opentelemetry.io/obi/pkg/internal/helpers/container/container.go
++++ b/vendor/go.opentelemetry.io/obi/pkg/internal/helpers/container/container.go
+@@ -31,6 +31,9 @@ type Info struct {
+ }
+ 
+ var cgroupFormats = []*regexp.Regexp{
++	// Docker cgroupfs (v1 and v2): exactly one complete container ID.
++	regexp.MustCompile(`^\d+:[^:]*:/docker/([0-9a-f]{64})$`),
++
+ 	// 0::/docker/<hex...>/kubelet.slice/kubelet-kubepods.slice/kubelet-kubepods-besteffort.slice/kubelet-kubepods-besteffort-pod<hex...>.slice/cri-containerd-<hex...>.scope
+ 	// where the last <hex...> chain is the container ID inside its Pod
+ 	regexp.MustCompile(`^\d+:.*:.*/.*-([\da-fA-F]+)\.scope`),
+diff --git a/vendor/go.opentelemetry.io/obi/pkg/internal/helpers/container/sentinelops_test.go b/vendor/go.opentelemetry.io/obi/pkg/internal/helpers/container/sentinelops_test.go
+new file mode 100644
+index 0000000..0150607
+--- /dev/null
++++ b/vendor/go.opentelemetry.io/obi/pkg/internal/helpers/container/sentinelops_test.go
+@@ -0,0 +1,11 @@
++package container
++import("strings";"testing")
++func TestSentinelDockerCgroup(t *testing.T) {
++ id:=strings.Repeat("a",64)
++ for _,entry:=range []string{"13:cpu,cpuacct:/docker/"+id,"0::/docker/"+id,"1:name=systemd:/system.slice/docker-"+id+".scope","0::/k8s.io/"+id,"0::/kubepods/burstable/podabc/"+id} {
++  got,ok:=findCgroup(entry);if !ok||got!=id {t.Fatalf("not recognized: %s: %q %v",entry,got,ok)}
++ }
++ for _,entry:=range []string{"0::/docker/"+id[:12],"0::/docker/"+id+"a","0::/docker/"+strings.Repeat("g",64),"0::/docker/"+id+"/child","0::/", "garbage/docker/"+id} {
++  if got,ok:=findCgroup(entry);ok {t.Fatalf("accepted invalid: %s: %s",entry,got)}
++ }
++}

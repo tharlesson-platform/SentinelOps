@@ -14,6 +14,29 @@ spec.loader.exec_module(inventory)
 
 
 class ContainerInventoryTest(unittest.TestCase):
+    def test_docker_nanosecond_timestamp(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "docker.log"
+            path.write_text(
+                json.dumps({"time": "2026-09-21T20:00:00.123456789Z", "log": "ok"})
+                + "\n"
+            )
+            self.assertEqual(
+                inventory.log_metadata(str(path))["lastTimestamp"],
+                "2026-09-21T20:00:00.123456+00:00",
+            )
+
+    def test_process_inventory_requests_pid_without_command_arguments(self):
+        with patch.object(
+            inventory, "run", return_value="PID COMMAND\n42 java\n43 java\n44 nginx\n"
+        ) as runner:
+            result = inventory.inspect_container(
+                {"Id": "a" * 64, "Name": "/test", "State": {"Running": True}},
+                "json-file",
+            )
+        self.assertEqual(result["processNames"], ["java", "nginx"])
+        self.assertEqual(runner.call_args.args[0][-1], "pid,comm")
+
     def test_logs_export_counters_not_contents_and_normalize_time(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "container-json.log"

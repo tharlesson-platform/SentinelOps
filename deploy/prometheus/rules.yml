@@ -184,3 +184,35 @@ groups:
         annotations:
           summary: Latência p95 da aplicação acima de 1 segundo
           runbook_url: docs/runbooks/operational-response.md
+
+  - name: sentinelops-local-log-queue
+    rules:
+      # Perfil habilitado neste host; ampliar a lista junto do rollout em outro host.
+      - alert: LocalLogCollectorMissing
+        expr: (count(node_uname_info{host_name="tqi-platform"}) > 0) and on() (absent_over_time(up{job="sentinelops-local-logs",host_name="tqi-platform"}[3m]) or (max_over_time(up{job="sentinelops-local-logs",host_name="tqi-platform"}[3m]) == 0))
+        for: 1m
+        labels: {severity: critical, team: platform, host_name: tqi-platform}
+        annotations:
+          summary: Collector de logs local ausente ou sem scrape válido há três minutos
+          runbook_url: deploy/agents/linux/docker-read/README.md
+      - alert: LocalLogQueuePressure
+        expr: otelcol_exporter_queue_size{job="sentinelops-local-logs"} / otelcol_exporter_queue_capacity{job="sentinelops-local-logs"} > 0.8
+        for: 2m
+        labels: {severity: warning, team: platform}
+        annotations:
+          summary: Fila persistente de logs acima de 80%
+          runbook_url: deploy/agents/linux/docker-read/README.md
+      - alert: LocalLogEnqueueFailure
+        expr: increase(otelcol_exporter_enqueue_failed_log_records_total{job="sentinelops-local-logs"}[5m]) > 0
+        for: 0m
+        labels: {severity: critical, team: platform}
+        annotations:
+          summary: Falha ao persistir registros na fila de logs
+          runbook_url: deploy/agents/linux/docker-read/README.md
+      - alert: LocalLogDeliveryFailure
+        expr: increase(otelcol_exporter_send_failed_log_records_total{job="sentinelops-local-logs"}[5m]) > 0
+        for: 0m
+        labels: {severity: warning, team: platform}
+        annotations:
+          summary: Destino recusou registros de logs; verificar fila e retries
+          runbook_url: deploy/agents/linux/docker-read/README.md

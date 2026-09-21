@@ -1,0 +1,35 @@
+[Unit]
+Description=SentinelOps Docker API restrita (%i)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/sentinelops-docker-read.env
+ExecStart=/usr/bin/python3 /opt/sentinelops-docker-read/proxy.py --expected-host ${SENTINEL_HOST_NAME} --mode %i --socket /run/sentinelops-docker-%i/%i.sock
+Restart=on-failure
+RestartSec=5s
+User=root
+Group=473
+UMask=0077
+RuntimeDirectory=sentinelops-docker-%i
+RuntimeDirectoryMode=0750
+RuntimeDirectoryPreserve=yes
+StateDirectory=sentinelops-docker-read
+StateDirectoryMode=0700
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+MemoryMax=128M
+TasksMax=80
+ReadWritePaths=/run/sentinelops-docker-%i /var/lib/sentinelops-docker-read
+
+[Install]
+WantedBy=multi-user.target

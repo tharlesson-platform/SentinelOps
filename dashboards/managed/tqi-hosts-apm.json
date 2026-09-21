@@ -314,7 +314,7 @@
     },
     {
       "type": "stat",
-      "title": "Logs com erro (15 min)",
+      "title": "Eventos com erro (15 min)",
       "id": 6,
       "gridPos": {
         "h": 4,
@@ -328,8 +328,14 @@
       },
       "targets": [
         {
-          "expr": "sum(count_over_time({job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/(${container_id:regex})/.*\"} |~ \"(?i)error|exception|fatal\" [15m]))",
-          "refId": "A"
+          "expr": "sum(count_over_time({job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",container_id!=\"\",container_id=~\"${container_id:regex}\"} |~ \"(?i)error|exception|fatal\" [15m]))",
+          "refId": "A",
+          "legendFormat": "Docker por ID"
+        },
+        {
+          "expr": "sum(count_over_time({job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",container_id=\"\",filename=~\".*/(${container_id:regex})/.*\"} |~ \"(?i)error|exception|fatal\" [15m]))",
+          "refId": "B",
+          "legendFormat": "Docker legado"
         }
       ],
       "fieldConfig": {
@@ -357,7 +363,7 @@
         },
         "overrides": []
       },
-      "description": "Logs com erro (15 min). Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "description": "Contagem de eventos com erro (15 min). Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados. Consultas Docker separadas: A = Docker por ID (container_id); B = Docker legado por filename somente sem container_id. Conjuntos disjuntos; valores por consulta, sem total consolidado.",
       "options": {
         "reduceOptions": {
           "values": false,
@@ -367,7 +373,7 @@
           "fields": ""
         },
         "orientation": "auto",
-        "textMode": "value",
+        "textMode": "value_and_name",
         "wideLayout": true,
         "colorMode": "background",
         "graphMode": "none",
@@ -961,7 +967,7 @@
     },
     {
       "type": "logs",
-      "title": "Logs das aplicações e do sistema",
+      "title": "Logs dos containers selecionados",
       "id": 15,
       "gridPos": {
         "h": 9,
@@ -975,12 +981,19 @@
       },
       "targets": [
         {
-          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/(${container_id:regex})/.*\"}",
+          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",container_id!=\"\",container_id=~\"${container_id:regex}\"}",
           "refId": "A",
+          "legendFormat": "Docker por ID",
+          "maxLines": 200
+        },
+        {
+          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",container_id=\"\",filename=~\".*/(${container_id:regex})/.*\"}",
+          "refId": "B",
+          "legendFormat": "Docker legado",
           "maxLines": 200
         }
       ],
-      "description": "Logs das aplicações e do sistema. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "description": "Logs de containers no escopo dos filtros; ausência é apresentada como Sem dados. Consultas Docker separadas: A = Docker por ID (container_id); B = Docker legado por filename somente sem container_id. Conjuntos disjuntos; valores por consulta, sem total consolidado. Até 200 linhas por consulta (até 400 no conjunto), sem garantia de cobertura completa.",
       "options": {
         "showTime": true,
         "showLabels": false,

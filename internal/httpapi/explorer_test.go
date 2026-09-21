@@ -78,7 +78,7 @@ func TestAllProvisionedQueriesRenderWithExplicitVariables(t *testing.T) {
 			}
 		}
 	}
-	if len(ds) != 37 || panels != 188 || targets != 193 {
+	if len(ds) != 37 || panels != 188 || targets != 217 {
 		t.Fatalf("catalog changed: %d/%d/%d", len(ds), panels, targets)
 	}
 }
@@ -94,6 +94,124 @@ func TestExactMetricSelectorDoesNotPermitExpressionInjection(t *testing.T) {
 		t.Fatalf("unsafe selector %s %v", q, err)
 	}
 }
+
+func TestLogsCatalogNativeTemplatesKeepDisjointTargetsAndDiscovery(t *testing.T) {
+	ds, err := dashboards.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var logs dashboards.Dashboard
+	for _, d := range ds {
+		if d.UID == "sentinel-logs" {
+			logs = d
+		}
+	}
+	if len(logs.Panels) != 5 {
+		t.Fatalf("logs panels: %d", len(logs.Panels))
+	}
+	id := strings.Repeat("a", 64)
+	resolved := map[string]string{"container_id": "(" + id + ")"}
+	values := map[string]string{"host": "host-a", "environment": "production", "stream": "stdout"}
+	for _, p := range logs.Panels {
+		if len(p.Targets) != 3 {
+			t.Fatalf("panel %d must stay below native four-target limit: %d", p.ID, len(p.Targets))
+		}
+		for _, target := range p.Targets {
+			query, applied, err := renderResolvedTemplate(target.Expr, logs, values, resolved, 30*time.Minute, 30*time.Second)
+			if err != nil {
+				t.Fatalf("panel %d/%s: %v", p.ID, target.RefID, err)
+			}
+			if target.LegendFormat == "" || !strings.Contains(p.Description, target.RefID+" = ") {
+				t.Fatalf("panel %d/%s needs a readable legend and description", p.ID, target.RefID)
+			}
+			if applied["host"] != "host-a" || applied["environment"] != "production" {
+				t.Fatalf("lost host/environment scope: %s", query)
+			}
+			switch target.RefID {
+			case "A":
+				if !strings.Contains(query, `container_id!="",container_id=~"(`+id+`)"`) || strings.Contains(query, "filename") {
+					t.Fatalf("ID query depends on legacy filename: %s", query)
+				}
+			case "B":
+				if !strings.Contains(query, `job!="docker-container"`) || strings.Contains(query, "container_id") || strings.Contains(query, "stream=") {
+					t.Fatalf("system query gained Docker scope: %s", query)
+				}
+			case "C":
+				if !strings.Contains(query, `container_id="",filename=~".*/((`+id+`))/.*"`) {
+					t.Fatalf("legacy fallback is not disjoint/scoped: %s", query)
+				}
+			default:
+				t.Fatalf("unexpected target %s", target.RefID)
+			}
+		}
+	}
+	streamFound := false
+	for _, v := range logs.Templating.List {
+		if v.Name != "stream" {
+			continue
+		}
+		query, _, err := renderTemplate(v.Expression(), logs, values, 30*time.Minute, 30*time.Second)
+		if err != nil {
+			t.Fatalf("stream discovery must render with unresolved container All: %v", err)
+		}
+		if query != `label_values({job="docker-container",deployment_environment=~"production",host_name=~"host-a"}, stream)` {
+			t.Fatalf("unexpected stream discovery: %s", query)
+		}
+		streamFound = true
+	}
+	if !streamFound {
+		t.Fatal("stream variable missing")
+	}
+	// Validate the same rendered identity contract in every related dashboard,
+	// including metric-count panels that used to have an incompatible logs type.
+	relatedDashboards := map[string]bool{}
+	relatedPanels := 0
+	for _, d := range ds {
+		if d.UID == logs.UID {
+			continue
+		}
+		for _, p := range d.Panels {
+			legacy := false
+			for _, target := range p.Targets {
+				legacy = legacy || strings.Contains(target.Expr, "filename")
+			}
+			if !legacy {
+				continue
+			}
+			relatedPanels++
+			relatedDashboards[d.UID] = true
+			if len(p.Targets) != 2 || p.Targets[0].RefID != "A" || p.Targets[1].RefID != "B" {
+				t.Fatalf("%s/%d must have two distinct targets", d.UID, p.ID)
+			}
+			for _, target := range p.Targets {
+				query, applied, err := renderResolvedTemplate(target.Expr, d,
+					map[string]string{"host": "host-a", "environment": "production"},
+					resolved, 30*time.Minute, 30*time.Second)
+				if err != nil || applied["host"] != "host-a" || applied["environment"] != "production" {
+					t.Fatalf("%s/%d/%s scope/render failed: %s %v", d.UID, p.ID, target.RefID, query, err)
+				}
+				if target.RefID == "A" {
+					if !strings.Contains(query, `container_id!="",container_id=~"(`+id+`)"`) || strings.Contains(query, "filename") {
+						t.Fatalf("%s/%d ID query depends on filename: %s", d.UID, p.ID, query)
+					}
+				} else if !strings.Contains(query, `container_id="",filename=~".*/((`+id+`))/.*"`) {
+					t.Fatalf("%s/%d legacy scope is not disjoint: %s", d.UID, p.ID, query)
+				}
+				metricCount := strings.HasPrefix(query, "sum(count_over_time(")
+				if (metricCount && p.Type != "stat") || (!metricCount && p.Type != "logs") {
+					t.Fatalf("%s/%d type %s incompatible with query %s", d.UID, p.ID, p.Type, query)
+				}
+				if target.LegendFormat == "" || !strings.Contains(p.Description, target.RefID+" = ") {
+					t.Fatalf("%s/%d/%s missing readable legend/description", d.UID, p.ID, target.RefID)
+				}
+			}
+		}
+	}
+	if relatedPanels != 19 || len(relatedDashboards) != 16 {
+		t.Fatalf("related catalog coverage changed: %d panels in %d dashboards", relatedPanels, len(relatedDashboards))
+	}
+}
+
 func TestProvisionedVariableRegexUsesCaptureAndDoesNotInventIDs(t *testing.T) {
 	def := dashboards.Variable{Regex: `/docker-([a-f0-9]{64})\.scope$/`}
 	id := strings.Repeat("a", 64)

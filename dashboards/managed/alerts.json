@@ -264,12 +264,19 @@
       },
       "targets": [
         {
-          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/(${container_id:regex})/.*\"} |~ \"(?i)error|exception|fatal|panic\"",
+          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",container_id!=\"\",container_id=~\"${container_id:regex}\"} |~ \"(?i)error|exception|fatal|panic\"",
           "refId": "A",
+          "legendFormat": "Docker por ID",
+          "maxLines": 200
+        },
+        {
+          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",container_id=\"\",filename=~\".*/(${container_id:regex})/.*\"} |~ \"(?i)error|exception|fatal|panic\"",
+          "refId": "B",
+          "legendFormat": "Docker legado",
           "maxLines": 200
         }
       ],
-      "description": "Logs de erro para correlação. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "description": "Logs de erro para correlação. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados. Consultas Docker separadas: A = Docker por ID (container_id); B = Docker legado por filename somente sem container_id. Conjuntos disjuntos; valores por consulta, sem total consolidado. Até 200 linhas por consulta (até 400 no conjunto), sem garantia de cobertura completa.",
       "options": {
         "showTime": true,
         "showLabels": false,

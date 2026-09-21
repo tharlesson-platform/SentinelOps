@@ -83,7 +83,9 @@ def log_metadata(path, limit=262144, driver="json-file"):
             stamp = record.get("time")
             if isinstance(stamp, str):
                 try:
-                    value = dt.datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+                    # Python 3.8/3.10 reject Docker's nanosecond fractions.
+                    normalized = re.sub(r"(\.\d{6})\d+(?=Z|[+-]|$)", r"\1", stamp)
+                    value = dt.datetime.fromisoformat(normalized.replace("Z", "+00:00"))
                     if value.tzinfo is not None:
                         timestamps.append(value.astimezone(dt.timezone.utc).isoformat())
                 except ValueError:
@@ -227,8 +229,14 @@ def inspect_container(c, default_driver):
     }
     if state.get("Running"):
         try:
+            # Docker needs the PID column to associate ps rows with a container.
+            rows = run(["docker", "top", c["Id"], "-eo", "pid,comm"]).splitlines()[1:]
             item["processNames"] = sorted(
-                set(run(["docker", "top", c["Id"], "-eo", "comm"]).splitlines()[1:])
+                {
+                    row.split(None, 1)[1].strip()
+                    for row in rows
+                    if len(row.split(None, 1)) == 2
+                }
             )
         except (RuntimeError, subprocess.TimeoutExpired):
             item["processNamesError"] = "unavailable"
