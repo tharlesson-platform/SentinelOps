@@ -1,6 +1,15 @@
 """Equivalência de resultados limitados, sem tolerância numérica nem relaxamento de filtros."""
 import math
 
+def ensure_topk_basis(raw):
+    if raw.get('status')!='success' or raw.get('warnings'):raise ValueError('incomplete source basis')
+    data=raw['data']
+    if data['resultType'] not in ('matrix','vector'):raise ValueError('unsupported basis')
+    for series in data['result']:
+        if series.get('histograms') or series.get('histogram'):raise ValueError('native histogram basis')
+        points=series.get('values',[]) if data['resultType']=='matrix' else [series['value']]
+        if any(math.isinf(float(point[1])) for point in points):raise ValueError('infinite topk basis requires separate analysis')
+
 def verify_topk(actual,basis,k,truncated):
     # Canonical rows: [[sorted labels], [[timestamp, finite value], ...]].
     source={tuple(tuple(pair) for pair in labels):dict(points) for labels,points in basis}
