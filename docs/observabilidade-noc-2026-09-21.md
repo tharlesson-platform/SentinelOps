@@ -25,7 +25,7 @@ Isso comprova disponibilidade de dados nessa consulta, não prova que nunca houv
 - Build com `VITE_BASE_PATH=/sentinelops/` aprovado; revisão SRE local aprovada.
 - Interface `c723663a3b4c9411e4dac3b10c44c8bae4965ed5` publicada às 14:27:35 UTC. As capturas locais usam fixtures e não constituem evidência de produção.
 - Build reproduzido no servidor com fonte e saída idênticas às testadas. Cinco arquivos conferidos por HTTPS a partir do Mac, com MIME correto. Configuração runtime e 23 containers preservados; as duas APIs continuam saudáveis na versão `8b4abdb`.
-- O Safari expirou a sessão durante o trabalho. Aceite visual autenticado do bundle NOC aguarda o Touch ID solicitado para renovar o login salvo.
+- Antes da publicação seguinte, o Safari autenticado exibiu os gráficos NOC reais do tqi-platform: CPU 35,69%, memória 45,49%, disco principal 48,96%, taxas em KiB/s e swap sem percentual. Esses valores pertencem à janela encerrada às 11:01:34 BRT. A interface foi depois atualizada com [seletores diretos de recursos](seletores-recursos-2026-09-21.md), cujo aceite visual é registrado separadamente.
 
 Nova consulta autenticada pós-publicação às 14:29:43 UTC confirmou memória em 45,76%, disco principal em 49,19% e 26 containers do tqi-platform. O endpoint auxiliar de capacidade de swap retornou `available` e valor zero.
 
