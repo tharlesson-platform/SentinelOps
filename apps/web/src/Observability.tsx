@@ -10,6 +10,11 @@ import {
   SourceStatus,
   TelemetrySeries,
 } from "./api";
+import {
+  MetricResourceSelector,
+  SignalResourceSelector,
+  APMResourceSelector,
+} from "./ResourceSelectors";
 import { TelemetryChart } from "./TelemetryChart";
 import { resourceMetrics } from "./chartModel";
 import { Explorer, NativeProfiles } from "./Explorer";
@@ -136,7 +141,10 @@ export function ObservabilityView(props: Props) {
       ) : page === "hosts" || page === "docker" ? (
         <Inventory {...props} />
       ) : page === "metrics" ? (
-        <Details {...props} />
+        <>
+          <MetricResourceSelector {...props} />
+          <Details {...props} />
+        </>
       ) : page === "logs" ? (
         <Logs {...props} />
       ) : page === "traces" ? (
@@ -475,6 +483,8 @@ function Details(props: Props) {
 function appliedScope(c: EntityContext, kind: "logs" | "traces") {
   if (c.host && !c.hostName)
     return "O servidor selecionado não tem correlação host_name. Nenhuma busca foi executada.";
+  if (kind === "traces" && c.containerId && !c.container)
+    return "O container selecionado tem apenas ID; falta o nome emitido nas requisições. Nenhuma busca foi executada.";
   if (kind === "logs" && c.container && !c.containerId)
     return "O container selecionado não tem um ID de log confirmado. Nenhuma busca foi executada.";
   return "";
@@ -502,7 +512,7 @@ function Scope({
           {!blocked && (
             <>
               {context.hostName && `servidor ${context.hostName}`}
-              {context.container &&
+              {(context.container || context.containerId) &&
                 ` · container ${kind === "logs" ? context.containerId : context.container}`}
               {context.service && ` · serviço ${context.service}`}
             </>
@@ -521,8 +531,8 @@ function Scope({
       )}
       {blocked && (
         <div className="notice" role="status">
-          {blocked} Volte à lista para escolher outro recurso ou limpe a seleção
-          explicitamente.
+          {blocked} Use o seletor acima para escolher outro recurso ou limpe a
+          seleção explicitamente.
         </div>
       )}
     </>
@@ -565,6 +575,14 @@ function Logs({ api, route, update, refresh }: Props) {
   );
   return (
     <>
+      <SignalResourceSelector
+        api={api}
+        route={route}
+        update={update}
+        refresh={refresh}
+        kind="logs"
+        observed={result.data?.items}
+      />
       <Scope context={c} kind="logs" clear={() => update({ context: {} })} />
       <form
         className="querybar"
@@ -671,6 +689,14 @@ function Traces({ api, route, update, refresh }: Props) {
   );
   return (
     <>
+      <SignalResourceSelector
+        api={api}
+        route={route}
+        update={update}
+        refresh={refresh}
+        kind="traces"
+        observed={result.data?.items}
+      />
       <Scope context={c} kind="traces" clear={() => update({ context: {} })} />
       <p>
         Filtros por atributos OpenTelemetry: a aplicação precisa emitir
@@ -721,8 +747,33 @@ function APM({ api, route, update, refresh }: Props) {
   const result = useQuery(`apm:${refresh}:${route.end}`, (signal) =>
     api.apm(signal),
   );
+  const c = route.context;
+  const incompatible =
+    !!c.container || !!c.containerId || (!!c.host && !c.hostName);
+  const items = incompatible
+    ? []
+    : (result.data?.items || []).filter(
+        (i) =>
+          (!c.apmResource ||
+            JSON.stringify([i.name, i.environment || "", i.host || ""]) ===
+              c.apmResource) &&
+          (!c.service || i.name === c.service) &&
+          (!c.hostName || i.host === c.hostName) &&
+          (!c.serviceEnvironment || i.environment === c.serviceEnvironment),
+      );
   return (
     <>
+      <APMResourceSelector
+        items={result.data?.items || []}
+        route={route}
+        update={update}
+      />
+      {incompatible && (
+        <p className="notice">
+          A seleção atual não identifica uma aplicação APM. Escolha uma
+          aplicação acima ou selecione Todas as aplicações.
+        </p>
+      )}
       <QueryStatus
         query={result}
         source={result.data?.sources.prometheus}
@@ -736,7 +787,7 @@ function APM({ api, route, update, refresh }: Props) {
           <span>95% abaixo de</span>
           <span>99% abaixo de</span>
         </div>
-        {result.data?.items.map((i) => (
+        {items.map((i) => (
           <button
             className="apm-row"
             key={`${i.name}/${i.environment}/${i.host}`}
@@ -745,6 +796,11 @@ function APM({ api, route, update, refresh }: Props) {
                 page: "traces",
                 context: {
                   service: i.name,
+                  apmResource: JSON.stringify([
+                    i.name,
+                    i.environment || "",
+                    i.host || "",
+                  ]),
                   hostName: i.host,
                   serviceEnvironment: i.environment,
                 },
@@ -769,8 +825,8 @@ function APM({ api, route, update, refresh }: Props) {
           </button>
         ))}
       </div>
-      {result.data && !result.data.items.length && (
-        <NoData text="Sem métricas de aplicação. Verifique a instrumentação OpenTelemetry." />
+      {result.data && !items.length && (
+        <NoData text="Sem métricas de aplicação para a seleção atual. Escolha outro recurso ou verifique a instrumentação OpenTelemetry." />
       )}
       <p>
         Ao abrir uma aplicação, a busca de requisições usará o período

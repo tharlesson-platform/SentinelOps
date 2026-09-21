@@ -25,6 +25,7 @@ export type EntityContext = {
   containerId?: string;
   service?: string;
   serviceEnvironment?: string;
+  apmResource?: string;
 };
 export type Route = {
   page: Page;
@@ -54,6 +55,7 @@ const entityKeys = [
   "containerId",
   "service",
   "serviceEnvironment",
+  "apmResource",
 ] as const;
 export function readRoute(search = location.search): Route {
   const p = new URLSearchParams(search);

@@ -259,7 +259,7 @@ test("logs enviam apenas escopo confirmado e só buscam após enviar formulário
     .poll(() => requests.some((u) => u.includes("search=falha+literal")))
     .toBeTruthy();
   await expect(
-    page.getByText("Até 300 eventos", { exact: false }),
+    page.getByText("Até 300 eventos mais recentes", { exact: false }),
   ).toBeVisible();
 });
 for (const state of ["no_data", "partial", "unavailable", "old"])
@@ -684,21 +684,296 @@ test("NOC: percentuais, eixos, série oculta não mascara capacidade e legenda a
   });
 });
 
-test('NOC: acompanhamento ao vivo renova a janela e preserva o recurso; pausa interrompe consultas', async ({page}) => {
+test("NOC: acompanhamento ao vivo renova a janela e preserva o recurso; pausa interrompe consultas", async ({
+  page,
+}) => {
   await page.clock.install();
   let calls = 0;
-  page.on('request', request => {if(request.url().includes('/observability/containers/api?')) calls++;});
+  page.on("request", (request) => {
+    if (request.url().includes("/observability/containers/api?")) calls++;
+  });
   await openContainers(page);
-  await resource(page,'b').click();
-  await expect(page.locator('.chart-reading').first()).toContainText('25');
-  await page.getByRole('checkbox',{name:'Acompanhar ao vivo'}).check();
+  await resource(page, "b").click();
+  await expect(page.locator(".chart-reading").first()).toContainText("25");
+  await page.getByRole("checkbox", { name: "Acompanhar ao vivo" }).check();
   const before = calls;
   await page.clock.fastForward(61000);
-  await expect.poll(()=>calls).toBeGreaterThan(before);
-  expect(new URL(page.url()).searchParams.get('host')).toBe('cadvisor-b:8080');
-  await expect(page.getByLabel('Período',{exact:true})).toHaveValue('1h');
-  await page.getByRole('checkbox',{name:'Acompanhar ao vivo'}).uncheck();
+  await expect.poll(() => calls).toBeGreaterThan(before);
+  expect(new URL(page.url()).searchParams.get("host")).toBe("cadvisor-b:8080");
+  await expect(page.getByLabel("Período", { exact: true })).toHaveValue("1h");
+  await page.getByRole("checkbox", { name: "Acompanhar ao vivo" }).uncheck();
   const paused = calls;
   await page.clock.fastForward(61000);
   expect(calls).toBe(paused);
+});
+
+test("seletores diretos: métricas distinguem homônimos e preservam período/URL", async ({
+  page,
+}) => {
+  await page.goto("/sentinelops/?page=metrics&window=6h");
+  const picker = page.getByRole("combobox", { name: "Recurso", exact: true });
+  await expect(
+    picker.getByRole("option", {
+      name: "Container · api · node-b",
+      exact: true,
+    }),
+  ).toBeAttached();
+  await picker.selectOption({ label: "Container · api · node-b" });
+  await expect(page).toHaveURL(/host=cadvisor-b/);
+  await expect(page.locator(".chart-reading").first()).toContainText("25");
+  await expect(page.getByLabel("Período", { exact: true })).toHaveValue("6h");
+  await picker.selectOption({ label: "Servidor · node-a" });
+  await expect(page).toHaveURL(/host=exporter-a/);
+  expect(new URL(page.url()).searchParams.has("container")).toBeFalsy();
+  await page.reload();
+  await expect(picker).toHaveValue(/exporter-a/);
+  await page.getByRole("button", { name: "← Voltar" }).click();
+  await expect(picker).toHaveValue(/cadvisor-b/);
+});
+
+test("logs: origens reais, descoberta explícita preserva escopo e combinação aplica nomes exatos", async ({
+  page,
+}) => {
+  const requests: URL[] = [];
+  await page.route("**/observability/logs?*", async (route) => {
+    const u = new URL(route.request().url());
+    requests.push(u);
+    await route.fulfill({
+      json: {
+        data: {
+          items: [
+            {
+              timestamp: new Date().toISOString(),
+              labels: {
+                host_name: "log-node-a",
+                container_id: id,
+                container_name: "api",
+              },
+              line: "fixture a",
+            },
+            {
+              timestamp: new Date().toISOString(),
+              labels: {
+                host_name: "log-node-b",
+                container_id: "c".repeat(64),
+                container_name: "api",
+              },
+              line: "fixture b",
+            },
+          ],
+          sources: { loki: source() },
+        },
+      },
+    });
+  });
+  await page.goto("/sentinelops/?page=logs&window=6h&host=unmapped");
+  await expect(
+    page.getByText("Nenhuma busca foi executada.", { exact: false }),
+  ).toBeVisible();
+  expect(requests).toHaveLength(0);
+  await page
+    .getByRole("button", { name: "Listar recursos de todas as fontes" })
+    .click();
+  await expect(
+    page.getByRole("option", { name: "Servidor · log-node-b", exact: true }),
+  ).toBeAttached();
+  await expect(page).toHaveURL(/host=unmapped/);
+  await expect(page.locator(".log-table article")).toHaveCount(0);
+  const picker = page.getByRole("combobox", { name: "Recurso", exact: true });
+  await picker.selectOption({ label: "Container · api · log-node-b" });
+  await expect
+    .poll(() => requests.at(-1)?.searchParams.get("host"))
+    .toBe("log-node-b");
+  expect(requests.at(-1)?.searchParams.get("containerId")).toBe("c".repeat(64));
+  await page
+    .getByText("Selecionar por nome ou combinar filtros", { exact: true })
+    .click();
+  await page
+    .getByLabel("Servidor na fonte", { exact: true })
+    .fill("log-node-a");
+  await page.getByLabel("Container na fonte", { exact: true }).fill("");
+  await page
+    .getByLabel("Aplicação na fonte", { exact: true })
+    .fill("literal.*");
+  await page
+    .getByRole("button", { name: "Aplicar recurso", exact: true })
+    .click();
+  await expect
+    .poll(() => requests.at(-1)?.searchParams.get("service"))
+    .toBe("literal.*");
+  expect(requests.at(-1)?.searchParams.has("containerId")).toBeFalsy();
+  expect(requests.at(-1)?.searchParams.get("host")).toBe("log-node-a");
+  expect(
+    Number(requests.at(-1)?.searchParams.get("end")) -
+      Number(requests.at(-1)?.searchParams.get("start")),
+  ).toBe(21600);
+});
+
+test("requisições: selecionar serviço descoberto e trocar rapidamente ignora resposta antiga", async ({
+  page,
+}) => {
+  await page.route("**/observability/traces?*", async (route) => {
+    const service = new URL(route.request().url()).searchParams.get("service");
+    if (service === "slow-service")
+      await new Promise((resolve) => setTimeout(resolve, 600));
+    await route.fulfill({
+      json: {
+        data: {
+          items: (service ? [service] : ["slow-service", "fast-service"]).map(
+            (name, i) => ({
+              traceId: `${name}-${i}`,
+              rootServiceName: name,
+              rootTraceName: `GET /${name}`,
+              durationMs: 20,
+            }),
+          ),
+          sources: { tempo: source() },
+        },
+      },
+    });
+  });
+  await page.goto("/sentinelops/?page=traces");
+  const picker = page.getByRole("combobox", { name: "Recurso", exact: true });
+  await expect(
+    picker.getByRole("option", {
+      name: "Aplicação · fast-service",
+      exact: true,
+    }),
+  ).toBeAttached();
+  await picker.selectOption({ label: "Aplicação · slow-service" });
+  await picker.selectOption({ label: "Aplicação · fast-service" });
+  await expect(page.locator(".trace-list")).toContainText("GET /fast-service");
+  await page.waitForTimeout(800);
+  await expect(page.locator(".trace-list")).not.toContainText(
+    "GET /slow-service",
+  );
+  await page.reload();
+  await expect(picker).toHaveValue(/fast-service/);
+});
+
+test("APM: seleção exata por aplicação ambiente e host sem misturar homônimos, mobile", async ({
+  page,
+}) => {
+  await page.route("**/observability/apm", (route) =>
+    route.fulfill({
+      json: {
+        data: {
+          items: ["a", "b"].map((host, i) => ({
+            name: "payments",
+            host: `node-${host}`,
+            environment: i ? "prod" : "test",
+            requestsPerSecond: i + 1,
+            errorPercent: 0,
+            p95Seconds: 0.1,
+            p99Seconds: 0.2,
+            telemetryState: "available",
+          })),
+          sources: { prometheus: source() },
+        },
+      },
+    }),
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(
+    "/sentinelops/?page=apm&host=unmapped&container=old&window=6h",
+  );
+  await expect(page.locator("button.apm-row")).toHaveCount(0);
+  const picker = page.getByRole("combobox", { name: "Recurso", exact: true });
+  await expect(
+    picker.getByRole("option", {
+      name: "payments · prod · node-b",
+      exact: true,
+    }),
+  ).toBeAttached();
+  await picker.selectOption({ label: "payments · prod · node-b" });
+  await expect(page.locator("button.apm-row")).toHaveCount(1);
+  await expect(page.locator("button.apm-row")).toContainText("prod · node-b");
+  expect(new URL(page.url()).searchParams.has("container")).toBeFalsy();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBeTruthy();
+  await page.screenshot({
+    path: "artifacts/resource-selectors-mobile.png",
+    fullPage: true,
+  });
+  await page.locator("button.apm-row").click();
+  await expect(page).toHaveURL(/page=traces/);
+  await expect(
+    page.getByText("Escopo aplicado:", { exact: false }),
+  ).toContainText("node-b");
+  await expect(page.getByLabel("Período", { exact: true })).toHaveValue("6h");
+});
+
+test("APM preserva identidade sem ambiente/host após reload", async ({
+  page,
+}) => {
+  await page.route("**/observability/apm", (route) =>
+    route.fulfill({
+      json: {
+        data: {
+          items: [
+            {
+              name: "payments",
+              requestsPerSecond: 7,
+              errorPercent: 0,
+              p95Seconds: 0.1,
+              p99Seconds: 0.2,
+            },
+            {
+              name: "payments",
+              host: "node-b",
+              environment: "prod",
+              requestsPerSecond: 99,
+              errorPercent: 0,
+              p95Seconds: 0.1,
+              p99Seconds: 0.2,
+            },
+          ],
+          sources: { prometheus: source() },
+        },
+      },
+    }),
+  );
+  await page.goto("/sentinelops/?page=apm");
+  const picker = page.getByRole("combobox", { name: "Recurso", exact: true });
+  await expect(
+    picker.getByRole("option", {
+      name: "payments · Ambiente não informado · Servidor não informado",
+      exact: true,
+    }),
+  ).toBeAttached();
+  await picker.selectOption({
+    label: "payments · Ambiente não informado · Servidor não informado",
+  });
+  await expect(page.locator("button.apm-row")).toHaveCount(1);
+  await expect(page.locator("button.apm-row")).not.toContainText("99");
+  await page.reload();
+  await expect(page.locator("button.apm-row")).toHaveCount(1);
+  await expect(picker).toHaveValue(/apmResource/);
+});
+
+test("ID de logs sem nome nunca vira container.name nem amplia requisições", async ({
+  page,
+}) => {
+  const requests: string[] = [];
+  page.on("request", (r) => {
+    if (r.url().includes("observability/traces?")) requests.push(r.url());
+  });
+  await page.goto(`/sentinelops/?page=logs&containerId=${id}`);
+  await page.getByRole("button", { name: "Requisições", exact: true }).click();
+  await expect(
+    page.getByText("falta o nome emitido nas requisições", { exact: false }),
+  ).toBeVisible();
+  expect(requests).toHaveLength(0);
+  await page
+    .getByText("Selecionar por nome ou combinar filtros", { exact: true })
+    .click();
+  await page.getByLabel("Container na fonte", { exact: true }).fill("api-real");
+  await page
+    .getByRole("button", { name: "Aplicar recurso", exact: true })
+    .click();
+  await expect.poll(() => requests.length).toBe(1);
+  expect(new URL(requests[0]).searchParams.get("container")).toBe("api-real");
 });

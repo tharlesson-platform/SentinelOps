@@ -576,3 +576,62 @@ button {
 
 .live-toggle{display:flex;align-items:center;gap:6px;font-size:12px}.live-toggle input{min-height:0}.period button{font-size:12px;padding:7px}.noc-chart svg:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .noc-chart .chart-legend{display:table}.noc-chart .chart-axis{font-size:18px}.noc-chart .chart-legend i{margin-right:0}
+
+.resource-selector {
+  margin: 0 0 24px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  min-width: 0;
+}
+.resource-selector h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+.resource-selector p,
+.resource-selector small {
+  color: var(--muted);
+}
+.resource-selector > small {
+  display: block;
+  margin: 8px 0;
+}
+.resource-selector details {
+  margin-top: 14px;
+}
+.resource-selector summary {
+  cursor: pointer;
+}
+.resource-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+  margin: 16px 0;
+}
+.resource-controls label {
+  display: grid;
+  gap: 6px;
+  flex: 1 1 200px;
+  min-width: 0;
+  font-size: 13px;
+}
+.resource-controls input,
+.resource-controls select {
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+}
+.resource-controls select {
+  text-overflow: ellipsis;
+}
+@media (max-width: 600px) {
+  .resource-controls label {
+    flex-basis: 100%;
+  }
+}
