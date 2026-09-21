@@ -2,9 +2,18 @@
 
 ## Estado da entrega
 
-API publicada no commit `8b4abdb09c988cb8400f64fed689164bdfd5de82`, após gate completo aprovado. A entrega da interface **ainda não está concluída**: o bundle foi inicialmente compilado para `/`, causando tela branca no endereço `/sentinelops/`. O pacote recompilado com `VITE_BASE_PATH=/sentinelops/` foi validado no navegador local, mas aguarda reconexão SSH/sudo para publicação. A sessão administrativa foi encerrada antes da correção; não foi executado comando em outro host.
+API publicada no commit `8b4abdb09c988cb8400f64fed689164bdfd5de82`, após gate completo aprovado. O erro de empacotamento web para `/` foi corrigido com build em `/sentinelops/` e publicado às **13:42:03 UTC de 21/09/2026**. HTML, JavaScript, CSS, logo e configuração runtime foram conferidos por HTTPS, com hashes idênticos ao pacote local validado. A tela de login voltou a renderizar; o aceite autenticado das novas telas aguarda o Touch ID solicitado pelo Safari.
 
-O estado abaixo separa a API validada da recuperação web pendente.
+Validação final do servidor: 24/24 verificações de ingress aprovadas; duas APIs saudáveis, zero reinícios; 21 containers alheios preservados; DNS, configuração original do edge e configuração runtime conferidos.
+
+## Acesso às novas telas
+
+Na aplicação em `/sentinelops/`, os caminhos abaixo estão definidos no código publicado. A validação visual autenticada desses caminhos permanece pendente:
+
+- **Todas as métricas e visões → Visões e painéis**: busca **Encontrar visão ou painel**, seleção de painel, filtros e **Consultar painel**.
+- **Todas as métricas e visões → Catálogo de métricas**: pesquisa de métricas e **Consultar métrica** com filtros explícitos.
+- **Todas as métricas e visões → Alvos e regras**: alvos de coleta e regras do Prometheus.
+- **Perfis de execução**: seletores **Serviço de perfis** e **Tipo de perfil**, seguidos de **Consultar perfil** para flamegraph e tabela nativos.
 
 ## Universo observado
 
@@ -259,8 +268,12 @@ A recuperação da primeira tentativa manteve as duas réplicas anteriores saud�
 - Monitor final da API: 963 amostras, zero falhas. Isso não mede a disponibilidade do frontend: a conferência posterior no Safari encontrou tela branca.
 - Procedimento executado: `9b75bcd`; comparador genérico: `0413ad4`. Guard adicional `7c9c231` agora impede deploy de HTML com assets fora do subpath publicado.
 
-## Recuperação web preparada
+## Recuperação web publicada
 
-A fonte frontend é idêntica a `8b4abdb`; somente a opção de build mudou. O HTML corrigido referencia `/sentinelops/assets/index-K19U2ZCj.js`, `/sentinelops/assets/index-BlKCGatE.css` e `/sentinelops/config.js`. A tela de login abriu no navegador usando o bundle final servido em `/sentinelops/`; aceite autenticado em produção permanece pendente.
+A fonte frontend é idêntica a `8b4abdb`; somente a opção de build mudou. O HTML corrigido referencia `/sentinelops/assets/index-K19U2ZCj.js`, `/sentinelops/assets/index-BlKCGatE.css` e `/sentinelops/config.js`. A tela de login abriu no navegador usando o bundle final servido em `/sentinelops/`. A recuperação foi publicada, mas o aceite autenticado em produção ainda depende do desbloqueio do login salvo no Safari.
 
 Pacote operacional privado: `artifacts/coverage-2026-09-21/web-subpath.tar.gz`, SHA-256 `c97b4fbad9d0b18fc13fd5d2d60abf0e5bc7cbf7e424220b7319d21982a217d2`. O helper verifica esse hash, restaura imediatamente o HTML anterior, publica e confere assets antes de trocar o índice, preserva `config.js` e restaura o backup se qualquer verificação falhar. Não contém credenciais. Pacote e evidências privadas não são publicados no repositório.
+
+A sessão administrativa foi reaberta pelo usuário. Como a nova sessão não tinha o socket de transferência e a VPN impediu download do Mac a partir do servidor, o bundle foi recompilado no próprio host em container temporário `node:26.9.0-alpine3.24`, com limite de 2 GiB e 2 CPUs e fonte da release montada somente para leitura. `npm ci` usou o lockfile versionado. Antes da publicação, todos os hashes do bundle foram comparados com os do pacote local testado. O container temporário foi encerrado e removido ao terminar o build; a aplicação não foi reiniciada nessa correção.
+
+A recuperação restaurou primeiro o índice anterior; depois publicou e verificou os novos assets e trocou o índice atomicamente. Hashes finais: HTML `33a688682951b17746b24b6d2c43757f4778a2df34be8f0e2014b55bfc09ba46`; JavaScript `c928f009935007e14b7f277b09d30940e13a7d58cd9cfcebd15c1b7c8af6bbb7`; CSS `4ba3cc170b92832c9fc942f596db2b6d49fa34b1b8d566cec465a4f5d89dbc59`. O `config.js` manteve o hash `bc3e676e6ea5b4f97640e5298d5e582ad403a6cf9670f88e03d74f576e91e392`.
