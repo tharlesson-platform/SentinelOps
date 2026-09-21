@@ -124,12 +124,17 @@ def prepare():
  all_containers=inspect(run(['docker','ps','-q']).split());save('before-containers.json',safe_meta(all_containers));save('before-api.json',safe_meta(current))
  commit=(RELEASE/'commit.txt').read_text().strip();assert re.fullmatch('[a-f0-9]{40}',commit)
  old=current[0]['Image'];image='sentinelops-api:coverage-'+commit[:7]
- (RELEASE/'out/Dockerfile').write_text('FROM '+old+'\nCOPY --chown=10001:10001 --chmod=0555 app /usr/local/bin/app\nLABEL org.opencontainers.image.revision="'+commit+'"\n')
- (RELEASE/'image-build.log').write_text(run(['docker','build','--network=none','--pull=false','-t',image,str(RELEASE/'out')]))
+ # BuildKit interpreta FROM sha256:... como repositório, não como ID local.
+ base_tag='sentinelops-api:rollback-'+commit[:7]
+ run(['docker','tag',old,base_tag])
+ assert json.loads(run(['docker','image','inspect',base_tag]))[0]['Id']==old
+ (RELEASE/'out/Dockerfile').write_text('FROM '+base_tag+'\nCOPY --chown=10001:10001 --chmod=0555 app /usr/local/bin/app\nLABEL org.opencontainers.image.revision="'+commit+'"\n')
+ built=subprocess.run(['docker','build','--network=none','--pull=false','-t',image,str(RELEASE/'out')],text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+ (RELEASE/'image-build.log').write_text(built.stdout)
+ built.check_returncode()
  new=json.loads(run(['docker','image','inspect',image]))[0];prior=json.loads(run(['docker','image','inspect',old]))[0]
  for key in ('User','Entrypoint','Cmd','Env'):assert new['Config'].get(key)==prior['Config'].get(key),'runtime mudou: '+key
  assert new['Architecture']=='amd64'
- run(['docker','tag',old,'sentinelops-api:rollback-'+commit[:7]])
  save('prepared.json',{'commit':commit,'base_image':old,'new_image':new['Id'],'binary_sha256':sha(RELEASE/'out/app'),'runtime_config_sha256':sha(WEB/'config.js'),'environment_sha256':sha(ROOT/'.env')})
  print('RELEASE_PREPARED',commit,flush=True)
 
