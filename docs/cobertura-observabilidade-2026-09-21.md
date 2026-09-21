@@ -1,8 +1,10 @@
 # Cobertura nativa de observabilidade — 21/09/2026
 
-## Estado desta preparação
+## Estado da entrega
 
-Implementação local preparada; a publicação e a equivalência candidato/fonte ainda dependem da validação no servidor. Este documento registra a auditoria das fontes, sem declarar conclusão do deploy.
+API publicada no commit `8b4abdb09c988cb8400f64fed689164bdfd5de82`, após gate completo aprovado. A entrega da interface **ainda não está concluída**: o bundle foi inicialmente compilado para `/`, causando tela branca no endereço `/sentinelops/`. O pacote recompilado com `VITE_BASE_PATH=/sentinelops/` foi validado no navegador local, mas aguarda reconexão SSH/sudo para publicação. A sessão administrativa foi encerrada antes da correção; não foi executado comando em outro host.
+
+O estado abaixo separa a API validada da recuperação web pendente.
 
 ## Universo observado
 
@@ -15,7 +17,7 @@ Implementação local preparada; a publicação e a equivalência candidato/font
 
 Janela UTC: 2026-09-21T11:20:15+00:00 até 2026-09-21T12:20:15+00:00. Passo: 15 segundos. Foram executadas 139 consultas únicas, sequencialmente, para os 193 alvos. Resultado: 157 com amostras, 36 sem dados e nenhum erro ao término da auditoria. A consulta de cardinalidade usa a métrica `up` como escolha explícita. Presença de amostras não equivale à saúde da aplicação.
 
-A matriz abaixo registra cada painel configurado. “Informativo” identifica conteúdo sem consulta. Os números são por alvo, não por série ou evento. A equivalência com a API candidata será registrada separadamente após a execução.
+A matriz abaixo registra cada painel configurado. “Informativo” identifica conteúdo sem consulta. Os números são por alvo, não por série ou evento. A equivalência com a API candidata foi validada na execução final descrita ao fim deste documento.
 
 | Dashboard | Painel | Tipo | Fonte | Com amostras | Sem dados | Erros | Unidade |
 |---|---|---|---|---:|---:|---:|---|
@@ -220,11 +222,13 @@ Descoberta é habilitada no modo local de uma organização. Em OIDC, permanece 
 
 ## Validação local e procedimento operacional
 
-20 testes unitários web aprovados. Pacotes Go de `apps/...`, `internal/...` e `dashboards` aprovados. A invocação `go test ./...` no checkout operacional também encontrou cópias antigas e incompletas em `artifacts/`; elas não fazem parte do código versionado.
+20 testes unitários web aprovados. Pacotes Go de `apps/...`, `internal/...` e `dashboards` aprovados. A execução completa `go test ./...` no snapshot limpo da release também passou no servidor (24 caminhos de pacotes), antes da compilação do binário ELF. Cópias antigas e incompletas em `artifacts/` no checkout operacional não integram o snapshot versionado.
+
+A checagem de GitHub Actions não encontrou execução associada aos SHAs desta entrega; os resultados aqui descritos são de testes locais e execução manual no servidor, sem atribuir a eles aprovação de CI remoto.
 
 Gateway: 11 casos mTLS aprovados, incluindo negação do worker, header duplicado/federado, falta de organização e método inválido. Helm lint/render e adaptação Caddy aprovados.
 
-Drenagem ensaiada em ambiente Docker isolado: 91 requisições, zero falhas, requisição longa concluída e rollback provocado. Barreira de 3,03 s esperou a geração anterior sair. Quatro testes adicionais cobrem rollback após retorno ao DNS, falha na primeira aplicação do edge e timeout que preserva todas as APIs e candidata rejeitada que nunca entra no tráfego. O ensaio não é evidência de indisponibilidade zero em produção.
+Drenagem ensaiada em ambiente Docker isolado: 91 requisições, zero falhas, requisição longa concluída e rollback provocado. Barreira de 3,03 s esperou a geração anterior sair. Treze testes operacionais cobrem rollback após retorno ao DNS, falha na primeira aplicação do edge, timeout que preserva todas as APIs, candidata rejeitada excluída do tráfego, healthz JSON, resposta DNS completa e casos negativos do comparador semântico. O ensaio não é evidência de indisponibilidade zero em produção.
 
 A release usa backup do bundle, runtime, lock de imagens e edge; admite nova API apenas após readiness, login e comparação com fontes. Retira a antiga somente após reload gracioso e término dos workers anteriores. O arquivo montado mantém seu inode, com hash conferido dentro do container. Nenhum volume ou serviço fora da API é removido. A fonte autoritativa fica em `release/source/`, ligada ao commit da imagem.
 
@@ -233,3 +237,30 @@ Referências: [API Prometheus](https://prometheus.io/docs/prometheus/latest/quer
 ## Revisão independente da preparação
 
 APPROVED WITH CHANGES para commit, build e rollout controlado, condicionado à comparação obrigatória da candidata antes da admissão. A aprovação não constitui evidência de publicação nem de indisponibilidade zero. Falha de comparação aciona recuperação; timeout de drenagem mantém as réplicas vivas.
+
+## Diagnóstico e contrato de equivalência
+
+A primeira candidata foi reprovada em 11 dos 193 alvos e nunca foi admitida no edge. As sete divergências Prometheus eram consultas `topk(10, ...)`; as quatro restantes eram buscas Tempo limitadas a 50 traces. Leituras diretas repetidas demonstraram variação de identidades e timestamps; os pontos numéricos comuns eram exatamente iguais. O diagnóstico foi preservado, sem converter reprovações históricas em aprovações.
+
+Para `topk`, o comparador consulta a expressão interna integral, com os mesmos filtros, instante ou janela e passo, sem limite de séries na referência. Exige identidade, timestamp e valor exatos e no máximo nove valores estritamente maiores que cada ponto. Empates podem selecionar identidades diferentes. Sem truncamento, exige a quantidade esperada de pontos e todos os vencedores obrigatórios; com truncamento, exige 40 séries, estado parcial e todos os pontos obrigatórios das séries retidas. Referências com erro, aviso, infinito ou histograma nativo reprovam. Não há tolerância numérica.
+
+Para Tempo, cada TraceID retornado é validado na fonte pela consulta original acrescida da lista explícita de IDs, na mesma janela. Serviço, nome, duração e início em nanossegundos devem coincidir exatamente. Isso comprova a amostra retornada, sem afirmar igualdade do conjunto global. O produto informa o limite de 50 traces. A variabilidade da busca é documentada pelo [Tempo](https://grafana.com/docs/tempo/latest/api_docs/) e a ausência de ordenação de `topk` em range pelo [Prometheus](https://prometheus.io/docs/prometheus/latest/querying/operators/).
+
+O gate continua exigindo os 193 alvos, cinco famílias de métricas e 11 tipos de perfil, além de igualdade das consultas, filtros aplicados, unidades, tipos, títulos e redução `lastNotNull`. A comparação semântica e a igualdade literal entre conjuntos ficam registradas separadamente. Testes negativos reprovam alteração de valor, identidade/instante inválido, perda de vencedor obrigatório, resultado truncado vazio e infinitos.
+
+A recuperação da primeira tentativa manteve as duas réplicas anteriores saudáveis, com os mesmos IDs e zero reinícios. O teste `getent hosts` do BusyBox mostrava somente um peer; foi substituído pela resposta A completa de `nslookup`. Edge e lock originais foram restaurados e conferidos. Monitor: 936 amostras sem falhas, com intervalo sem coleta durante a pausa para capturar a baseline ausente; esse intervalo não é coberto pela evidência. A execução diagnóstica posterior terminou com rollback completo e 136 amostras sem falhas.
+
+## Resultado da execução final da API
+
+- Gate: 193/193 alvos aprovados; 132 respostas disponíveis, 25 parciais e 36 sem dados. Catálogo: 885 métricas, 37 visões, 188 painéis. Cinco famílias consultadas e 11 tipos de perfil conferidos.
+- Métodos: 163 comparações de conjuntos exatos, 20 verificações de valores/ranking `topk` e 10 verificações de todos os TraceIDs retornados. Em 13 alvos os conjuntos de execuções independentes diferiam; a equivalência semântica foi comprovada sem tolerância numérica. Não declarar igualdade literal universal.
+- Runtime autenticado: 12/12 verificações aprovadas, sem regressões frente à baseline.
+- Imagem: `sha256:2d79260fee11d49c25dab5b5588cb6bafaf5015627d57294f2c5e2aec0a0d6a3`; duas réplicas saudáveis, zero reinícios. Os 21 containers alheios à API foram preservados, assim como `config.js`.
+- Monitor final da API: 963 amostras, zero falhas. Isso não mede a disponibilidade do frontend: a conferência posterior no Safari encontrou tela branca.
+- Procedimento executado: `9b75bcd`; comparador genérico: `0413ad4`. Guard adicional `7c9c231` agora impede deploy de HTML com assets fora do subpath publicado.
+
+## Recuperação web preparada
+
+A fonte frontend é idêntica a `8b4abdb`; somente a opção de build mudou. O HTML corrigido referencia `/sentinelops/assets/index-K19U2ZCj.js`, `/sentinelops/assets/index-BlKCGatE.css` e `/sentinelops/config.js`. A tela de login abriu no navegador usando o bundle final servido em `/sentinelops/`; aceite autenticado em produção permanece pendente.
+
+Pacote operacional privado: `artifacts/coverage-2026-09-21/web-subpath.tar.gz`, SHA-256 `c97b4fbad9d0b18fc13fd5d2d60abf0e5bc7cbf7e424220b7319d21982a217d2`. O helper verifica esse hash, restaura imediatamente o HTML anterior, publica e confere assets antes de trocar o índice, preserva `config.js` e restaura o backup se qualquer verificação falhar. Não contém credenciais. Pacote e evidências privadas não são publicados no repositório.
