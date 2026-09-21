@@ -45,7 +45,10 @@ def get(url):
  with urllib.request.urlopen(url,timeout=10) as r:
   if r.status!=200:raise RuntimeError('HTTP diferente de 200')
   return r.read()
-def probe():get(BASE+'/readyz')
+def probe():
+ # O ingress publica healthz; readyz sob o subpath cairia no fallback HTML da SPA.
+ data=json.loads(get(BASE+'/healthz'))
+ assert data.get('data',{}).get('status')=='ok' and data['data'].get('time'),'healthz não retornou envelope da API'
 def auth(origin):
  env={}
  for line in (ROOT/'.env').read_text().splitlines():

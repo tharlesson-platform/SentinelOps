@@ -11,6 +11,12 @@ from api_edge_drain import DrainTimeout
 def item(number,image):
  return {'Id':str(number),'Name':'api-'+str(number),'Image':image,'State':{'Status':'running','Health':{'Status':'healthy'}},'NetworkSettings':{'Networks':{'sentinelops_control':{'IPAddress':'172.20.0.'+str(number)},'sentinelops_telemetry':{}}},'RestartCount':0}
 class ReleaseTests(unittest.TestCase):
+ def test_probe_rejects_spa_200_and_requires_api_health(self):
+  with patch.object(release,'get',return_value=b'<html>SPA</html>'):
+   with self.assertRaises(json.JSONDecodeError):release.probe()
+  with patch.object(release,'get',return_value=b'{"data":{"status":"ok","time":"2026-09-21T12:00:00Z"}}') as get:
+   release.probe();get.assert_called_once_with(release.BASE+'/healthz')
+
  def test_forward_and_rollback_pin_before_scale_and_drain_before_stop(self):
   current=[item(1,'old'),item(2,'old')];state={'dynamic':True,'target':'new','serial':2,'eligible':set()};events=[]
   class Edge:
