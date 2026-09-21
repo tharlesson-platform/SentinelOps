@@ -43,18 +43,21 @@ type workflowHealthChecker interface {
 }
 
 type Server struct {
-	cfg          config.Config
-	store        *database.Store
-	auth         auth.Authenticator
-	localAuth    *auth.Manager
-	temporal     WorkflowStarter
-	logger       *slog.Logger
-	mux          *http.ServeMux
-	requests     *prometheus.CounterVec
-	duration     *prometheus.HistogramVec
-	limiter      *ipLimiter
-	quotaRejects *prometheus.CounterVec
-	telemetry    *telemetryquery.Client
+	cfg           config.Config
+	store         *database.Store
+	auth          auth.Authenticator
+	localAuth     *auth.Manager
+	temporal      WorkflowStarter
+	logger        *slog.Logger
+	mux           *http.ServeMux
+	requests      *prometheus.CounterVec
+	duration      *prometheus.HistogramVec
+	limiter       *ipLimiter
+	quotaRejects  *prometheus.CounterVec
+	telemetry     *telemetryquery.Client
+	explorerMu    sync.Mutex
+	explorerSlots chan struct{}
+	explorerCache map[string]cachedDiscovery
 }
 
 type response struct {
@@ -161,6 +164,15 @@ func (s *Server) routes(registry *prometheus.Registry) {
 	s.mux.Handle("POST /api/v1/data-lifecycle-requests/{id}/approve", s.require("data-lifecycle:write", http.HandlerFunc(s.approveDataLifecycleRequest)))
 	s.mux.Handle("POST /api/v1/data-lifecycle-requests/{id}/execute", s.require("data-lifecycle:write", http.HandlerFunc(s.executeDataLifecycleRequest)))
 	s.mux.Handle("GET /api/v1/events", s.require("validation:read", http.HandlerFunc(s.events)))
+	s.mux.Handle("GET /api/v1/observability/explorer/platform", s.require("telemetry:read", http.HandlerFunc(s.explorerPlatform)))
+	s.mux.Handle("GET /api/v1/observability/explorer/profiles/catalog", s.require("telemetry:read", http.HandlerFunc(s.explorerProfilesCatalog)))
+	s.mux.Handle("GET /api/v1/observability/explorer/profiles/labels", s.require("telemetry:read", http.HandlerFunc(s.explorerProfilesLabels)))
+	s.mux.Handle("GET /api/v1/observability/explorer/profiles/query", s.require("telemetry:read", http.HandlerFunc(s.explorerProfilesQuery)))
+	s.mux.Handle("GET /api/v1/observability/explorer/catalog", s.require("telemetry:read", http.HandlerFunc(s.explorerCatalog)))
+	s.mux.Handle("GET /api/v1/observability/explorer/dimensions", s.require("telemetry:read", http.HandlerFunc(s.explorerDimensions)))
+	s.mux.Handle("GET /api/v1/observability/explorer/metric", s.require("telemetry:read", http.HandlerFunc(s.explorerMetric)))
+	s.mux.Handle("GET /api/v1/observability/explorer/variables/{dashboard}/{variable}", s.require("telemetry:read", http.HandlerFunc(s.explorerVariable)))
+	s.mux.Handle("GET /api/v1/observability/explorer/panels/{dashboard}/{panel}", s.require("telemetry:read", http.HandlerFunc(s.explorerPanel)))
 	s.mux.Handle("GET /api/v1/observability/overview", s.require("telemetry:read", http.HandlerFunc(s.observabilityOverview)))
 	s.mux.Handle("GET /api/v1/observability/hosts", s.require("telemetry:read", http.HandlerFunc(s.listObservedHosts)))
 	s.mux.Handle("GET /api/v1/observability/hosts/{host}", s.require("telemetry:read", http.HandlerFunc(s.observedHostDetails)))

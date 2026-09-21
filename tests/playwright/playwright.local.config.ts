@@ -1,7 +1,7 @@
 import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: ".",
-  testMatch: "observability.spec.ts",
+  testMatch: ["observability.spec.ts", "explorer.spec.ts"],
   outputDir: "./artifacts/results",
   reporter: [
     ["list"],

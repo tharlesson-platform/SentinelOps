@@ -59,3 +59,11 @@ A evidência local anterior está em [Renovação da interface](renovacao-interf
 ## Revisão independente final
 
 Resultado: **APPROVED WITH CHANGES**, restrito à aceitação deste rollout. O revisor conferiu os relatórios locais e o monitor VPN bruto, sem alteração de arquivos nem acesso remoto. Não identificou bloqueador para manter a versão implantada ou versionar a documentação. A melhoria necessária antes de outro deploy é a convergência de descoberta e drenagem no edge, com teste sob tráfego durante a retirada de réplicas. As pendências de collectors, OIDC e jornada autenticada permanecem delimitadas acima.
+
+## Verificação autenticada posterior no navegador
+
+Após autenticação pelo usuário no Safari, a versão `3b8192e` foi exercitada no navegador publicado. Seleção explícita de servidor/container, troca entre containers homônimos de dois hosts, gráficos e tabela com timestamps, atualização de período, Voltar e Início foram observados. A troca manteve a identidade composta; a atualização avançou o timestamp sem perder o container escolhido.
+
+Quando `host_name` estava ausente, a tela bloqueou a consulta correlacionada. No intervalo observado de 11:44:58–11:45:15 UTC, o ingresso registrou zero chamadas ao endpoint de logs, confirmando ausência de fallback amplo. Essa verificação complementa a limitação de navegador registrada na etapa inicial; OIDC e alterações de collectors continuam fora deste aceite.
+
+A ampliação de cobertura após esta versão está documentada separadamente em [Cobertura nativa de observabilidade](cobertura-observabilidade-2026-09-21.md).

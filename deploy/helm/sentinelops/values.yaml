@@ -20,6 +20,8 @@ global:
   prometheusURL: http://prometheus.observability.svc:9090
   lokiURL: http://loki.observability.svc:3100
   tempoURL: http://tempo.observability.svc:3200
+  # Enable only after proving tenant isolation in every telemetry backend.
+  telemetryDiscoveryTenantAware: false
   telemetryQueryGatewayURL: https://sentinelops-gateway:8444
   telemetryQueryClientTLSSecretName: sentinelops-release-validator-tls
   telemetryQueryClientTLSCertKey: tls.crt
@@ -74,6 +76,7 @@ gateway:
   clientCAKey: ca.crt
   prometheusUpstream: http://prometheus.observability.svc:9090
   lokiUpstream: http://loki.observability.svc:3100
+  pyroscopeUpstream: http://pyroscope:4040
   alloyHTTPUpstream: http://alloy.observability.svc:4318
   alloyGRPCUpstream: h2c://alloy.observability.svc:4317
   service:

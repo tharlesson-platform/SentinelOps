@@ -5,6 +5,7 @@ export const pages = [
   "hosts",
   "docker",
   "metrics",
+  "explorer",
   "logs",
   "apm",
   "traces",
@@ -36,6 +37,15 @@ export type Route = {
   logSearch: string;
   severity: string;
   errors: boolean;
+  explorerMode?: string;
+  metric?: string;
+  dashboard?: string;
+  panel?: string;
+  filters?: string;
+  variables?: string;
+  operation?: string;
+  profileType?: string;
+  profileFilters?: string;
 };
 const entityKeys = [
   "host",
@@ -67,6 +77,19 @@ export function readRoute(search = location.search): Route {
     logSearch: p.get("search") || "",
     severity: p.get("severity") || "",
     errors: p.get("errors") === "true",
+    ...Object.fromEntries(
+      [
+        "explorerMode",
+        "metric",
+        "dashboard",
+        "panel",
+        "filters",
+        "variables",
+        "operation",
+        "profileType",
+        "profileFilters",
+      ].map((k) => [k, p.get(k) || ""]),
+    ),
   };
 }
 export function routeSearch(r: Route) {
@@ -83,6 +106,15 @@ export function routeSearch(r: Route) {
     search: r.logSearch,
     severity: r.severity,
     errors: r.errors ? "true" : "",
+    explorerMode: r.explorerMode,
+    metric: r.metric,
+    dashboard: r.dashboard,
+    panel: r.panel,
+    filters: r.filters,
+    variables: r.variables,
+    operation: r.operation,
+    profileType: r.profileType,
+    profileFilters: r.profileFilters,
   }))
     if (value) p.set(key, value);
   return `?${p}`;

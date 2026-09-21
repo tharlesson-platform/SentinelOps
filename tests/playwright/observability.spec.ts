@@ -97,6 +97,8 @@ async function fixture(page: Page) {
       };
     else if (p.endsWith("/apm"))
       data = { items: [], sources: { prometheus: source("no_data") } };
+    else if (p.endsWith("/explorer/profiles/catalog")) data={types:[],labels:[],sources:{types:source("no_data"),labels:source("no_data")}};
+    else if (p.endsWith("/explorer/profiles/labels")) data={values:[],source:source("no_data"),truncated:false};
     else if (p.endsWith("/assets/search")) data = { items: [] };
     await route.fulfill({ json: { data } });
   });
@@ -330,10 +332,10 @@ test("traces e perfis têm encaminhamentos reais com período", async ({
     .getByRole("button", { name: "Perfis de execução" })
     .click();
   await expect(
-    page.getByRole("link", { name: "Abrir perfis de execução" }),
+    page.getByRole("link", { name: "Abrir ferramenta integrada" }),
   ).toHaveAttribute("href", /datasource.*pyroscope/);
   await expect(
-    page.getByText("servidor e container não são aplicados", { exact: false }),
+    page.getByText("A seleção de servidor/container de outras páginas não é convertida automaticamente.", { exact: false }),
   ).toBeVisible();
 });
 test("mobile, teclado, temas e sair continuam acessíveis", async ({ page }) => {

@@ -9,9 +9,11 @@ import {
   SourceStatus,
   TelemetrySeries,
 } from "./api";
+import { Explorer, NativeProfiles } from "./Explorer";
 import { EntityContext, Route } from "./navigation";
 export type { EntityContext } from "./navigation";
 export type ObservabilityPage =
+  | "explorer"
   | "hosts"
   | "docker"
   | "logs"
@@ -28,7 +30,7 @@ type Props = {
 };
 
 // A response is displayed only under the exact request key that produced it.
-function useQuery<T>(
+export function useQuery<T>(
   key: string,
   query: (signal: AbortSignal) => Promise<T>,
   enabled = true,
@@ -93,7 +95,7 @@ export function ObservabilityView(props: Props) {
           </small>
         </label>
       </div>
-      {page === "hosts" || page === "docker" ? (
+      {page === "explorer" ? <Explorer {...props} /> : page === "hosts" || page === "docker" ? (
         <Inventory {...props} />
       ) : page === "metrics" ? (
         <Details {...props} />
@@ -104,12 +106,13 @@ export function ObservabilityView(props: Props) {
       ) : page === "apm" ? (
         <APM {...props} />
       ) : (
-        <Profiles {...props} />
+        <NativeProfiles {...props} />
       )}
     </>
   );
 }
 const titles = {
+  explorer: "Todas as métricas e visões",
   hosts: "Servidores (hosts)",
   docker: "Containers",
   metrics: "Métricas do recurso",
@@ -119,6 +122,7 @@ const titles = {
   profiles: "Perfis de execução",
 };
 const descriptions = {
+  explorer: "Explore as métricas disponíveis e as visões do Grafana dentro do SentinelOps. Escolha uma fonte, os filtros e o período.",
   hosts:
     "Escolha um servidor para investigar processamento, memória, disco e rede.",
   docker:
@@ -698,23 +702,6 @@ function APM({ api, route, update, refresh }: Props) {
     </>
   );
 }
-function Profiles({ route }: Props) {
-  return (
-    <section className="panel">
-      <h2>Investigar perfis no Grafana</h2>
-      <p>
-        A consulta e o gráfico de perfis estão disponíveis na ferramenta
-        integrada Pyroscope. O período será preservado. Selecione a aplicação e
-        o tipo de perfil lá; servidor e container não são aplicados
-        automaticamente.
-      </p>
-      <a className="link-button" href={exploreURL("pyroscope", route)}>
-        Abrir perfis de execução
-      </a>
-      <p>O acesso depende de sua sessão e permissão no Grafana.</p>
-    </section>
-  );
-}
 export function exploreURL(
   source: "loki" | "tempo" | "pyroscope",
   route: Pick<Route, "window" | "end">,
@@ -742,7 +729,7 @@ export function exploreURL(
 function number(n: number | null | undefined) {
   return n == null
     ? "Sem dados"
-    : n.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+    : n.toLocaleString("pt-BR", { maximumSignificantDigits: 8 });
 }
 function stateLabel(state: string) {
   return (
@@ -801,7 +788,7 @@ export function SourceBanner({
     </div>
   );
 }
-function QueryStatus({
+export function QueryStatus({
   query,
   source,
   label,
@@ -907,6 +894,7 @@ export function chartSegments(
   end: number,
   max: number,
   step: number,
+  min = 0,
 ) {
   const segments: string[][] = [];
   let segment: string[] = [];
@@ -932,7 +920,7 @@ export function chartSegments(
       segment = [];
     }
     segment.push(
-      `${(((t - start) / Math.max(end - start, 1)) * 480).toFixed(2)},${(100 - (p.value / Math.max(max, 1)) * 90).toFixed(2)}`,
+      `${(((t - start) / Math.max(end - start, 1)) * 480).toFixed(2)},${(100 - ((p.value - min) / (max > min ? max - min : 1)) * 90).toFixed(2)}`,
     );
     previous = t;
   }
@@ -945,30 +933,35 @@ export function MiniChart({
   start,
   end,
   step,
+  meta,
+  legendFormat,
 }: {
+  legendFormat?: string;
+  meta?: [string,string,string];
   name: string;
   series: TelemetrySeries[];
   start: string;
   end: string;
   step: number;
 }) {
-  const [label, unit, description] = chartMeta[name] || [
+  const [label, unit, description] = meta || chartMeta[name] || [
     name,
     "valor",
     "Série informada pela fonte.",
   ];
   const max = Math.max(
-    1,
+    0,
     ...series
       .flatMap((s) => s.points.map((p) => p.value ?? 0))
       .filter(Number.isFinite),
   );
+  const min = Math.min(0, ...series.flatMap(s=>s.points.map(p=>p.value ?? 0)).filter(Number.isFinite));
   return (
     <article className="mini-chart">
       <header>
         <b>{label}</b>
         <span>
-          {unit} · escala 0–{number(max)}
+          {unit} · escala {number(min)}–{number(max)}
         </span>
       </header>
       <p>{description}</p>
@@ -981,7 +974,7 @@ export function MiniChart({
           aria-label={`${label}: séries separadas no tempo, valores na tabela abaixo`}
         >
           {series.map((s, i) =>
-            chartSegments(s, Date.parse(start), Date.parse(end), max, step).map(
+            chartSegments(s, Date.parse(start), Date.parse(end), max, step, min).map(
               (segment, j) => (
                 <g key={`${i}-${j}`}>
                   <polyline
@@ -1016,6 +1009,7 @@ export function MiniChart({
             .sort(
               (a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp),
             )[0];
+          const sourceLegend = legendFormat?.replace(/\{\{\s*([^}]+?)\s*\}\}/g,(_token,key)=>s.labels[key]||"");
           const name =
             Object.entries(s.labels)
               .filter(([key]) => key !== "__name__")
@@ -1024,7 +1018,7 @@ export function MiniChart({
           return (
             <li key={i}>
               <i style={{ background: colors[i % colors.length] }} />
-              {name}
+              {sourceLegend && <b>{sourceLegend} · </b>}{name}
               <br />
               {last
                 ? `Última amostra: ${number(last.value)} ${unit} às ${new Date(last.timestamp).toLocaleTimeString("pt-BR")}${Date.parse(end) - Date.parse(last.timestamp) > step * 2000 ? " · amostra antiga" : ""}`

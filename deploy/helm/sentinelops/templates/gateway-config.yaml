@@ -95,6 +95,63 @@ data:
     # injeta o tenant após autenticar o workload.
     https://:{{ .Values.gateway.service.queryPort }} {
       import collector_mtls
+      @discovery {
+        method GET
+        path_regexp discovery_path ^/prometheus/api/v1/(metadata|labels|series|targets|rules|label/[a-zA-Z_][a-zA-Z0-9_]*/values)$
+        header_regexp discovery_tenant X-Sentinel-Organization ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$
+        expression `{http.request.header.X-Sentinel-Organization}.matches("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")`
+        vars_regexp discovery_api {http.request.tls.client.san.uris.0} ^spiffe://sentinelops/workloads/control-plane-api$
+      }
+      handle @discovery {
+        uri strip_prefix /prometheus
+        reverse_proxy {{ .Values.gateway.prometheusUpstream }} {
+          header_up X-Scope-OrgID {http.request.header.X-Sentinel-Organization}
+          header_up -X-Sentinel-Organization
+          {{- if hasPrefix "https://" .Values.gateway.prometheusUpstream }}
+          transport http {
+            tls_trust_pool file /certs/upstream-ca/{{ .Values.global.upstreamCABundleKey }}
+          }
+          {{- end }}
+        }
+      }
+      @loki_discovery {
+        method GET
+        path_regexp loki_discovery_path ^/loki/loki/api/v1/(query|label/[a-zA-Z_][a-zA-Z0-9_]*/values)$
+        header_regexp loki_discovery_tenant X-Sentinel-Organization ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$
+        expression `{http.request.header.X-Sentinel-Organization}.matches("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")`
+        vars_regexp loki_discovery_api {http.request.tls.client.san.uris.0} ^spiffe://sentinelops/workloads/control-plane-api$
+      }
+      handle @loki_discovery {
+        uri strip_prefix /loki
+        reverse_proxy {{ .Values.gateway.lokiUpstream }} {
+          header_up X-Scope-OrgID {http.request.header.X-Sentinel-Organization}
+          header_up -X-Sentinel-Organization
+          {{- if hasPrefix "https://" .Values.gateway.lokiUpstream }}
+          transport http {
+            tls_trust_pool file /certs/upstream-ca/{{ .Values.global.upstreamCABundleKey }}
+          }
+          {{- end }}
+        }
+      }
+      @profile_queries {
+        method POST
+        path_regexp profile_queries_path ^/pyroscope/querier[.]v1[.]QuerierService/(ProfileTypes|LabelNames|LabelValues|SelectMergeStacktraces)$
+        header_regexp profile_queries_tenant X-Sentinel-Organization ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$
+        expression `{http.request.header.X-Sentinel-Organization}.matches("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")`
+        vars_regexp profile_queries_api {http.request.tls.client.san.uris.0} ^spiffe://sentinelops/workloads/control-plane-api$
+      }
+      handle @profile_queries {
+        uri strip_prefix /pyroscope
+        reverse_proxy {{ .Values.gateway.pyroscopeUpstream }} {
+          header_up X-Scope-OrgID {http.request.header.X-Sentinel-Organization}
+          header_up -X-Sentinel-Organization
+          {{- if hasPrefix "https://" .Values.gateway.pyroscopeUpstream }}
+          transport http {
+            tls_trust_pool file /certs/upstream-ca/{{ .Values.global.upstreamCABundleKey }}
+          }
+          {{- end }}
+        }
+      }
       @prometheus {
         path /prometheus/api/v1/query /prometheus/api/v1/query_range
         header X-Sentinel-Organization *

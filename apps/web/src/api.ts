@@ -383,7 +383,7 @@ export class API {
   }
 }
 
-function telemetryWindow(value: string, anchor?: number) {
+export function telemetryWindow(value: string, anchor?: number) {
   const durations: Record<string, number> = {
     "15m": 15 * 60,
     "1h": 60 * 60,

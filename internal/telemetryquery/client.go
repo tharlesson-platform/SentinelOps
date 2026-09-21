@@ -204,6 +204,15 @@ func (c *Client) TempoSearch(ctx context.Context, organizationID, traceQL string
 	return envelope.Traces, nil
 }
 
+type BackendError struct {
+	Source string
+	Status int
+}
+
+func (e *BackendError) Error() string {
+	return fmt.Sprintf("%s telemetry backend returned HTTP %d", e.Source, e.Status)
+}
+
 func (c *Client) getJSON(ctx context.Context, source, path string, parameters url.Values, organizationID string, target any) error {
 	endpoint := c.backends[source]
 	if c.gateway != "" {
@@ -238,7 +247,7 @@ func (c *Client) getJSON(ctx context.Context, source, path string, parameters ur
 			return fmt.Errorf("%s response exceeds %d bytes", source, maxResponseBytes)
 		}
 		if response.StatusCode < 200 || response.StatusCode >= 300 {
-			lastErr = fmt.Errorf("%s telemetry backend returned HTTP %d", source, response.StatusCode)
+			lastErr = &BackendError{Source: source, Status: response.StatusCode}
 			if response.StatusCode == http.StatusBadGateway || response.StatusCode == http.StatusServiceUnavailable || response.StatusCode == http.StatusGatewayTimeout {
 				continue
 			}

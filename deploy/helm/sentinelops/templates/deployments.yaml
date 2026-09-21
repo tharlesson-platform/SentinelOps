@@ -104,6 +104,7 @@ spec:
             - { name: SYNTHETIC_ALLOWED_TARGETS, value: {{ join "," $root.Values.global.syntheticAllowedTargets | quote }} }
             {{- end }}
             {{- if eq $name "api" }}
+            - { name: TELEMETRY_DISCOVERY_TENANT_AWARE, value: {{ $root.Values.global.telemetryDiscoveryTenantAware | quote }} }
             - { name: TELEMETRY_QUERY_GATEWAY_URL, value: {{ $root.Values.global.telemetryQueryGatewayURL | quote }} }
             - { name: TELEMETRY_QUERY_API_CLIENT_CERT_FILE, value: /etc/sentinelops/telemetry-query-api-client/{{ $root.Values.global.telemetryQueryClientTLSCertKey }} }
             - { name: TELEMETRY_QUERY_API_CLIENT_KEY_FILE, value: /etc/sentinelops/telemetry-query-api-client/{{ $root.Values.global.telemetryQueryClientTLSKeyKey }} }

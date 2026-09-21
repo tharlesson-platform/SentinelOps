@@ -11,76 +11,78 @@ import (
 )
 
 type Config struct {
-	HTTPAddr                 string
-	DatabaseURL              string
-	TemporalAddress          string
-	TemporalNamespace        string
-	AuthMode                 string
-	JWTSecret                string
-	LocalUser                string
-	LocalPasswordHash        string
-	OIDCIssuerURL            string
-	OIDCClientID             string
-	OIDCAudience             string
-	OIDCRequiredScope        string
-	Environment              string
-	AllowedOrigin            string
-	ArtifactDir              string
-	AgentBootstrap           string
-	MTLSProxySecret          string
-	WebhookSecret            string
-	WebhookSecrets           map[string]string
-	NotificationWebhookURLs  map[string]string
-	NotificationAllowedHosts []string
-	TelemetryQueryGatewayURL string
-	TelemetryQueryClientCert string
-	TelemetryQueryClientKey  string
-	TelemetryQueryAPICert    string
-	TelemetryQueryAPIKey     string
-	PrometheusURL            string
-	LokiURL                  string
-	TempoURL                 string
-	PyroscopeURL             string
-	RequestTimeout           time.Duration
-	MaxBodyBytes             int64
-	TenantRequestsPerMinute  int
-	CatalogQueriesPerMinute  int
+	HTTPAddr                      string
+	DatabaseURL                   string
+	TemporalAddress               string
+	TemporalNamespace             string
+	AuthMode                      string
+	JWTSecret                     string
+	LocalUser                     string
+	LocalPasswordHash             string
+	OIDCIssuerURL                 string
+	OIDCClientID                  string
+	OIDCAudience                  string
+	OIDCRequiredScope             string
+	Environment                   string
+	AllowedOrigin                 string
+	ArtifactDir                   string
+	AgentBootstrap                string
+	MTLSProxySecret               string
+	WebhookSecret                 string
+	WebhookSecrets                map[string]string
+	NotificationWebhookURLs       map[string]string
+	NotificationAllowedHosts      []string
+	TelemetryQueryGatewayURL      string
+	TelemetryDiscoveryTenantAware bool
+	TelemetryQueryClientCert      string
+	TelemetryQueryClientKey       string
+	TelemetryQueryAPICert         string
+	TelemetryQueryAPIKey          string
+	PrometheusURL                 string
+	LokiURL                       string
+	TempoURL                      string
+	PyroscopeURL                  string
+	RequestTimeout                time.Duration
+	MaxBodyBytes                  int64
+	TenantRequestsPerMinute       int
+	CatalogQueriesPerMinute       int
 }
 
 func Load() (Config, error) {
 	cfg := Config{
-		HTTPAddr:                 env("SENTINEL_HTTP_ADDR", ":8080"),
-		DatabaseURL:              env("DATABASE_URL", "postgres://sentinel_app:sentinel_app@localhost:5432/sentinel?sslmode=disable"),
-		TemporalAddress:          env("TEMPORAL_ADDRESS", "localhost:7233"),
-		TemporalNamespace:        env("TEMPORAL_NAMESPACE", "default"),
-		AuthMode:                 env("AUTH_MODE", "local"),
-		JWTSecret:                os.Getenv("JWT_SECRET"),
-		LocalUser:                env("LOCAL_ADMIN_USER", "admin"),
-		LocalPasswordHash:        os.Getenv("LOCAL_ADMIN_PASSWORD_HASH"),
-		OIDCIssuerURL:            os.Getenv("OIDC_ISSUER_URL"),
-		OIDCClientID:             os.Getenv("OIDC_CLIENT_ID"),
-		OIDCAudience:             os.Getenv("OIDC_API_AUDIENCE"),
-		OIDCRequiredScope:        env("OIDC_REQUIRED_SCOPE", "sentinelops.api"),
-		Environment:              env("SENTINEL_ENV", "development"),
-		AllowedOrigin:            env("ALLOWED_ORIGIN", "http://localhost:3000"),
-		ArtifactDir:              env("ARTIFACT_DIR", "/var/lib/sentinelops/artifacts"),
-		AgentBootstrap:           os.Getenv("AGENT_BOOTSTRAP_TOKEN"),
-		MTLSProxySecret:          os.Getenv("MTLS_PROXY_SHARED_SECRET"),
-		WebhookSecret:            os.Getenv("WEBHOOK_HMAC_SECRET"),
-		NotificationAllowedHosts: splitList(os.Getenv("NOTIFICATION_ALLOWED_HOSTS")),
-		TelemetryQueryGatewayURL: env("TELEMETRY_QUERY_GATEWAY_URL", ""),
-		TelemetryQueryClientCert: env("TELEMETRY_QUERY_CLIENT_CERT_FILE", ""),
-		TelemetryQueryClientKey:  env("TELEMETRY_QUERY_CLIENT_KEY_FILE", ""),
-		TelemetryQueryAPICert:    env("TELEMETRY_QUERY_API_CLIENT_CERT_FILE", ""),
-		TelemetryQueryAPIKey:     env("TELEMETRY_QUERY_API_CLIENT_KEY_FILE", ""),
-		PrometheusURL:            env("PROMETHEUS_URL", "http://localhost:9090"),
-		LokiURL:                  env("LOKI_URL", "http://localhost:3100"),
-		TempoURL:                 env("TEMPO_URL", "http://localhost:3200"),
-		PyroscopeURL:             env("PYROSCOPE_URL", "http://localhost:4040"),
-		RequestTimeout:           duration("REQUEST_TIMEOUT", 15*time.Second),
-		MaxBodyBytes:             int64Value("MAX_BODY_BYTES", 1<<20),
-		TenantRequestsPerMinute:  intValue("TENANT_REQUESTS_PER_MINUTE", 600),
-		CatalogQueriesPerMinute:  intValue("CATALOG_QUERIES_PER_MINUTE", 120),
+		HTTPAddr:                      env("SENTINEL_HTTP_ADDR", ":8080"),
+		DatabaseURL:                   env("DATABASE_URL", "postgres://sentinel_app:sentinel_app@localhost:5432/sentinel?sslmode=disable"),
+		TemporalAddress:               env("TEMPORAL_ADDRESS", "localhost:7233"),
+		TemporalNamespace:             env("TEMPORAL_NAMESPACE", "default"),
+		AuthMode:                      env("AUTH_MODE", "local"),
+		JWTSecret:                     os.Getenv("JWT_SECRET"),
+		LocalUser:                     env("LOCAL_ADMIN_USER", "admin"),
+		LocalPasswordHash:             os.Getenv("LOCAL_ADMIN_PASSWORD_HASH"),
+		OIDCIssuerURL:                 os.Getenv("OIDC_ISSUER_URL"),
+		OIDCClientID:                  os.Getenv("OIDC_CLIENT_ID"),
+		OIDCAudience:                  os.Getenv("OIDC_API_AUDIENCE"),
+		OIDCRequiredScope:             env("OIDC_REQUIRED_SCOPE", "sentinelops.api"),
+		Environment:                   env("SENTINEL_ENV", "development"),
+		AllowedOrigin:                 env("ALLOWED_ORIGIN", "http://localhost:3000"),
+		ArtifactDir:                   env("ARTIFACT_DIR", "/var/lib/sentinelops/artifacts"),
+		AgentBootstrap:                os.Getenv("AGENT_BOOTSTRAP_TOKEN"),
+		MTLSProxySecret:               os.Getenv("MTLS_PROXY_SHARED_SECRET"),
+		WebhookSecret:                 os.Getenv("WEBHOOK_HMAC_SECRET"),
+		NotificationAllowedHosts:      splitList(os.Getenv("NOTIFICATION_ALLOWED_HOSTS")),
+		TelemetryDiscoveryTenantAware: os.Getenv("TELEMETRY_DISCOVERY_TENANT_AWARE") == "true",
+		TelemetryQueryGatewayURL:      env("TELEMETRY_QUERY_GATEWAY_URL", ""),
+		TelemetryQueryClientCert:      env("TELEMETRY_QUERY_CLIENT_CERT_FILE", ""),
+		TelemetryQueryClientKey:       env("TELEMETRY_QUERY_CLIENT_KEY_FILE", ""),
+		TelemetryQueryAPICert:         env("TELEMETRY_QUERY_API_CLIENT_CERT_FILE", ""),
+		TelemetryQueryAPIKey:          env("TELEMETRY_QUERY_API_CLIENT_KEY_FILE", ""),
+		PrometheusURL:                 env("PROMETHEUS_URL", "http://localhost:9090"),
+		LokiURL:                       env("LOKI_URL", "http://localhost:3100"),
+		TempoURL:                      env("TEMPO_URL", "http://localhost:3200"),
+		PyroscopeURL:                  env("PYROSCOPE_URL", "http://localhost:4040"),
+		RequestTimeout:                duration("REQUEST_TIMEOUT", 15*time.Second),
+		MaxBodyBytes:                  int64Value("MAX_BODY_BYTES", 1<<20),
+		TenantRequestsPerMinute:       intValue("TENANT_REQUESTS_PER_MINUTE", 600),
+		CatalogQueriesPerMinute:       intValue("CATALOG_QUERIES_PER_MINUTE", 120),
 	}
 	if cfg.AuthMode == "local" {
 		if len(cfg.JWTSecret) < 32 || cfg.LocalPasswordHash == "" {
