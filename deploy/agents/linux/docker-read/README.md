@@ -26,11 +26,28 @@ a fronteira de autorização é a whitelist Python, não o mount `:ro` do socket
    nomes de atributo atual e legado, além do status ERROR.
 5. Iniciar somente `sentinelops-docker-read@metadata.service` e o timer.
    Conferir `HEAD /_ping`, inspect permitido e negação de `/logs` e POST.
-6. Criar backup do `beyla.yml` ativo; aplicar portas HTTP observadas e o Compose
-   complementar. Validar `docker compose -f docker-compose.yml
-   -f docker-compose.docker-read.yml config --quiet`. Recriar **somente Beyla**
+6. Guardar a configuração efetiva, lista de overlays e imagem ativos. Exigir primeiro Beyla
+   `3.15.0-sentinelops.2`, com patch de seleção/herança e piloto aprovado conforme
+   [build e aceite Beyla](../../../beyla/README.md). Não aplicar o YAML novo
+   aos runtimes upstream/`.1`. Em cada host, configurar
+   `SENTINEL_BEYLA_DISCOVERY_IMAGE` com o digest `.2` efetivamente carregado e
+   aplicar **por último** `docker-compose.beyla-container-discovery.yml`. Esse
+   overlay monta `beyla-container-discovery.yml` com a seleção por metadata OCI
+   não vazia (`container_name: '?*'`, com `containers_only: true`) e fornece
+   acesso ao proxy metadata. Confirmar nomes reais dos containers
+   antes da troca; sem metadata ou namespace verificável, novas seleções e
+   herança no runtime `.2` falham fechadas.
+   Validar `docker compose -f docker-compose.yml
+   -f docker-compose.docker-read.yml
+   -f docker-compose.beyla-container-discovery.yml config --quiet`. Recriar **somente Beyla**
    com `up -d --no-deps beyla`. Não executar `down`, `down -v` nem up irrestrito.
    Conferir nomes reais de serviço, host, ambiente e container nos sinais.
+   Esta mudança é um rollout separado do catálogo/API; não exige reiniciar
+   aplicações de negócio nem outros coletores. Comparar carga do Beyla, filas,
+   erros de descoberta e exportação antes/depois, primeiro em um host.
+   Não sobrescrever `beyla.yml`: ele mantém a seleção legada por portas para o
+   instalador/bundle atuais, sem promessa de descoberta global. O novo perfil
+   é opt-in e não é habilitado automaticamente por `--with-beyla`.
 7. Para logs JSON, o mount novo exige recriar **somente container-logs**, com
    mesmo volume, storage path e IDs dos componentes. Antes de parar, conferir
    ausência de retries/rejeições, guardar posições para investigação e deixar
@@ -77,6 +94,27 @@ seu mount. Não trocar mounts por arquivos de socket individuais.
 - eBPF fornece spans HTTP/gRPC de protocolo; não equivale a spans internos SDK.
   Sem tráfego ou protocolo compatível não há prova de trace. Banco/cache e
   workers sem HTTP podem ter métricas/logs sem requisições APM.
+- A descoberta Beyla deixa de depender de uma lista de portas: aplicações em
+  8090, interfaces RabbitMQ em 15672/15692 e portas futuras são elegíveis quando
+  possuem metadata OCI confirmada. O nome é critério de presença, não uma lista
+  de aplicações; bancos/cache/brokers não são excluídos pelo papel. Permanecem
+  excluídos `sentinelops-linux-collector-*`, os executáveis dos coletores dos
+  defaults Beyla 3.15 e serviços detectados como já instrumentados com OTel.
+  O runtime normaliza o critério metadata para qualquer executável e exige o
+  atributo no matcher. Não trocar por `exe_path: '*'` isolado: a implementação
+  3.15 de `containers_only` ignora erro na consulta de namespace.
+- Os protocolos existentes continuam habilitados. A ampliação de processos
+  também pode aumentar métricas/traces SQL, Redis e mensageria; nomes de bancos,
+  operações e destinos podem ser dados privados. Não habilita `db.query.text`,
+  bodies/headers nem novas opções de extração de payload. Verificar sanitização,
+  cardinalidade e volume na janela do rollout; não prometer spans internos de
+  jobs/workers sem SDK ou tráfego de protocolo suportado.
+- A validação usa o código 3.15.0 com identidade Docker e correção de boundary
+  `.2`. Guardar as imagens anteriores distintas: upstream no tqi-platform e
+  `3.15.0-sentinelops.1` no easy-vm. `containers_only` usa namespace de rede e
+  continua excluindo aplicações em `network_mode: host`. Metadata indisponível
+  impede novas seleções; processos já instrumentados/caches não são uma prova
+  de revogação imediata. A seleção por metadata requer este perfil docker-read.
 - A sanitização remove atributos definidos de credenciais, cookies, usuário e
   URLs completas/query. Não é um detector universal de dados pessoais. A
   política atual de logs descarta linhas com padrões de segredo; esses descartes
@@ -87,7 +125,8 @@ seu mount. Não trocar mounts por arquivos de socket individuais.
 Parar apenas o novo `local-container-logs` e proxy de logs se esse perfil falhar;
 preservar `enrolled.json` e `local-alloy`. Restaurar os arquivos anteriores do
 coletor JSON e recriar só `container-logs` pelo Compose original. Restaurar
-`beyla.yml` e recriar só Beyla pelo Compose original. Restaurar o conteúdo dos
+o conjunto anterior de overlays (removendo o opt-in de descoberta global) e
+recriar só Beyla com seu YAML/imagem anteriores. Restaurar o conteúdo dos
 Alloys local/central e fazer reload com o mesmo inode. Nunca restaurar uma cópia
 antiga de WAL/posições sobre o processo ativo. Preservar scripts/estado para
 investigação e confirmar que IDs/StartedAt de negócio não mudaram.
