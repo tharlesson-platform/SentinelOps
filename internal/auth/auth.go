@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -132,12 +133,12 @@ func (o *OIDCAuthenticator) ParseAuthorization(ctx context.Context, value string
 		} `json:"realm_access"`
 		Organization string   `json:"organization"`
 		Scope        string   `json:"scope"`
-		Scopes       []string `json:"scp"`
+		Scopes       json.RawMessage `json:"scp"`
 	}
 	if err := token.Claims(&raw); err != nil {
 		return Claims{}, err
 	}
-	if !hasScope(raw.Scope, raw.Scopes, o.requiredScope) {
+	if !hasScope(raw.Scope, parseScopeClaim(raw.Scopes), o.requiredScope) {
 		return Claims{}, errors.New("OIDC token lacks required API scope")
 	}
 	if !hasGroup(raw.Groups, o.requiredGroup) {
@@ -157,6 +158,22 @@ func (o *OIDCAuthenticator) ParseAuthorization(ctx context.Context, value string
 		return Claims{}, errors.New("OIDC token requires organization mapping")
 	}
 	return Claims{Role: role, Organization: raw.Organization, RegisteredClaims: jwt.RegisteredClaims{Subject: token.Subject, Issuer: token.Issuer, Audience: token.Audience, ExpiresAt: jwt.NewNumericDate(token.Expiry)}}, nil
+}
+
+func parseScopeClaim(value json.RawMessage) []string {
+	if len(value) == 0 || string(value) == "null" {
+		return nil
+	}
+	if value[0] == '"' {
+		var scope string
+		if json.Unmarshal(value, &scope) == nil {
+			return strings.Fields(scope)
+		}
+		return nil
+	}
+	var scopes []string
+	_ = json.Unmarshal(value, &scopes)
+	return scopes
 }
 
 func hasGroup(groups []string, wanted string) bool {
