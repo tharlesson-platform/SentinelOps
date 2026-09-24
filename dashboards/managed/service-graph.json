@@ -237,8 +237,8 @@
       }
     },
     {
-      "type": "logs",
-      "title": "Logs da aplicação nos últimos 5 minutos",
+      "type": "stat",
+      "title": "Eventos da aplicação nos últimos 5 minutos",
       "id": 4,
       "gridPos": {
         "h": 9,
@@ -252,21 +252,52 @@
       },
       "targets": [
         {
-          "expr": "sum(count_over_time({job=\"docker-container\",filename=~\".*/(${container_id:regex})/.*\",host_name=~\"$host\",deployment_environment=~\"$environment\"} [5m]))",
+          "expr": "sum(count_over_time({job=\"docker-container\",container_id!=\"\",container_id=~\"${container_id:regex}\",host_name=~\"$host\",deployment_environment=~\"$environment\"} [5m]))",
           "refId": "A",
-          "maxLines": 200
+          "legendFormat": "Docker por ID"
+        },
+        {
+          "expr": "sum(count_over_time({job=\"docker-container\",container_id=\"\",filename=~\".*/(${container_id:regex})/.*\",host_name=~\"$host\",deployment_environment=~\"$environment\"} [5m]))",
+          "refId": "B",
+          "legendFormat": "Docker legado"
         }
       ],
-      "description": "Logs da aplicação nos últimos 5 minutos. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "description": "Contagem de eventos da aplicação nos últimos 5 minutos. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados. Consultas Docker separadas: A = Docker por ID (container_id); B = Docker legado por filename somente sem container_id. Conjuntos disjuntos; valores por consulta, sem total consolidado.",
       "options": {
-        "showTime": true,
-        "showLabels": false,
-        "showCommonLabels": false,
-        "wrapLogMessage": true,
-        "prettifyLogMessage": false,
-        "enableLogDetails": true,
-        "sortOrder": "Descending",
-        "dedupStrategy": "none"
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "showPercentChange": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "Sem dados",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
       }
     },
     {
@@ -285,12 +316,12 @@
       },
       "targets": [
         {
-          "query": "{ resource.service.name =~ \"$application\" }",
+          "query": "{ resource.host.name != \"\" && resource.host.name =~ \"$host\" && resource.service.name =~ \"$application\" }",
           "queryType": "traceql",
           "refId": "A"
         }
       ],
-      "description": "Traces da aplicação selecionada. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados."
+      "description": "Traces da aplicação selecionada. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados. Identidade APM: aplicação usa service.name e host usa host.name em métricas e traces. Todos os hosts inclui serviços homônimos nos hosts selecionados; séries sem identidade ou com labels concatenadas inválidas não são atribuídas."
     }
   ],
   "refresh": "15s",
@@ -303,29 +334,6 @@
   ],
   "templating": {
     "list": [
-      {
-        "name": "application",
-        "label": "Aplicação APM (service.name)",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "query": {
-          "query": "label_values(http_server_request_duration_seconds_count, job)",
-          "refId": "var-application"
-        },
-        "includeAll": true,
-        "allValue": ".+",
-        "multi": true,
-        "refresh": 1,
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        },
-        "hide": 0
-      },
       {
         "name": "environment",
         "label": "Ambiente",
@@ -351,7 +359,7 @@
       },
       {
         "name": "host",
-        "label": "Host (logs/containers)",
+        "label": "Host",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -417,6 +425,29 @@
         },
         "hide": 2,
         "regex": "/.*(?:\\/|docker-)([a-f0-9]{64})(?:\\.scope)?$/"
+      },
+      {
+        "name": "application",
+        "label": "Aplicação APM (service.name)",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(http_server_request_duration_seconds_count{host_name=~\"$host\",host_name!=\"\",host_name!~\".*;.*\",service_name!=\"\",service_name!~\".*;.*\"}, service_name)",
+          "refId": "var-application"
+        },
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "refresh": 2,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
       }
     ]
   },

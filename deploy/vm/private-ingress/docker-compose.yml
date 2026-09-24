@@ -1,0 +1,30 @@
+name: sentinelops-private-ingress
+services:
+  ingress:
+    image: nginx:1.29.6-alpine3.23@sha256:f46cb72c7df02710e693e863a983ac42f6a9579058a59a35f1ae36c9958e4ce0
+    container_name: sentinelops-private-ingress
+    entrypoint: [nginx]
+    command: [-c, /etc/nginx/private/nginx.conf, -g, "daemon off;"]
+    network_mode: host
+    volumes:
+      - ./config:/etc/nginx/private:ro
+      - /opt/sentinelops/private-ingress/certs:/certs:ro
+      - ./portal:/portal:ro
+      - /opt/sentinelops/private-ingress/web:/web:ro
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE, SETUID, SETGID, CHOWN]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /var/cache/nginx:mode=0755
+      - /var/run:mode=0755
+      - /tmp
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+    healthcheck:
+      test: [CMD-SHELL, "wget -qO- --no-check-certificate --header='Host: sentinelops.tqi.com.br' https://127.0.0.1:19443/ingress-healthz | grep -q 'ingress ready'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped

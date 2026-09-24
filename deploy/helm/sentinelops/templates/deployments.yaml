@@ -91,6 +91,8 @@ spec:
             - { name: OIDC_CLIENT_ID, value: {{ $root.Values.global.oidcClientID | quote }} }
             - { name: OIDC_API_AUDIENCE, value: {{ $root.Values.global.oidcAPIAudience | quote }} }
             - { name: OIDC_REQUIRED_SCOPE, value: {{ $root.Values.global.oidcRequiredScope | quote }} }
+            - { name: OIDC_REQUIRED_GROUP, value: {{ $root.Values.global.oidcRequiredGroup | quote }} }
+            - { name: OIDC_ORGANIZATION, value: {{ $root.Values.global.oidcOrganization | quote }} }
             - { name: TEMPORAL_ADDRESS, value: {{ $root.Values.global.temporalAddress | quote }} }
             - { name: ALLOWED_ORIGIN, value: {{ $root.Values.global.allowedOrigin | quote }} }
             {{- if $root.Values.global.upstreamCABundleSecretName }}
@@ -104,6 +106,7 @@ spec:
             - { name: SYNTHETIC_ALLOWED_TARGETS, value: {{ join "," $root.Values.global.syntheticAllowedTargets | quote }} }
             {{- end }}
             {{- if eq $name "api" }}
+            - { name: TELEMETRY_DISCOVERY_TENANT_AWARE, value: {{ $root.Values.global.telemetryDiscoveryTenantAware | quote }} }
             - { name: TELEMETRY_QUERY_GATEWAY_URL, value: {{ $root.Values.global.telemetryQueryGatewayURL | quote }} }
             - { name: TELEMETRY_QUERY_API_CLIENT_CERT_FILE, value: /etc/sentinelops/telemetry-query-api-client/{{ $root.Values.global.telemetryQueryClientTLSCertKey }} }
             - { name: TELEMETRY_QUERY_API_CLIENT_KEY_FILE, value: /etc/sentinelops/telemetry-query-api-client/{{ $root.Values.global.telemetryQueryClientTLSKeyKey }} }

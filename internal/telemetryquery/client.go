@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -112,6 +113,11 @@ func (c *Client) PrometheusInstant(ctx context.Context, organizationID, query st
 		if err != nil {
 			return nil, fmt.Errorf("decode prometheus vector sample: %w", err)
 		}
+		// Prometheus represents undefined values (for example an idle quantile)
+		// as NaN. Keep missing observations out of JSON, without inventing zero.
+		if math.IsNaN(point.Value) || math.IsInf(point.Value, 0) {
+			continue
+		}
 		result = append(result, VectorSample{Labels: item.Metric, Timestamp: point.Timestamp, Value: point.Value})
 	}
 	return result, nil
@@ -136,6 +142,9 @@ func (c *Client) PrometheusRange(ctx context.Context, organizationID, query stri
 			point, err := decodePoint(raw)
 			if err != nil {
 				return nil, fmt.Errorf("decode prometheus range sample: %w", err)
+			}
+			if math.IsNaN(point.Value) || math.IsInf(point.Value, 0) {
+				continue
 			}
 			points = append(points, point)
 		}
@@ -195,6 +204,15 @@ func (c *Client) TempoSearch(ctx context.Context, organizationID, traceQL string
 	return envelope.Traces, nil
 }
 
+type BackendError struct {
+	Source string
+	Status int
+}
+
+func (e *BackendError) Error() string {
+	return fmt.Sprintf("%s telemetry backend returned HTTP %d", e.Source, e.Status)
+}
+
 func (c *Client) getJSON(ctx context.Context, source, path string, parameters url.Values, organizationID string, target any) error {
 	endpoint := c.backends[source]
 	if c.gateway != "" {
@@ -229,7 +247,7 @@ func (c *Client) getJSON(ctx context.Context, source, path string, parameters ur
 			return fmt.Errorf("%s response exceeds %d bytes", source, maxResponseBytes)
 		}
 		if response.StatusCode < 200 || response.StatusCode >= 300 {
-			lastErr = fmt.Errorf("%s telemetry backend returned HTTP %d", source, response.StatusCode)
+			lastErr = &BackendError{Source: source, Status: response.StatusCode}
 			if response.StatusCode == http.StatusBadGateway || response.StatusCode == http.StatusServiceUnavailable || response.StatusCode == http.StatusGatewayTimeout {
 				continue
 			}

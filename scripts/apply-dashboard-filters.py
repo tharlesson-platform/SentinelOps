@@ -141,8 +141,119 @@ def loki_target(expr: str, ref_id: str = "A", legend: str | None = None) -> dict
     return target
 
 
+def apply_docker_log_identity(dashboard: dict[str, object]) -> None:
+    """Expand legacy Docker selectors after specializations, before panel UX.
+
+    Keep each original pipeline and range intact. Log streams cannot use a
+    metric-vector union; separate disjoint targets also avoid losing one count
+    when two aggregated vectors have identical labels.
+    """
+    filename = 'filename=~".*/(${container_id:regex})/.*"'
+    marker = " Consultas Docker separadas: "
+    for panel in dashboard.get("panels", []):
+        original = panel.get("targets", [])
+        used_refs = {target["refId"] for target in original}
+        targets = []
+        labels = []
+        for target in original:
+            expr = str(target.get("expr", ""))
+            source = target.get("datasource", panel.get("datasource", {}))
+            if (source.get("type") != "loki" or filename not in expr
+                    or 'job="docker-container"' not in expr or 'container_id=' in expr):
+                targets.append(target)
+                continue
+            ref = next((ref for ref in "ABCD" if ref not in used_refs), None)
+            if ref is None:
+                raise ValueError(f"painel {panel.get('id')} excede quatro consultas")
+            used_refs.add(ref)
+            identified = dict(target, expr=expr.replace(
+                filename, 'container_id!="",container_id=~"${container_id:regex}"'),
+                legendFormat="Docker por ID")
+            legacy = dict(target, expr=expr.replace(filename, 'container_id="",' + filename),
+                          refId=ref, legendFormat="Docker legado")
+            targets.extend([identified, legacy])
+            labels.extend([f"{target['refId']} = Docker por ID (container_id)",
+                           f"{ref} = Docker legado por filename somente sem container_id"])
+        if not labels:
+            continue
+        panel["targets"] = targets
+        # Some old application panels were typed as logs despite returning a
+        # count vector. Grafana must render those unchanged metric queries as stats.
+        metric_counts = all(
+            str(target.get("expr", "")).startswith("sum(count_over_time(") for target in targets
+        )
+        if metric_counts:
+            panel["type"] = "stat"
+            if str(panel.get("title", "")).startswith("Logs "):
+                panel["title"] = "Eventos " + panel["title"][5:]
+            for target in targets:
+                target.pop("maxLines", None)
+        base = str(panel.get("description", "")).split(marker, 1)[0]
+        if metric_counts and base.startswith("Logs "):
+            base = "Contagem de eventos " + base[5:]
+        panel["description"] = (base + marker + "; ".join(labels) + ". "
+                                "Conjuntos disjuntos; valores por consulta, sem total consolidado.")
+        if panel.get("type") == "logs":
+            panel["description"] += " Até 200 linhas por consulta (até 400 no conjunto), sem garantia de cobertura completa."
+
+
 def trace_target(query: str, ref_id: str = "A") -> dict[str, object]:
     return {"query": query, "queryType": "traceql", "refId": ref_id}
+
+
+def apply_trace_service_identity(dashboard: dict[str, object]) -> None:
+    """Use the same observed service and host identity in metrics and traces."""
+    variables = dashboard.get("templating", {}).get("list", [])
+    if not any(v["name"] == "application" for v in variables):
+        return
+    variables[:] = [v for v in variables if v["name"] not in {"trace_service", "trace_host"}]
+    for variable in variables:
+        if variable["name"] == "application":
+            variable["label"] = "Aplicação APM (service.name)"
+            variable["query"]["query"] = (
+                'label_values(http_server_request_duration_seconds_count{'
+                'host_name=~"$host",host_name!="",host_name!~".*;.*",'
+                'service_name!="",service_name!~".*;.*"}, service_name)'
+            )
+            variable["refresh"] = 2
+        elif variable["name"] == "host":
+            variable["label"] = "Host"
+    # Grafana resolves dependencies in order: host precedes its service list.
+    application = next(v for v in variables if v["name"] == "application")
+    variables.remove(application)
+    variables.append(application)
+    for panel in dashboard.get("panels", []):
+        changed = False
+        for target in panel.get("targets", []):
+            expression = str(target.get("expr", ""))
+            if "$application" in expression:
+                for old in ('job=~"(.*/)?$application"', 'job=~"$application"'):
+                    expression = expression.replace(old, (
+                        'service_name=~"$application",host_name=~"$host",'
+                        'host_name!="",host_name!~".*;.*",service_name!~".*;.*"'
+                    ))
+                expression = re.sub(r'(by\s*\([^)]*)\bjob\b', r'\1service_name', expression)
+                target["expr"] = expression
+                if "legendFormat" in target:
+                    target["legendFormat"] = target["legendFormat"].replace("{{job}}", "{{service_name}}")
+                changed = True
+            query = str(target.get("query", ""))
+            if 'resource.service.name =~ "$application"' in query:
+                query = query.replace('resource.service.namespace =~ "$host"',
+                                      'resource.host.name =~ "$host"')
+                if 'resource.host.name =~ "$host"' not in query:
+                    query = query.replace('{ ', '{ resource.host.name =~ "$host" && ', 1)
+                query = query.replace('{ ', '{ resource.host.name != "" && ', 1)
+                target["query"] = query
+                changed = True
+            if changed:
+                marker = " Identidade APM: "
+                base = str(panel.get("description", "")).split(" Identidade dos traces: ", 1)[0].split(marker, 1)[0]
+                panel["description"] = base + marker + (
+                    "aplicação usa service.name e host usa host.name em métricas e traces. "
+                    "Todos os hosts inclui serviços homônimos nos hosts selecionados; "
+                    "séries sem identidade ou com labels concatenadas inválidas não são atribuídas."
+                )
 
 
 def panels_by_id(dashboard: dict[str, object]) -> dict[int, dict[str, object]]:
@@ -590,21 +701,31 @@ def apply_logs(dashboard: dict[str, object]) -> None:
     variables.append(
         query_variable(
             "stream",
-            "Stream",
+            "Stream (host/ambiente)",
             LOKI,
-            'label_values({job="docker-container",host_name=~"$host",filename=~".*/(${container_id:regex})/.*"}, stream)',
+            # label_values accepts one indexed stream selector, not a union of
+            # log queries. Discover both contracts within the same host/env;
+            # container selection remains enforced by every Docker data target.
+            'label_values({job="docker-container",deployment_environment=~"$environment",host_name=~"$host"}, stream)',
         )
     )
     variables.append(textbox_variable("search", "Buscar no conteúdo (regex)"))
     dashboard["templating"] = {"list": variables}
     dashboard["description"] = (
         "Logs pesquisáveis por fonte, container Docker, ambiente, host, stream e conteúdo. "
+        "A lista de streams considera os containers do host/ambiente; os painéis aplicam o container selecionado. "
         "A detecção de erro é fallback por regex, não severidade normalizada; dados pessoais exigem redaction upstream."
     )
     panels = panels_by_id(dashboard)
     docker = (
-        '{job=~"$log_source",deployment_environment=~"$environment",host_name=~"$host",'
-        'filename=~".*/(${container_id:regex})/.*",stream=~"$stream"} |~ "$search"'
+        '{job="docker-container",job=~"$log_source",deployment_environment=~"$environment",host_name=~"$host",'
+        'container_id!="",container_id=~"${container_id:regex}",stream=~"$stream"} |~ "$search"'
+    )
+    # Explicitly disjoint fallback: a stream with an indexed ID belongs only to
+    # A, even when filename is also present. Empty matches absent Loki labels.
+    legacy = (
+        '{job="docker-container",job=~"$log_source",deployment_environment=~"$environment",host_name=~"$host",'
+        'container_id="",filename=~".*/(${container_id:regex})/.*",stream=~"$stream"} |~ "$search"'
     )
     other = (
         '{job=~"$log_source",job!="docker-container",deployment_environment=~"$environment",'
@@ -614,8 +735,9 @@ def apply_logs(dashboard: dict[str, object]) -> None:
         panels,
         1,
         [
-            loki_target(f"sum(count_over_time({docker} [$__range]))", "A"),
-            loki_target(f"sum(count_over_time({other} [$__range]))", "B"),
+            loki_target(f"sum(count_over_time({docker} [$__range]))", "A", "Docker por ID"),
+            loki_target(f"sum(count_over_time({other} [$__range]))", "B", "Sistema / outras fontes"),
+            loki_target(f"sum(count_over_time({legacy} [$__range]))", "C", "Docker legado"),
         ],
         datasource=LOKI,
         title="Eventos no período",
@@ -624,8 +746,9 @@ def apply_logs(dashboard: dict[str, object]) -> None:
         panels,
         2,
         [
-            loki_target(f"sum by (host_name) (count_over_time({docker} [$__interval]))", "A", "{{host_name}}"),
+            loki_target(f"sum by (host_name) (count_over_time({docker} [$__interval]))", "A", "Docker por ID · {{host_name}}"),
             loki_target(f"sum by (job, host_name) (count_over_time({other} [$__interval]))", "B", "{{job}} · {{host_name}}"),
+            loki_target(f"sum by (host_name) (count_over_time({legacy} [$__interval]))", "C", "Docker legado · {{host_name}}"),
         ],
         datasource=LOKI,
         title="Volume de logs por aplicação/container",
@@ -634,8 +757,9 @@ def apply_logs(dashboard: dict[str, object]) -> None:
         panels,
         3,
         [
-            loki_target(f"sum(count_over_time({docker} |~ \"(?i)error|exception|fatal\" [$__interval]))", "A"),
-            loki_target(f"sum(count_over_time({other} |~ \"(?i)error|exception|fatal\" [$__interval]))", "B"),
+            loki_target(f"sum(count_over_time({docker} |~ \"(?i)error|exception|fatal\" [$__interval]))", "A", "Docker por ID"),
+            loki_target(f"sum(count_over_time({other} |~ \"(?i)error|exception|fatal\" [$__interval]))", "B", "Sistema / outras fontes"),
+            loki_target(f"sum(count_over_time({legacy} |~ \"(?i)error|exception|fatal\" [$__interval]))", "C", "Docker legado"),
         ],
         datasource=LOKI,
         title="Possíveis erros por intervalo (regex)",
@@ -643,27 +767,36 @@ def apply_logs(dashboard: dict[str, object]) -> None:
     set_panel(
         panels,
         4,
-        [loki_target(docker, "A"), loki_target(other, "B")],
+        [loki_target(docker, "A", "Docker por ID"), loki_target(other, "B", "Sistema / outras fontes"), loki_target(legacy, "C", "Docker legado")],
         datasource=LOKI,
-        title="Logs filtrados (máximo 200 linhas)",
+        title="Logs filtrados (até 200 linhas por consulta)",
         panel_type="logs",
     )
     set_panel(
         panels,
         5,
         [
-            loki_target(f"sum(count_over_time({docker} |~ \"(?i)error|exception|fatal\" [$__range]))", "A"),
-            loki_target(f"sum(count_over_time({other} |~ \"(?i)error|exception|fatal\" [$__range]))", "B"),
+            loki_target(f"sum(count_over_time({docker} |~ \"(?i)error|exception|fatal\" [$__range]))", "A", "Docker por ID"),
+            loki_target(f"sum(count_over_time({other} |~ \"(?i)error|exception|fatal\" [$__range]))", "B", "Sistema / outras fontes"),
+            loki_target(f"sum(count_over_time({legacy} |~ \"(?i)error|exception|fatal\" [$__range]))", "C", "Docker legado"),
         ],
         datasource=LOKI,
         title="Possíveis erros no período (regex)",
     )
-    if panels.get(3):
-        panels[3]["description"] = "Triagem textual por error/exception/fatal; stack traces podem elevar a contagem."
+    contract = (
+        "Consultas separadas: A = Docker por ID (container_id); B = sistema/outras fontes; "
+        "C = Docker legado por filename somente sem container_id. "
+        "Os conjuntos são disjuntos; valores exibidos por consulta, sem total consolidado. "
+        "Container e stream filtram somente Docker."
+    )
+    for panel_id in (1, 2, 3, 4, 5):
+        if panels.get(panel_id):
+            panels[panel_id]["description"] = contract
+    for panel_id in (3, 5):
+        if panels.get(panel_id):
+            panels[panel_id]["description"] += " Triagem textual por error/exception/fatal, não severity estruturada; stack traces podem elevar a contagem."
     if panels.get(4):
-        panels[4]["description"] = "Conteúdo bruto pode conter dados pessoais; aplicar mascaramento no collector antes da ingestão."
-    if panels.get(5):
-        panels[5]["description"] = "Fallback por regex; não equivale a uma contagem estruturada por severity."
+        panels[4]["description"] += " Até 200 linhas por consulta (até 600 no conjunto), sem garantia de cobertura completa. Conteúdo bruto pode conter dados pessoais; aplicar mascaramento no collector."
 
 
 def control_variables(*, include_alerts: bool = True) -> list[dict[str, object]]:
@@ -946,29 +1079,10 @@ def apply_tqi(dashboard: dict[str, object]) -> None:
     )
     panels = panels_by_id(dashboard)
     node = 'deployment_environment=~"$environment",instance=~"$host"'
-    target_info = (
-        'max by (job, instance, host_name) '
-        '(target_info{host_name=~"$host",telemetry_sdk_name="beyla"})'
-    )
-    count_rate = (
-        '(rate(http_server_request_duration_seconds_count{job=~"$host/(.*/)?$application",'
-        'http_route=~"$route"}[5m]) or '
-        '(rate(http_server_request_duration_seconds_count{job=~"(.*/)?$application",http_route=~"$route"}[5m]) '
-        f'* on (job, instance) group_left (host_name) {target_info}))'
-    )
-    bucket_rate = (
-        '(rate(http_server_request_duration_seconds_bucket{job=~"$host/(.*/)?$application",'
-        'http_route=~"$route"}[5m]) or '
-        '(rate(http_server_request_duration_seconds_bucket{job=~"(.*/)?$application",http_route=~"$route"}[5m]) '
-        f'* on (job, instance) group_left (host_name) {target_info}))'
-    )
-    error_rate = (
-        '(rate(http_server_request_duration_seconds_count{job=~"$host/(.*/)?$application",'
-        'http_route=~"$route",http_response_status_code=~"5.."}[5m]) or '
-        '(rate(http_server_request_duration_seconds_count{job=~"(.*/)?$application",http_route=~"$route",'
-        'http_response_status_code=~"5.."}[5m]) '
-        f'* on (job, instance) group_left (host_name) {target_info}))'
-    )
+    selector = 'job=~"$application",http_route=~"$route"'
+    count_rate = f'rate(http_server_request_duration_seconds_count{{{selector}}}[5m])'
+    bucket_rate = f'rate(http_server_request_duration_seconds_bucket{{{selector}}}[5m])'
+    error_rate = f'rate(http_server_request_duration_seconds_count{{{selector},http_response_status_code=~"5.."}}[5m])'
     set_panel(panels, 2, [prometheus_target(f'count(up{{job="linux-node",{node}}} == 1)')])
     set_panel(panels, 3, [prometheus_target(f'100 - avg(rate(node_cpu_seconds_total{{{node},mode="idle"}}[5m])) * 100')])
     set_panel(panels, 4, [prometheus_target(f'max(100 * (1 - node_memory_MemAvailable_bytes{{{node}}} / node_memory_MemTotal_bytes{{{node}}}))')])
@@ -1004,12 +1118,15 @@ def apply_tqi(dashboard: dict[str, object]) -> None:
         datasource=TEMPO,
         title="APM — traces por aplicação e host",
     )
+    panels[14]["description"] = "Traces OpenTelemetry por host e serviço."
     set_panel(
         panels,
         15,
         [loki_target(selected_logs, "A")],
         datasource=LOKI,
+        title="Logs dos containers selecionados",
     )
+    panels[15]["description"] = "Logs de containers no escopo dos filtros; ausência é apresentada como Sem dados."
 
 
 def apply_vmware_performance(dashboard: dict[str, object]) -> None:
@@ -1169,7 +1286,9 @@ def apply_noc_ux(dashboard: dict[str, object], name: str) -> None:
             panel["options"] = {
                 "reduceOptions": {"values": False, "calcs": ["lastNotNull"], "fields": ""},
                 "orientation": "auto",
-                "textMode": "value",
+                "textMode": "value_and_name" if any(
+                    target.get("legendFormat") == "Docker por ID" for target in panel.get("targets", [])
+                ) else "value",
                 "wideLayout": True,
                 "colorMode": "background",
                 "graphMode": "none",
@@ -1266,6 +1385,8 @@ def apply_filters(path: Path) -> None:
     else:
         raise ValueError(f"dashboard sem política de filtros: {path}")
 
+    apply_docker_log_identity(dashboard)
+    apply_trace_service_identity(dashboard)
     apply_noc_ux(dashboard, name)
     dashboard["version"] = 3
     path.write_text(json.dumps(dashboard, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

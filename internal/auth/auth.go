@@ -2,8 +2,10 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -39,7 +41,7 @@ func (m *Manager) Login(user, password string) (string, error) {
 	now := time.Now().UTC()
 	claims := Claims{Role: "Platform Administrator", Organization: "local", RegisteredClaims: jwt.RegisteredClaims{
 		Subject: user, Issuer: "sentinelops-local", Audience: []string{"sentinelops"},
-		IssuedAt: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(now.Add(15 * time.Minute)), ID: fmt.Sprintf("%d", now.UnixNano()),
+		IssuedAt: jwt.NewNumericDate(now), ID: fmt.Sprintf("%d", now.UnixNano()),
 	}}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(m.secret)
 }
@@ -54,7 +56,7 @@ func (m *Manager) ParseAuthorization(_ context.Context, value string) (Claims, e
 			return nil, errors.New("unexpected signing method")
 		}
 		return m.secret, nil
-	}, jwt.WithAudience("sentinelops"), jwt.WithIssuer("sentinelops-local"), jwt.WithExpirationRequired())
+	}, jwt.WithAudience("sentinelops"), jwt.WithIssuer("sentinelops-local"))
 	if err != nil || !token.Valid {
 		return Claims{}, errors.New("invalid or expired token")
 	}
@@ -66,24 +68,61 @@ func (m *Manager) ParseAuthorization(_ context.Context, value string) (Claims, e
 }
 
 type OIDCAuthenticator struct {
-	verifier      *oidc.IDTokenVerifier
+	verifiers     []*oidc.IDTokenVerifier
 	requiredScope string
+	requiredGroup string
+	organization  string
 }
 
-func NewOIDC(ctx context.Context, issuer, audience, requiredScope string) (*OIDCAuthenticator, error) {
+func NewOIDC(ctx context.Context, issuer, audience string, options ...string) (*OIDCAuthenticator, error) {
+	var requiredScope, requiredGroup, organization string
+	switch len(options) {
+	case 1:
+		requiredScope = options[0]
+		requiredGroup = os.Getenv("OIDC_REQUIRED_GROUP")
+		organization = os.Getenv("OIDC_ORGANIZATION")
+	case 2:
+		requiredScope, requiredGroup = options[0], options[1]
+	default:
+		if len(options) >= 3 {
+			requiredScope, requiredGroup, organization = options[0], options[1], options[2]
+		}
+	}
 	provider, err := oidc.NewProvider(ctx, issuer)
 	if err != nil {
 		return nil, err
 	}
-	return &OIDCAuthenticator{verifier: provider.Verifier(&oidc.Config{ClientID: audience}), requiredScope: requiredScope}, nil
+	verifiers := []*oidc.IDTokenVerifier{provider.Verifier(&oidc.Config{ClientID: audience})}
+
+	// Entra can issue a v1 access token for an API whose authority is v2.0.
+	// v1 tokens use the tenant issuer without /v2.0 and the API App ID URI as
+	// audience, while v2 tokens use the client ID. Accept both token formats.
+	legacyIssuer := strings.TrimSuffix(issuer, "/v2.0")
+	if legacyIssuer != issuer {
+		legacyProvider, legacyErr := oidc.NewProvider(ctx, legacyIssuer)
+		if legacyErr == nil {
+			verifiers = append(verifiers,
+				legacyProvider.Verifier(&oidc.Config{ClientID: "api://" + audience}),
+				legacyProvider.Verifier(&oidc.Config{ClientID: "api://" + audience + "/" + requiredScope}),
+			)
+		}
+	}
+	return &OIDCAuthenticator{verifiers: verifiers, requiredScope: requiredScope, requiredGroup: requiredGroup, organization: organization}, nil
 }
 func (o *OIDCAuthenticator) ParseAuthorization(ctx context.Context, value string) (Claims, error) {
 	parts := strings.SplitN(value, " ", 2)
 	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
 		return Claims{}, errors.New("missing bearer token")
 	}
-	token, err := o.verifier.Verify(ctx, parts[1])
-	if err != nil {
+	var token *oidc.IDToken
+	var err error
+	for _, verifier := range o.verifiers {
+		token, err = verifier.Verify(ctx, parts[1])
+		if err == nil {
+			break
+		}
+	}
+	if err != nil || token == nil {
 		return Claims{}, errors.New("invalid or expired OIDC token")
 	}
 	var raw struct {
@@ -94,22 +133,59 @@ func (o *OIDCAuthenticator) ParseAuthorization(ctx context.Context, value string
 		} `json:"realm_access"`
 		Organization string   `json:"organization"`
 		Scope        string   `json:"scope"`
-		Scopes       []string `json:"scp"`
+		Scopes       json.RawMessage `json:"scp"`
 	}
 	if err := token.Claims(&raw); err != nil {
 		return Claims{}, err
 	}
-	if !hasScope(raw.Scope, raw.Scopes, o.requiredScope) {
+	if !hasScope(raw.Scope, parseScopeClaim(raw.Scopes), o.requiredScope) {
 		return Claims{}, errors.New("OIDC token lacks required API scope")
+	}
+	if !hasGroup(raw.Groups, o.requiredGroup) {
+		return Claims{}, errors.New("OIDC token lacks required group")
 	}
 	role := selectRole(append(append(raw.Roles, raw.Groups...), raw.RealmAccess.Roles...))
 	if role == "" {
 		role = "Viewer"
 	}
-	if token.Subject == "" || raw.Organization == "" {
-		return Claims{}, errors.New("OIDC token requires stable sub and organization claim")
+	if token.Subject == "" {
+		return Claims{}, errors.New("OIDC token requires stable sub claim")
+	}
+	if raw.Organization == "" {
+		raw.Organization = o.organization
+	}
+	if raw.Organization == "" {
+		return Claims{}, errors.New("OIDC token requires organization mapping")
 	}
 	return Claims{Role: role, Organization: raw.Organization, RegisteredClaims: jwt.RegisteredClaims{Subject: token.Subject, Issuer: token.Issuer, Audience: token.Audience, ExpiresAt: jwt.NewNumericDate(token.Expiry)}}, nil
+}
+
+func parseScopeClaim(value json.RawMessage) []string {
+	if len(value) == 0 || string(value) == "null" {
+		return nil
+	}
+	if value[0] == '"' {
+		var scope string
+		if json.Unmarshal(value, &scope) == nil {
+			return strings.Fields(scope)
+		}
+		return nil
+	}
+	var scopes []string
+	_ = json.Unmarshal(value, &scopes)
+	return scopes
+}
+
+func hasGroup(groups []string, wanted string) bool {
+	if wanted == "" {
+		return true
+	}
+	for _, group := range groups {
+		if strings.EqualFold(strings.TrimSpace(group), wanted) {
+			return true
+		}
+	}
+	return false
 }
 func hasScope(scope string, scopes []string, wanted string) bool {
 	if wanted == "" {

@@ -314,7 +314,7 @@
     },
     {
       "type": "stat",
-      "title": "Logs com erro (15 min)",
+      "title": "Eventos com erro (15 min)",
       "id": 6,
       "gridPos": {
         "h": 4,
@@ -328,8 +328,14 @@
       },
       "targets": [
         {
-          "expr": "sum(count_over_time({job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/(${container_id:regex})/.*\"} |~ \"(?i)error|exception|fatal\" [15m]))",
-          "refId": "A"
+          "expr": "sum(count_over_time({job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",container_id!=\"\",container_id=~\"${container_id:regex}\"} |~ \"(?i)error|exception|fatal\" [15m]))",
+          "refId": "A",
+          "legendFormat": "Docker por ID"
+        },
+        {
+          "expr": "sum(count_over_time({job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",container_id=\"\",filename=~\".*/(${container_id:regex})/.*\"} |~ \"(?i)error|exception|fatal\" [15m]))",
+          "refId": "B",
+          "legendFormat": "Docker legado"
         }
       ],
       "fieldConfig": {
@@ -357,7 +363,7 @@
         },
         "overrides": []
       },
-      "description": "Logs com erro (15 min). Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "description": "Contagem de eventos com erro (15 min). Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados. Consultas Docker separadas: A = Docker por ID (container_id); B = Docker legado por filename somente sem container_id. Conjuntos disjuntos; valores por consulta, sem total consolidado.",
       "options": {
         "reduceOptions": {
           "values": false,
@@ -367,7 +373,7 @@
           "fields": ""
         },
         "orientation": "auto",
-        "textMode": "value",
+        "textMode": "value_and_name",
         "wideLayout": true,
         "colorMode": "background",
         "graphMode": "none",
@@ -391,7 +397,7 @@
       },
       "targets": [
         {
-          "expr": "count(sum by (job) ((rate(http_server_request_duration_seconds_count{job=~\"$host/(.*/)?$application\",http_route=~\"$route\"}[5m]) or (rate(http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route=~\"$route\"}[5m]) * on (job, instance) group_left (host_name) max by (job, instance, host_name) (target_info{host_name=~\"$host\",telemetry_sdk_name=\"beyla\"})))))",
+          "expr": "count(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_name=~\"$application\",host_name=~\"$host\",host_name!=\"\",host_name!~\".*;.*\",service_name!~\".*;.*\",http_route=~\"$route\"}[5m])))",
           "refId": "A"
         }
       ],
@@ -416,7 +422,7 @@
         },
         "overrides": []
       },
-      "description": "Serviços APM com tráfego. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "description": "Serviços APM com tráfego. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados. Identidade APM: aplicação usa service.name e host usa host.name em métricas e traces. Todos os hosts inclui serviços homônimos nos hosts selecionados; séries sem identidade ou com labels concatenadas inválidas não são atribuídas.",
       "options": {
         "reduceOptions": {
           "values": false,
@@ -702,7 +708,7 @@
     {
       "type": "timeseries",
       "title": "APM RED — requisições por segundo",
-      "description": "Métricas OpenTelemetry nativas e eBPF por host e serviço.",
+      "description": "Métricas OpenTelemetry nativas e eBPF por host e serviço. Identidade APM: aplicação usa service.name e host usa host.name em métricas e traces. Todos os hosts inclui serviços homônimos nos hosts selecionados; séries sem identidade ou com labels concatenadas inválidas não são atribuídas.",
       "id": 11,
       "gridPos": {
         "h": 8,
@@ -716,9 +722,9 @@
       },
       "targets": [
         {
-          "expr": "topk(10, (sum by (job, http_request_method, http_route) ((rate(http_server_request_duration_seconds_count{job=~\"$host/(.*/)?$application\",http_route=~\"$route\"}[5m]) or (rate(http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route=~\"$route\"}[5m]) * on (job, instance) group_left (host_name) max by (job, instance, host_name) (target_info{host_name=~\"$host\",telemetry_sdk_name=\"beyla\"}))))) > 0)",
+          "expr": "topk(10, (sum by (service_name, http_request_method, http_route) (rate(http_server_request_duration_seconds_count{service_name=~\"$application\",host_name=~\"$host\",host_name!=\"\",host_name!~\".*;.*\",service_name!~\".*;.*\",http_route=~\"$route\"}[5m]))) > 0)",
           "refId": "A",
-          "legendFormat": "{{job}} · {{http_request_method}} {{http_route}}",
+          "legendFormat": "{{service_name}} · {{http_request_method}} {{http_route}}",
           "maxDataPoints": 600
         }
       ],
@@ -779,7 +785,7 @@
     {
       "type": "timeseries",
       "title": "APM RED — latência p95",
-      "description": "Métricas OpenTelemetry nativas e eBPF por host e serviço.",
+      "description": "Métricas OpenTelemetry nativas e eBPF por host e serviço. Identidade APM: aplicação usa service.name e host usa host.name em métricas e traces. Todos os hosts inclui serviços homônimos nos hosts selecionados; séries sem identidade ou com labels concatenadas inválidas não são atribuídas.",
       "id": 12,
       "gridPos": {
         "h": 8,
@@ -793,9 +799,9 @@
       },
       "targets": [
         {
-          "expr": "topk(10, histogram_quantile(0.95, sum by (le, job, http_route) ((rate(http_server_request_duration_seconds_bucket{job=~\"$host/(.*/)?$application\",http_route=~\"$route\"}[5m]) or (rate(http_server_request_duration_seconds_bucket{job=~\"(.*/)?$application\",http_route=~\"$route\"}[5m]) * on (job, instance) group_left (host_name) max by (job, instance, host_name) (target_info{host_name=~\"$host\",telemetry_sdk_name=\"beyla\"}))))))",
+          "expr": "topk(10, histogram_quantile(0.95, sum by (le, service_name, http_route) (rate(http_server_request_duration_seconds_bucket{service_name=~\"$application\",host_name=~\"$host\",host_name!=\"\",host_name!~\".*;.*\",service_name!~\".*;.*\",http_route=~\"$route\"}[5m]))))",
           "refId": "A",
-          "legendFormat": "{{job}} · {{http_route}}",
+          "legendFormat": "{{service_name}} · {{http_route}}",
           "maxDataPoints": 600
         }
       ],
@@ -856,7 +862,7 @@
     {
       "type": "timeseries",
       "title": "APM RED — taxa de erros 5xx",
-      "description": "Métricas OpenTelemetry nativas e eBPF por host e serviço.",
+      "description": "Métricas OpenTelemetry nativas e eBPF por host e serviço. Identidade APM: aplicação usa service.name e host usa host.name em métricas e traces. Todos os hosts inclui serviços homônimos nos hosts selecionados; séries sem identidade ou com labels concatenadas inválidas não são atribuídas.",
       "id": 13,
       "gridPos": {
         "h": 8,
@@ -870,9 +876,9 @@
       },
       "targets": [
         {
-          "expr": "100 * sum by (job) ((rate(http_server_request_duration_seconds_count{job=~\"$host/(.*/)?$application\",http_route=~\"$route\",http_response_status_code=~\"5..\"}[5m]) or (rate(http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route=~\"$route\",http_response_status_code=~\"5..\"}[5m]) * on (job, instance) group_left (host_name) max by (job, instance, host_name) (target_info{host_name=~\"$host\",telemetry_sdk_name=\"beyla\"})))) / clamp_min(sum by (job) ((rate(http_server_request_duration_seconds_count{job=~\"$host/(.*/)?$application\",http_route=~\"$route\"}[5m]) or (rate(http_server_request_duration_seconds_count{job=~\"(.*/)?$application\",http_route=~\"$route\"}[5m]) * on (job, instance) group_left (host_name) max by (job, instance, host_name) (target_info{host_name=~\"$host\",telemetry_sdk_name=\"beyla\"})))), 0.000001)",
+          "expr": "100 * sum by (service_name) (rate(http_server_request_duration_seconds_count{service_name=~\"$application\",host_name=~\"$host\",host_name!=\"\",host_name!~\".*;.*\",service_name!~\".*;.*\",http_route=~\"$route\",http_response_status_code=~\"5..\"}[5m])) / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_name=~\"$application\",host_name=~\"$host\",host_name!=\"\",host_name!~\".*;.*\",service_name!~\".*;.*\",http_route=~\"$route\"}[5m])), 0.000001)",
           "refId": "A",
-          "legendFormat": "{{job}}",
+          "legendFormat": "{{service_name}}",
           "maxDataPoints": 600
         }
       ],
@@ -939,7 +945,7 @@
     {
       "type": "traces",
       "title": "APM — traces por aplicação e host",
-      "description": "Traces OpenTelemetry por namespace do host.",
+      "description": "Traces OpenTelemetry por host e serviço. Identidade APM: aplicação usa service.name e host usa host.name em métricas e traces. Todos os hosts inclui serviços homônimos nos hosts selecionados; séries sem identidade ou com labels concatenadas inválidas não são atribuídas.",
       "id": 14,
       "gridPos": {
         "h": 8,
@@ -953,7 +959,7 @@
       },
       "targets": [
         {
-          "query": "{ resource.service.namespace =~ \"$host\" && resource.service.name =~ \"$application\" }",
+          "query": "{ resource.host.name != \"\" && resource.host.name =~ \"$host\" && resource.service.name =~ \"$application\" }",
           "queryType": "traceql",
           "refId": "A"
         }
@@ -961,7 +967,7 @@
     },
     {
       "type": "logs",
-      "title": "Logs das aplicações e do sistema",
+      "title": "Logs dos containers selecionados",
       "id": 15,
       "gridPos": {
         "h": 9,
@@ -975,12 +981,19 @@
       },
       "targets": [
         {
-          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/(${container_id:regex})/.*\"}",
+          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",container_id!=\"\",container_id=~\"${container_id:regex}\"}",
           "refId": "A",
+          "legendFormat": "Docker por ID",
+          "maxLines": 200
+        },
+        {
+          "expr": "{job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\",container_id=\"\",filename=~\".*/(${container_id:regex})/.*\"}",
+          "refId": "B",
+          "legendFormat": "Docker legado",
           "maxLines": 200
         }
       ],
-      "description": "Logs das aplicações e do sistema. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "description": "Logs de containers no escopo dos filtros; ausência é apresentada como Sem dados. Consultas Docker separadas: A = Docker por ID (container_id); B = Docker legado por filename somente sem container_id. Conjuntos disjuntos; valores por consulta, sem total consolidado. Até 200 linhas por consulta (até 400 no conjunto), sem garantia de cobertura completa.",
       "options": {
         "showTime": true,
         "showLabels": false,
@@ -1006,29 +1019,6 @@
   ],
   "templating": {
     "list": [
-      {
-        "name": "application",
-        "label": "Aplicação APM (service.name)",
-        "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "query": {
-          "query": "label_values(http_server_request_duration_seconds_count, job)",
-          "refId": "var-application"
-        },
-        "includeAll": true,
-        "allValue": ".+",
-        "multi": true,
-        "refresh": 1,
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        },
-        "hide": 0
-      },
       {
         "name": "route",
         "label": "Rota APM (regex; padrão: todas)",
@@ -1131,6 +1121,29 @@
         },
         "hide": 2,
         "regex": "/.*(?:\\/|docker-)([a-f0-9]{64})(?:\\.scope)?$/"
+      },
+      {
+        "name": "application",
+        "label": "Aplicação APM (service.name)",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(http_server_request_duration_seconds_count{host_name=~\"$host\",host_name!=\"\",host_name!~\".*;.*\",service_name!=\"\",service_name!~\".*;.*\"}, service_name)",
+          "refId": "var-application"
+        },
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "refresh": 2,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0
       }
     ]
   },

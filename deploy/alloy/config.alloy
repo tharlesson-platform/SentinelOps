@@ -10,7 +10,7 @@ otelcol.receiver.otlp "default" {
   output {
     metrics = [otelcol.processor.batch.default.input]
     logs    = [otelcol.processor.attributes.redact.input]
-    traces  = [otelcol.processor.tail_sampling.default.input]
+    traces  = [otelcol.processor.attributes.redact.input]
   }
 }
 
@@ -27,8 +27,33 @@ otelcol.processor.attributes "redact" {
     key    = "user.email"
     action = "delete"
   }
+  action {
+    key = "http.response.header.set_cookie"
+    action = "delete"
+  }
+  action {
+    key = "http.response.header.set-cookie"
+    action = "delete"
+  }
+  action {
+    key = "url.full"
+    action = "delete"
+  }
+  action {
+    key = "url.query"
+    action = "delete"
+  }
+  action {
+    key = "http.url"
+    action = "delete"
+  }
+  action {
+    key = "http.target"
+    action = "delete"
+  }
   output {
     logs = [otelcol.processor.batch.logs.input]
+    traces = [otelcol.processor.tail_sampling.default.input]
   }
 }
 
@@ -49,6 +74,24 @@ otelcol.processor.tail_sampling "default" {
       key                    = "http.request.header.x_synthetic_test"
       values                 = ["sentinelops"]
       enabled_regex_matching = true
+    }
+  }
+  policy {
+    name = "http-errors"
+    type = "numeric_attribute"
+    numeric_attribute {
+      key = "http.response.status_code"
+      min_value = 400
+      max_value = 599
+    }
+  }
+  policy {
+    name = "http-errors-legacy"
+    type = "numeric_attribute"
+    numeric_attribute {
+      key = "http.status_code"
+      min_value = 400
+      max_value = 599
     }
   }
   policy {

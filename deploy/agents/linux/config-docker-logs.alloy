@@ -37,8 +37,8 @@ loki.process "docker_json_logs" {
   }
   stage.labels {
     values = {
-      stream       = ""
-      container_id = ""
+      stream       = "",
+      container_id = "",
     }
   }
   stage.timestamp {

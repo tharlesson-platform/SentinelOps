@@ -1,0 +1,127 @@
+// Opt-in: somente o socket filtrado, sem acesso ao socket Docker real.
+local.file "local_container_targets" {
+  filename = "/etc/sentinelops/container-inventory/local-targets.json"
+  detector = "poll"
+  poll_frequency = "15s"
+}
+
+loki.source.docker "local_driver" {
+  host = "unix:///run/sentinelops-docker-logs/logs.sock"
+  targets = encoding.from_json(local.file.local_container_targets.content)
+  relabel_rules = discovery.relabel.local_stream.rules
+  forward_to = [loki.process.local_driver.receiver]
+}
+
+discovery.relabel "local_stream" {
+  targets = []
+  rule {
+    source_labels = ["__meta_docker_container_log_stream"]
+    target_label = "stream"
+  }
+}
+
+loki.process "local_driver" {
+  stage.drop {
+    expression = "(?i)(authorization|cookie|password|passwd|secret|token)="
+    drop_counter_reason = "possible_secret"
+  }
+  stage.static_labels {
+    values = {
+      deployment_environment = sys.env("SENTINEL_ENVIRONMENT"),
+      team = sys.env("SENTINEL_TEAM"),
+      location = sys.env("SENTINEL_LOCATION"),
+    }
+  }
+  forward_to = [otelcol.receiver.loki.local_driver.receiver]
+}
+
+otelcol.storage.file "local_logs" {
+  directory = "/var/lib/alloy/local-data/otel-queue"
+  fsync = true
+}
+
+otelcol.receiver.loki "local_driver" {
+  output { logs = [otelcol.processor.transform.local_log_identity.input] }
+}
+
+otelcol.processor.transform "local_log_identity" {
+  error_mode = "propagate"
+  log_statements {
+    context = "log"
+    statements = [
+      `set(resource.attributes["host.name"], attributes["host_name"])`,
+      `set(resource.attributes["container.id"], attributes["container_id"])`,
+      `set(resource.attributes["container.name"], attributes["container_name"])`,
+      `set(resource.attributes["service.name"], attributes["service_name"])`,
+      `set(resource.attributes["deployment.environment"], attributes["deployment_environment"])`,
+      `set(resource.attributes["job"], attributes["job"])`,
+      `set(resource.attributes["stream"], attributes["stream"])`,
+      `set(resource.attributes["source"], "sentinelops-docker-local-collector")`,
+    ]
+  }
+  output { logs = [otelcol.exporter.otlphttp.local_logs.input] }
+}
+
+otelcol.exporter.otlphttp "local_logs" {
+  client {
+    endpoint = sys.env("SENTINEL_OTLP_ENDPOINT")
+    tls {
+      ca_file = "/etc/sentinelops/certs/ca.crt"
+      cert_file = "/etc/sentinelops/certs/client.crt"
+      key_file = "/etc/sentinelops/certs/client.key"
+      server_name = sys.env("SENTINEL_TLS_SERVER_NAME")
+      min_version = "1.2"
+    }
+  }
+  sending_queue {
+    storage = otelcol.storage.file.local_logs.handler
+    enabled = true
+    block_on_overflow = true
+    sizer = "bytes"
+    queue_size = 67108864
+    num_consumers = 2
+  }
+  retry_on_failure {
+    enabled = true
+    initial_interval = "1s"
+    max_interval = "30s"
+    max_elapsed_time = "0s"
+  }
+}
+
+// Saúde da fila exportada ao mesmo Prometheus, sem publicar uma porta no host.
+prometheus.exporter.self "local_logs" {}
+discovery.relabel "local_logs_health" {
+  targets = prometheus.exporter.self.local_logs.targets
+  rule {
+    target_label = "host_name"
+    replacement = sys.env("SENTINEL_HOST_NAME")
+  }
+  rule {
+    target_label = "job"
+    replacement = "sentinelops-local-logs"
+  }
+}
+prometheus.scrape "local_logs_health" {
+  targets = discovery.relabel.local_logs_health.output
+  scrape_interval = "15s"
+  forward_to = [prometheus.remote_write.local_logs_health.receiver]
+}
+prometheus.remote_write "local_logs_health" {
+  endpoint {
+    url = sys.env("SENTINEL_METRICS_ENDPOINT")
+    send_native_histograms = true
+    tls_config {
+      ca_file = "/etc/sentinelops/certs/ca.crt"
+      cert_file = "/etc/sentinelops/certs/client.crt"
+      key_file = "/etc/sentinelops/certs/client.key"
+      server_name = sys.env("SENTINEL_TLS_SERVER_NAME")
+      min_version = "TLS12"
+    }
+  }
+  wal {
+    truncate_frequency = "2h"
+    min_keepalive_time = "5m"
+    max_keepalive_time = "8h"
+  }
+}

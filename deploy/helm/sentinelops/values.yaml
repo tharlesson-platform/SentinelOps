@@ -10,16 +10,20 @@ global:
   webhookSecretsKey: webhook-hmac-secrets
   upstreamCABundleSecretName: sentinelops-upstream-ca
   upstreamCABundleKey: ca-bundle.crt
-  oidcIssuerURL: ""
-  oidcClientID: sentinelops
-  oidcAPIAudience: ""
+  oidcIssuerURL: https://login.microsoftonline.com/f165beb9-b183-4037-9abe-dca616ef2645/v2.0
+  oidcClientID: 7cadec8a-4297-4822-ba03-fdb7717094fb
+  oidcAPIAudience: api://7cadec8a-4297-4822-ba03-fdb7717094fb
   oidcRequiredScope: sentinelops.api
-  oidcScope: "openid profile sentinelops.api"
+  oidcRequiredGroup: 2da3eaed-7f0d-49a5-b1f6-27fbdbbfc3bb
+  oidcOrganization: local
+  oidcScope: "openid profile groups api://7cadec8a-4297-4822-ba03-fdb7717094fb/sentinelops.api"
   allowedOrigin: ""
   temporalAddress: temporal-frontend.temporal.svc:7233
   prometheusURL: http://prometheus.observability.svc:9090
   lokiURL: http://loki.observability.svc:3100
   tempoURL: http://tempo.observability.svc:3200
+  # Enable only after proving tenant isolation in every telemetry backend.
+  telemetryDiscoveryTenantAware: false
   telemetryQueryGatewayURL: https://sentinelops-gateway:8444
   telemetryQueryClientTLSSecretName: sentinelops-release-validator-tls
   telemetryQueryClientTLSCertKey: tls.crt
@@ -74,6 +78,7 @@ gateway:
   clientCAKey: ca.crt
   prometheusUpstream: http://prometheus.observability.svc:9090
   lokiUpstream: http://loki.observability.svc:3100
+  pyroscopeUpstream: http://pyroscope:4040
   alloyHTTPUpstream: http://alloy.observability.svc:4318
   alloyGRPCUpstream: h2c://alloy.observability.svc:4317
   service:

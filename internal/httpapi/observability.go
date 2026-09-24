@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -23,6 +25,7 @@ type sourceStatus struct {
 type hostSummary struct {
 	Name          string   `json:"name"`
 	Instance      string   `json:"instance"`
+	HostName      string   `json:"hostName,omitempty"`
 	OS            string   `json:"os,omitempty"`
 	Kernel        string   `json:"kernel,omitempty"`
 	Architecture  string   `json:"architecture,omitempty"`
@@ -36,19 +39,21 @@ type hostSummary struct {
 }
 
 type containerSummary struct {
-	Name          string    `json:"name"`
-	ID            string    `json:"id,omitempty"`
-	Image         string    `json:"image,omitempty"`
-	Host          string    `json:"host"`
-	Service       string    `json:"service,omitempty"`
-	Environment   string    `json:"environment,omitempty"`
-	LastSeen      time.Time `json:"lastSeen"`
-	CPUPercent    *float64  `json:"cpuPercent"`
-	MemoryBytes   *float64  `json:"memoryBytes"`
-	MemoryLimit   *float64  `json:"memoryLimitBytes"`
-	MemoryPercent *float64  `json:"memoryPercent"`
-	Restarts24h   *float64  `json:"restarts24h"`
-	State         string    `json:"state"`
+	Name           string    `json:"name"`
+	ID             string    `json:"id,omitempty"`
+	Image          string    `json:"image,omitempty"`
+	Host           string    `json:"host"`
+	HostName       string    `json:"hostName,omitempty"`
+	LogContainerID string    `json:"logContainerId,omitempty"`
+	Service        string    `json:"service,omitempty"`
+	Environment    string    `json:"environment,omitempty"`
+	LastSeen       time.Time `json:"lastSeen"`
+	CPUPercent     *float64  `json:"cpuPercent"`
+	MemoryBytes    *float64  `json:"memoryBytes"`
+	MemoryLimit    *float64  `json:"memoryLimitBytes"`
+	MemoryPercent  *float64  `json:"memoryPercent"`
+	Restarts24h    *float64  `json:"restarts24h"`
+	State          string    `json:"state"`
 }
 
 type apmService struct {
@@ -81,7 +86,7 @@ func (s *Server) observabilityOverview(w http.ResponseWriter, r *http.Request) {
 		"hostsDown":      `count(up{job="linux-node"} == 0)`,
 		"containers":     `count(container_last_seen{name!=""})`,
 		"recentRestarts": `sum(changes(container_start_time_seconds{name!=""}[1h]))`,
-		"services":       `count(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_name!=""}[5m])))`,
+		"services":       `count(sum by (service_name,deployment_environment,host_name) (rate(http_server_request_duration_seconds_count{service_name!=""}[5m])))`,
 	}
 	results := s.instantQueries(r.Context(), getPrincipal(r.Context()).OrganizationID, queries)
 	values := map[string]*float64{}
@@ -135,7 +140,7 @@ func (s *Server) observedHostDetails(w http.ResponseWriter, r *http.Request) {
 	}
 	selector := strconv.Quote(host)
 	queries := map[string]string{
-		"cpuByMode":  fmt.Sprintf(`sum by (mode) (rate(node_cpu_seconds_total{instance=%s}[5m])) * 100`, selector),
+		"cpuByMode":  fmt.Sprintf(`avg by (mode) (rate(node_cpu_seconds_total{instance=%s}[5m])) * 100`, selector),
 		"load1":      fmt.Sprintf(`node_load1{instance=%s}`, selector),
 		"load5":      fmt.Sprintf(`node_load5{instance=%s}`, selector),
 		"load15":     fmt.Sprintf(`node_load15{instance=%s}`, selector),
@@ -163,7 +168,7 @@ func (s *Server) listObservedContainers(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	queries := map[string]string{
-		"identity": `max by (instance,name,id,image,container_label_com_docker_compose_service,deployment_environment) (container_last_seen{name!=""})`,
+		"identity": `max by (instance,host_name,name,id,image,container_label_com_docker_compose_service,deployment_environment) (container_last_seen{name!=""})`,
 		"cpu":      `sum by (instance,name) (rate(container_cpu_usage_seconds_total{name!=""}[5m])) * 100`,
 		"memory":   `max by (instance,name) (container_memory_working_set_bytes{name!=""})`,
 		"limit":    `max by (instance,name) (container_spec_memory_limit_bytes{name!=""} > 0)`,
@@ -192,7 +197,7 @@ func (s *Server) observedContainerDetails(w http.ResponseWriter, r *http.Request
 	}
 	container := strings.TrimSpace(r.PathValue("container"))
 	host := strings.TrimSpace(r.URL.Query().Get("host"))
-	if !validSelector(container) || (host != "" && !validSelector(host)) {
+	if !validSelector(container) || !validSelector(host) {
 		fail(w, r, http.StatusBadRequest, "invalid_container", "container ou host inválido")
 		return
 	}
@@ -264,15 +269,11 @@ func (s *Server) searchObservedLogs(w http.ResponseWriter, r *http.Request) {
 		query += ` |= ` + strconv.Quote(search)
 	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	entries, err := s.telemetry.LokiRange(r.Context(), getPrincipal(r.Context()).OrganizationID, query, start, end, limit, "backward")
-	status := sourceStatus{State: "available", FetchedAt: time.Now().UTC()}
-	if err != nil {
-		status.State, status.Message = "unavailable", "Loki indisponível; métricas e demais páginas continuam utilizáveis"
-		entries = []telemetryquery.LogEntry{}
-	} else if len(entries) == 0 {
-		status.State, status.Message = "no_data", "Nenhum log corresponde aos filtros e à janela"
+	if limit < 1 || limit > 1000 {
+		limit = 200
 	}
-	write(w, http.StatusOK, map[string]any{"items": entries, "query": query, "start": start, "end": end, "sources": map[string]sourceStatus{"loki": status}})
+	entries, queries, status := s.queryObservedLogs(r.Context(), getPrincipal(r.Context()).OrganizationID, query, len(filters) == 0, start, end, limit)
+	write(w, http.StatusOK, map[string]any{"items": entries, "query": query, "queries": queries, "limit": limit, "start": start, "end": end, "sources": map[string]sourceStatus{"loki": status}})
 }
 
 func (s *Server) observedAPM(w http.ResponseWriter, r *http.Request) {
@@ -281,41 +282,63 @@ func (s *Server) observedAPM(w http.ResponseWriter, r *http.Request) {
 	}
 	queries := map[string]string{
 		"rps":    `sum by (service_name,deployment_environment,host_name) (rate(http_server_request_duration_seconds_count{service_name!=""}[5m]))`,
-		"errors": `100 * sum by (service_name) (rate(http_server_request_duration_seconds_count{service_name!="",http_response_status_code=~"5.."}[5m])) / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_name!=""}[5m])), 0.000001)`,
-		"p95":    `histogram_quantile(0.95, sum by (le,service_name) (rate(http_server_request_duration_seconds_bucket{service_name!=""}[5m])))`,
-		"p99":    `histogram_quantile(0.99, sum by (le,service_name) (rate(http_server_request_duration_seconds_bucket{service_name!=""}[5m])))`,
+		"errors": `100 * sum by (service_name,deployment_environment,host_name) (rate(http_server_request_duration_seconds_count{service_name!="",http_response_status_code=~"5.."}[5m])) / clamp_min(sum by (service_name,deployment_environment,host_name) (rate(http_server_request_duration_seconds_count{service_name!=""}[5m])), 0.000001)`,
+		"p95":    `histogram_quantile(0.95, sum by (le,service_name,deployment_environment,host_name) (rate(http_server_request_duration_seconds_bucket{service_name!=""}[5m])))`,
+		"p99":    `histogram_quantile(0.99, sum by (le,service_name,deployment_environment,host_name) (rate(http_server_request_duration_seconds_bucket{service_name!=""}[5m])))`,
 	}
 	results := s.instantQueries(r.Context(), getPrincipal(r.Context()).OrganizationID, queries)
 	items := buildAPMServices(results)
 	write(w, http.StatusOK, map[string]any{"items": items, "sources": map[string]sourceStatus{"prometheus": statusFromInstantResults(results)}})
 }
 
+func observedTraceQuery(params url.Values) (string, *apiError) {
+	clauses := []string{}
+	for _, filter := range []struct{ query, attribute string }{{"service", "resource.service.name"}, {"host", "resource.host.name"}, {"container", "resource.container.name"}} {
+		value := strings.TrimSpace(params.Get(filter.query))
+		if value == "" {
+			continue
+		}
+		if !validSelector(value) {
+			return "", &apiError{Code: "invalid_filter", Message: filter.query + " inválido"}
+		}
+		clauses = append(clauses, filter.attribute+" = "+strconv.Quote(value))
+	}
+	// An explicit outcome supersedes the legacy boolean, including all/4xx.
+	// Both HTTP attribute names stay inside the same resource-scoped spanset.
+	traceStatus := params.Get("traceStatus")
+	if traceStatus == "" && strings.EqualFold(params.Get("error"), "true") {
+		traceStatus = "span-error"
+	}
+	switch traceStatus {
+	case "", "all":
+	case "span-error":
+		clauses = append(clauses, `status = error`)
+	case "4xx":
+		clauses = append(clauses, `((span.http.response.status_code >= 400 && span.http.response.status_code < 500) || (span.http.status_code >= 400 && span.http.status_code < 500))`)
+	case "5xx":
+		clauses = append(clauses, `((span.http.response.status_code >= 500 && span.http.response.status_code < 600) || (span.http.status_code >= 500 && span.http.status_code < 600))`)
+	default:
+		return "", &apiError{Code: "invalid_trace_status", Message: "Resultado deve ser all, span-error, 4xx ou 5xx"}
+	}
+	traceQL := `{ true }`
+	if len(clauses) > 0 {
+		traceQL = `{ ` + strings.Join(clauses, ` && `) + ` }`
+	}
+	return traceQL, nil
+}
+
 func (s *Server) searchObservedTraces(w http.ResponseWriter, r *http.Request) {
+	traceQL, queryErr := observedTraceQuery(r.URL.Query())
+	if queryErr != nil {
+		fail(w, r, http.StatusBadRequest, queryErr.Code, queryErr.Message)
+		return
+	}
 	if !s.allowObservabilityQuery(w, r) {
 		return
 	}
 	start, end, _, ok := parseTelemetryWindow(w, r)
 	if !ok {
 		return
-	}
-	clauses := []string{}
-	for _, filter := range []struct{ query, attribute string }{{"service", "resource.service.name"}, {"host", "resource.host.name"}, {"container", "resource.container.name"}} {
-		value := strings.TrimSpace(r.URL.Query().Get(filter.query))
-		if value == "" {
-			continue
-		}
-		if !validSelector(value) {
-			fail(w, r, http.StatusBadRequest, "invalid_filter", filter.query+" inválido")
-			return
-		}
-		clauses = append(clauses, filter.attribute+" = "+strconv.Quote(value))
-	}
-	if strings.EqualFold(r.URL.Query().Get("error"), "true") {
-		clauses = append(clauses, `status = error`)
-	}
-	traceQL := `{ true }`
-	if len(clauses) > 0 {
-		traceQL = `{ ` + strings.Join(clauses, ` && `) + ` }`
 	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	traces, err := s.telemetry.TempoSearch(r.Context(), getPrincipal(r.Context()).OrganizationID, traceQL, start, end, limit)
@@ -379,7 +402,7 @@ func buildHosts(results map[string]instantResult) []hostSummary {
 		if instance == "" || name == "" {
 			continue
 		}
-		hosts[instance] = &hostSummary{Name: name, Instance: instance, OS: sample.Labels["sysname"], Kernel: sample.Labels["release"], Architecture: sample.Labels["machine"], Environment: label(sample.Labels, "deployment_environment", "environment"), Provider: label(sample.Labels, "cloud_provider", "provider"), State: "telemetry_unknown"}
+		hosts[instance] = &hostSummary{Name: name, Instance: instance, HostName: sample.Labels["host_name"], OS: sample.Labels["sysname"], Kernel: sample.Labels["release"], Architecture: sample.Labels["machine"], Environment: label(sample.Labels, "deployment_environment", "environment"), Provider: label(sample.Labels, "cloud_provider", "provider"), State: "telemetry_unknown"}
 	}
 	for _, sample := range results["up"].samples {
 		instance := label(sample.Labels, "instance", "host_name")
@@ -411,7 +434,7 @@ func ensureHost(hosts map[string]*hostSummary, instance string, labels map[strin
 		return existing
 	}
 	name := label(labels, "host_name", "nodename", "instance")
-	host := &hostSummary{Name: name, Instance: instance, Environment: label(labels, "deployment_environment", "environment"), State: "telemetry_unknown"}
+	host := &hostSummary{Name: name, Instance: instance, HostName: labels["host_name"], Environment: label(labels, "deployment_environment", "environment"), State: "telemetry_unknown"}
 	hosts[instance] = host
 	return host
 }
@@ -437,7 +460,7 @@ func buildContainers(results map[string]instantResult) []containerSummary {
 		if time.Since(sample.Timestamp) > 2*time.Minute || time.Since(time.Unix(int64(sample.Value), 0)) > 2*time.Minute {
 			state = "stale"
 		}
-		containers[key] = &containerSummary{Name: name, ID: sample.Labels["id"], Image: sample.Labels["image"], Host: host, Service: sample.Labels["container_label_com_docker_compose_service"], Environment: sample.Labels["deployment_environment"], LastSeen: time.Unix(int64(sample.Value), 0).UTC(), State: state}
+		containers[key] = &containerSummary{Name: name, ID: sample.Labels["id"], Image: sample.Labels["image"], Host: host, HostName: sample.Labels["host_name"], LogContainerID: dockerLogID(sample.Labels["id"]), Service: sample.Labels["container_label_com_docker_compose_service"], Environment: sample.Labels["deployment_environment"], LastSeen: time.Unix(int64(sample.Value), 0).UTC(), State: state}
 	}
 	applyContainerMetric(containers, results["cpu"].samples, func(item *containerSummary, value float64) { item.CPUPercent = numberPointer(value) })
 	applyContainerMetric(containers, results["memory"].samples, func(item *containerSummary, value float64) { item.MemoryBytes = numberPointer(value) })
@@ -475,15 +498,14 @@ func buildAPMServices(results map[string]instantResult) []apmService {
 		if name == "" {
 			continue
 		}
-		items[name] = &apmService{Name: name, Environment: sample.Labels["deployment_environment"], Host: sample.Labels["host_name"], RequestsPerS: numberPointer(sample.Value), TelemetryState: "available"}
+		items[apmKey(sample.Labels)] = &apmService{Name: name, Environment: sample.Labels["deployment_environment"], Host: sample.Labels["host_name"], RequestsPerS: numberPointer(sample.Value), TelemetryState: "available"}
 	}
 	for _, metric := range []struct {
 		name  string
 		apply func(*apmService, float64)
 	}{{"errors", func(item *apmService, value float64) { item.ErrorPercent = numberPointer(value) }}, {"p95", func(item *apmService, value float64) { item.P95Seconds = numberPointer(value) }}, {"p99", func(item *apmService, value float64) { item.P99Seconds = numberPointer(value) }}} {
 		for _, sample := range results[metric.name].samples {
-			name := label(sample.Labels, "service_name", "service")
-			if item := items[name]; item != nil {
+			if item := items[apmKey(sample.Labels)]; item != nil {
 				metric.apply(item, sample.Value)
 			}
 		}
@@ -602,4 +624,56 @@ func aggregateSourceStatus(succeeded, failed, samples int) sourceStatus {
 		status.State = "available"
 	}
 	return status
+}
+
+// Correlation requires an explicit host_name label from the collector. Never
+// derive it by removing a port from instance or guessing from node names.
+var dockerCgroupID = regexp.MustCompile(`^(?:/docker/|/system.slice/docker-)?([a-f0-9]{64})(?:\.scope)?$`)
+
+func dockerLogID(id string) string {
+	match := dockerCgroupID.FindStringSubmatch(id)
+	if len(match) != 2 {
+		return ""
+	}
+	return match[1]
+}
+func apmKey(labels map[string]string) string {
+	return label(labels, "service_name", "service") + "\x00" + labels["deployment_environment"] + "\x00" + labels["host_name"]
+}
+
+func observedLogQueries(query string, global bool) []string {
+	queries := []string{query}
+	if global {
+		queries = append(queries, strings.Replace(query, `{service_name=~".+"}`, `{host_name=~".+",service_name=""}`, 1))
+	}
+	return queries
+}
+func (s *Server) queryObservedLogs(ctx context.Context, organizationID, query string, global bool, start, end time.Time, limit int) ([]telemetryquery.LogEntry, []string, sourceStatus) {
+	queries := observedLogQueries(query, global)
+	// Disjoint selectors cover application logs and host/container logs without
+	// service_name. Loki rejects an empty stream selector; do not fake a union.
+
+	entries := []telemetryquery.LogEntry{}
+	failed := 0
+	for _, actualQuery := range queries {
+		batch, err := s.telemetry.LokiRange(ctx, organizationID, actualQuery, start, end, limit, "backward")
+		if err != nil {
+			failed++
+			continue
+		}
+		entries = append(entries, batch...)
+	}
+	sort.SliceStable(entries, func(i, j int) bool { return entries[i].Timestamp.After(entries[j].Timestamp) })
+	if len(entries) > limit {
+		entries = entries[:limit]
+	}
+	status := sourceStatus{State: "available", FetchedAt: time.Now().UTC()}
+	if failed == len(queries) {
+		status.State, status.Message = "unavailable", "Loki indisponível; métricas e demais páginas continuam utilizáveis"
+	} else if failed > 0 {
+		status.State, status.Message = "partial", "Parte das fontes de logs não respondeu; resultados incompletos"
+	} else if len(entries) == 0 {
+		status.State, status.Message = "no_data", "Nenhum log corresponde aos filtros e à janela"
+	}
+	return entries, queries, status
 }
