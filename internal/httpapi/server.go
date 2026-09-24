@@ -1438,6 +1438,7 @@ func (s *Server) require(permission string, next http.Handler) http.Handler {
 		if s.cfg.AuthMode == "oidc" {
 			role, err = s.store.EffectiveRole(tenantCtx, organizationID, claims.Subject)
 			if err != nil {
+				s.logger.Warn("oidc role binding missing", "subject", claims.Subject, "organization", claims.Organization)
 				fail(w, r, http.StatusForbidden, "role_binding_required", "identidade sem vínculo RBAC provisionado para a organização")
 				return
 			}
