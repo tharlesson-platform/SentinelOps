@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -77,6 +78,7 @@ func NewOIDC(ctx context.Context, issuer, audience string, options ...string) (*
 	switch len(options) {
 	case 1:
 		requiredScope = options[0]
+		requiredGroup = os.Getenv("OIDC_REQUIRED_GROUP")
 	case 2:
 		requiredScope, requiredGroup = options[0], options[1]
 	default:
