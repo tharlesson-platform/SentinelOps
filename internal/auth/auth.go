@@ -66,7 +66,7 @@ func (m *Manager) ParseAuthorization(_ context.Context, value string) (Claims, e
 }
 
 type OIDCAuthenticator struct {
-	verifier      *oidc.IDTokenVerifier
+	verifiers     []*oidc.IDTokenVerifier
 	requiredScope string
 	requiredGroup string
 	organization  string
@@ -77,15 +77,37 @@ func NewOIDC(ctx context.Context, issuer, audience, requiredScope, requiredGroup
 	if err != nil {
 		return nil, err
 	}
-	return &OIDCAuthenticator{verifier: provider.Verifier(&oidc.Config{ClientID: audience}), requiredScope: requiredScope, requiredGroup: requiredGroup, organization: organization}, nil
+	verifiers := []*oidc.IDTokenVerifier{provider.Verifier(&oidc.Config{ClientID: audience})}
+
+	// Entra can issue a v1 access token for an API whose authority is v2.0.
+	// v1 tokens use the tenant issuer without /v2.0 and the API App ID URI as
+	// audience, while v2 tokens use the client ID. Accept both token formats.
+	legacyIssuer := strings.TrimSuffix(issuer, "/v2.0")
+	if legacyIssuer != issuer {
+		legacyProvider, legacyErr := oidc.NewProvider(ctx, legacyIssuer)
+		if legacyErr == nil {
+			verifiers = append(verifiers,
+				legacyProvider.Verifier(&oidc.Config{ClientID: "api://" + audience}),
+				legacyProvider.Verifier(&oidc.Config{ClientID: "api://" + audience + "/" + requiredScope}),
+			)
+		}
+	}
+	return &OIDCAuthenticator{verifiers: verifiers, requiredScope: requiredScope, requiredGroup: requiredGroup, organization: organization}, nil
 }
 func (o *OIDCAuthenticator) ParseAuthorization(ctx context.Context, value string) (Claims, error) {
 	parts := strings.SplitN(value, " ", 2)
 	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
 		return Claims{}, errors.New("missing bearer token")
 	}
-	token, err := o.verifier.Verify(ctx, parts[1])
-	if err != nil {
+	var token *oidc.IDToken
+	var err error
+	for _, verifier := range o.verifiers {
+		token, err = verifier.Verify(ctx, parts[1])
+		if err == nil {
+			break
+		}
+	}
+	if err != nil || token == nil {
 		return Claims{}, errors.New("invalid or expired OIDC token")
 	}
 	var raw struct {
