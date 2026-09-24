@@ -94,7 +94,7 @@ func New(ctx context.Context, cfg config.Config, store *database.Store, temporal
 		local = auth.New(cfg.JWTSecret, cfg.LocalUser, cfg.LocalPasswordHash)
 		authenticator = local
 	} else {
-		oidcAuth, err := auth.NewOIDC(ctx, cfg.OIDCIssuerURL, cfg.OIDCAudience, cfg.OIDCRequiredScope)
+		oidcAuth, err := auth.NewOIDC(ctx, cfg.OIDCIssuerURL, cfg.OIDCAudience, cfg.OIDCRequiredScope, cfg.OIDCRequiredGroup, cfg.OIDCOrganization)
 		if err != nil {
 			return nil, fmt.Errorf("initialize OIDC: %w", err)
 		}
@@ -228,7 +228,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		fail(w, r, http.StatusUnauthorized, "invalid_credentials", "usuário ou senha inválidos")
 		return
 	}
-	write(w, http.StatusOK, map[string]any{"accessToken": token, "tokenType": "Bearer", "expiresIn": 900})
+	write(w, http.StatusOK, map[string]any{"accessToken": token, "tokenType": "Bearer"})
 }
 
 func (s *Server) listServices(w http.ResponseWriter, r *http.Request) {

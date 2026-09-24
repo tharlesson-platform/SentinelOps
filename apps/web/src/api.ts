@@ -202,7 +202,7 @@ export class API {
         response.status === 401
           ? path === "/api/v1/auth/login"
             ? "Não foi possível entrar. Confira seu usuário e senha."
-            : "Sessão expirada. Saia e entre novamente."
+            : "A autenticação não é mais válida. Entre novamente."
           : response.status === 403
             ? "Sem permissão para acessar este recurso."
             : payload.error?.message || `HTTP ${response.status}`;

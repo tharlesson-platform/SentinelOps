@@ -111,6 +111,18 @@ export default function App() {
       .catch((e) => setError(String(e)));
   }, [oidc, token]);
   useEffect(() => {
+    if (!oidc) return;
+    const applyUser = (user: { access_token: string }) => {
+      sessionStorage.setItem("sentinel-token", user.access_token);
+      setToken(user.access_token);
+    };
+    oidc.events.addUserLoaded(applyUser);
+    void oidc.getUser().then((user) => {
+      if (user?.access_token) applyUser(user);
+    });
+    return () => oidc.events.removeUserLoaded(applyUser);
+  }, [oidc]);
+  useEffect(() => {
     if (!token) return;
     let active = true;
     setLoading(true);

@@ -23,6 +23,8 @@ type Config struct {
 	OIDCClientID                  string
 	OIDCAudience                  string
 	OIDCRequiredScope             string
+	OIDCRequiredGroup             string
+	OIDCOrganization              string
 	Environment                   string
 	AllowedOrigin                 string
 	ArtifactDir                   string
@@ -62,6 +64,8 @@ func Load() (Config, error) {
 		OIDCClientID:                  os.Getenv("OIDC_CLIENT_ID"),
 		OIDCAudience:                  os.Getenv("OIDC_API_AUDIENCE"),
 		OIDCRequiredScope:             env("OIDC_REQUIRED_SCOPE", "sentinelops.api"),
+		OIDCRequiredGroup:             env("OIDC_REQUIRED_GROUP", "sentinelops"),
+		OIDCOrganization:              env("OIDC_ORGANIZATION", "local"),
 		Environment:                   env("SENTINEL_ENV", "development"),
 		AllowedOrigin:                 env("ALLOWED_ORIGIN", "http://localhost:3000"),
 		ArtifactDir:                   env("ARTIFACT_DIR", "/var/lib/sentinelops/artifacts"),

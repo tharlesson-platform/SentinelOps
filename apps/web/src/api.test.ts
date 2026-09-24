@@ -160,7 +160,7 @@ describe("mensagens de acesso e cancelamento", () => {
     await expect(new API("").login("fixture", "fixture")).rejects.toThrow(
       "Confira seu usuário e senha",
     );
-    await expect(new API("fixture").hosts()).rejects.toThrow("Sessão expirada");
+    await expect(new API("fixture").hosts()).rejects.toThrow("A autenticação não é mais válida");
   });
   it("propaga cancelamento ao consultar métricas do container com servidor e intervalo", async () => {
     const fetchMock = vi.fn(
