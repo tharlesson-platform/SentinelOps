@@ -72,7 +72,18 @@ type OIDCAuthenticator struct {
 	organization  string
 }
 
-func NewOIDC(ctx context.Context, issuer, audience, requiredScope, requiredGroup, organization string) (*OIDCAuthenticator, error) {
+func NewOIDC(ctx context.Context, issuer, audience string, options ...string) (*OIDCAuthenticator, error) {
+	var requiredScope, requiredGroup, organization string
+	switch len(options) {
+	case 1:
+		requiredScope = options[0]
+	case 2:
+		requiredScope, requiredGroup = options[0], options[1]
+	default:
+		if len(options) >= 3 {
+			requiredScope, requiredGroup, organization = options[0], options[1], options[2]
+		}
+	}
 	provider, err := oidc.NewProvider(ctx, issuer)
 	if err != nil {
 		return nil, err
