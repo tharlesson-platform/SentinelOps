@@ -79,6 +79,7 @@ func NewOIDC(ctx context.Context, issuer, audience string, options ...string) (*
 	case 1:
 		requiredScope = options[0]
 		requiredGroup = os.Getenv("OIDC_REQUIRED_GROUP")
+		organization = os.Getenv("OIDC_ORGANIZATION")
 	case 2:
 		requiredScope, requiredGroup = options[0], options[1]
 	default:
