@@ -1425,6 +1425,7 @@ func (s *Server) require(permission string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims, err := s.auth.ParseAuthorization(r.Context(), r.Header.Get("Authorization"))
 		if err != nil {
+			s.logger.Warn("oidc authorization rejected", "route", r.URL.Path, "reason", err.Error())
 			fail(w, r, http.StatusUnauthorized, "unauthorized", err.Error())
 			return
 		}
