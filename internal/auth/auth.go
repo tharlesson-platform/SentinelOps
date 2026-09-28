@@ -131,8 +131,8 @@ func (o *OIDCAuthenticator) ParseAuthorization(ctx context.Context, value string
 		RealmAccess struct {
 			Roles []string `json:"roles"`
 		} `json:"realm_access"`
-		Organization string   `json:"organization"`
-		Scope        string   `json:"scope"`
+		Organization string          `json:"organization"`
+		Scope        string          `json:"scope"`
 		Scopes       json.RawMessage `json:"scp"`
 	}
 	if err := token.Claims(&raw); err != nil {

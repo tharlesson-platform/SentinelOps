@@ -1438,12 +1438,20 @@ func (s *Server) require(permission string, next http.Handler) http.Handler {
 		if s.cfg.AuthMode == "oidc" {
 			role, err = s.store.EffectiveRole(tenantCtx, organizationID, claims.Subject)
 			if err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					// Group membership is the OIDC access boundary. Users in the
+					// required Entra group receive the least-privileged operational
+					// role when no individual database binding exists yet.
+					role = "SRE Operator"
+				} else {
 				s.logger.Warn("oidc role binding missing", "subject", claims.Subject, "organization", claims.Organization)
 				fail(w, r, http.StatusForbidden, "role_binding_required", "identidade sem vínculo RBAC provisionado para a organização")
 				return
+				}
 			}
 		}
 		if !auth.Can(role, permission) {
+			s.logger.Warn("authorization denied", "subject", claims.Subject, "organization", claims.Organization, "role", role, "permission", permission)
 			fail(w, r, http.StatusForbidden, "forbidden", "permissão insuficiente")
 			return
 		}

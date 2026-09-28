@@ -175,8 +175,16 @@ func (s *Store) EffectiveRole(ctx context.Context, organizationID, subject strin
 		return "", errors.New("organization and subject are required")
 	}
 	ctx = WithTenant(ctx, organizationID)
+	conn, err := s.Pool.Acquire(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer conn.Release()
+	if _, err = conn.Exec(ctx, "SELECT set_config('app.organization_id', $1, false)", organizationID); err != nil {
+		return "", err
+	}
 	var role string
-	err := s.Pool.QueryRow(ctx, `SELECT r.name
+	err = conn.QueryRow(ctx, `SELECT r.name
 FROM role_bindings b
 JOIN roles r ON r.id=b.role_id
 WHERE b.organization_id=$1 AND b.subject=$2 AND b.scope_type='organization' AND b.scope_id='*'
