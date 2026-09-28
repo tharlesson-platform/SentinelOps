@@ -1,0 +1,16 @@
+FROM --platform=$BUILDPLATFORM golang:1.26.3@sha256:2981696eed011d747340d7252620932677929cce7d2d539602f56a8d7e9b660b AS builder
+ARG TARGETARCH
+RUN test "$TARGETARCH" = amd64
+WORKDIR /src
+RUN git clone --depth 1 --branch v3.15.0 https://github.com/grafana/beyla.git . && test "$(git rev-parse HEAD)" = bc5a6e8a045284fdc74b394371c4d4002b9af519
+COPY deploy/beyla/docker-identity.patch /tmp/docker-identity.patch
+RUN git apply --check /tmp/docker-identity.patch && git apply /tmp/docker-identity.patch
+COPY deploy/beyla/container-boundary.patch /tmp/container-boundary.patch
+RUN git apply --check /tmp/container-boundary.patch && git apply /tmp/container-boundary.patch
+COPY tests/operations/fixtures/beyla-discovery-contract_test.go.txt ./vendor/go.opentelemetry.io/obi/pkg/appolly/discover/sentinelops_discovery_contract_test.go
+COPY deploy/agents/linux/beyla-container-discovery.yml /tmp/sentinelops-beyla.yml
+RUN SENTINEL_BEYLA_CONFIG=/tmp/sentinelops-beyla.yml CGO_ENABLED=0 go test -mod=vendor ./vendor/go.opentelemetry.io/obi/pkg/internal/helpers/container ./vendor/go.opentelemetry.io/obi/pkg/docker ./vendor/go.opentelemetry.io/obi/pkg/appolly/discover
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -mod=vendor -trimpath -ldflags="-X github.com/grafana/beyla/v3/pkg/buildinfo.Version=v3.15.0-sentinelops.2 -X github.com/grafana/beyla/v3/pkg/buildinfo.Revision=bc5a6e8a045284fdc74b394371c4d4002b9af519-container-boundary" -o /out/beyla ./cmd/beyla/main.go
+FROM grafana/beyla:3.15.0@sha256:8ff0dcb4aa31fab39ba0b40715d0c0441d4522b43fb7886768ec280cc401dd69
+COPY --from=builder /out/beyla /beyla
+LABEL org.opencontainers.image.source="https://github.com/grafana/beyla" org.opencontainers.image.revision="bc5a6e8a045284fdc74b394371c4d4002b9af519" org.opencontainers.image.version="3.15.0-sentinelops.2"

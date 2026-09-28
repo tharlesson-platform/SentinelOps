@@ -7,7 +7,7 @@ x-app-env: &app-env
     DATABASE_URL: postgres://sentinel_app:${POSTGRES_PASSWORD}@postgres:5432/sentinel?sslmode=disable
     TEMPORAL_ADDRESS: temporal:7233
     TEMPORAL_NAMESPACE: default
-    AUTH_MODE: local
+    AUTH_MODE: ${AUTH_MODE:-local}
     SENTINEL_ENV: development
     ALLOWED_ORIGIN: http://localhost:3000
     MTLS_PROXY_SHARED_SECRET: ${MTLS_PROXY_SHARED_SECRET:-local-development-mtls-proxy-secret}
@@ -186,7 +186,7 @@ services:
       DATABASE_URL: postgres://sentinel_app:${POSTGRES_PASSWORD}@postgres:5432/sentinel?sslmode=disable
       TEMPORAL_ADDRESS: temporal:7233
       TEMPORAL_NAMESPACE: default
-      AUTH_MODE: local
+      AUTH_MODE: ${AUTH_MODE:-local}
       SENTINEL_ENV: development
       JWT_SECRET: ${JWT_SECRET}
       LOCAL_ADMIN_PASSWORD_HASH: ${LOCAL_ADMIN_PASSWORD_HASH}

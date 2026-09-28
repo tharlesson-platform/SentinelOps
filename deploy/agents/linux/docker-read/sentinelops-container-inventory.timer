@@ -1,0 +1,11 @@
+[Unit]
+Description=Atualiza identidades dos containers para observabilidade
+
+[Timer]
+OnBootSec=15s
+OnUnitActiveSec=30s
+AccuracySec=1s
+Unit=sentinelops-container-inventory.service
+
+[Install]
+WantedBy=timers.target

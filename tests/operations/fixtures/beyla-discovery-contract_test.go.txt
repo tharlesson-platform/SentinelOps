@@ -1,0 +1,226 @@
+// Runtime contract test for Beyla 3.15.0's vendored OBI matcher.
+// Overlay this file as pkg/appolly/discover/sentinelops_discovery_contract_test.go
+// in the reviewed runtime source. It deliberately executes the actual matcher,
+// YAML parser and validator rather than reimplementing their decisions.
+package discover
+
+import (
+	"errors"
+	"io"
+	"log/slog"
+	"os"
+	"testing"
+
+	beylaservices "github.com/grafana/beyla/v3/pkg/services"
+	"go.opentelemetry.io/obi/pkg/appolly/app"
+	"go.opentelemetry.io/obi/pkg/appolly/services"
+	"gopkg.in/yaml.v3"
+)
+
+func TestSentinelContainerDiscoveryContract(t *testing.T) {
+	var config struct {
+		Discovery beylaservices.BeylaDiscoveryConfig `yaml:"discovery"`
+	}
+	data, err := os.ReadFile(os.Getenv("SENTINEL_BEYLA_CONFIG"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.Discovery.Instrument.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if err := config.Discovery.ExcludeInstrument.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if !config.Discovery.ExcludeOTelInstrumentedServices {
+		t.Fatal("OTel exclusion disabled")
+	}
+	if len(config.Discovery.Instrument) != 1 {
+		t.Fatal("unexpected selector count")
+	}
+	selector := config.Discovery.Instrument[0]
+	if selector.OpenPorts.Len() != 0 || !selector.ContainersOnly {
+		t.Fatal("port allowlist or missing container boundary")
+	}
+	if _, ok := selector.Metadata[services.AttrOCIContainerName]; !ok {
+		t.Fatal("OCI metadata required")
+	}
+	if config.Discovery.DefaultExcludeInstrument != nil {
+		t.Fatal("default collector exclusions overridden")
+	}
+	matcher := Matcher{
+		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Namespace: "net:[host]", HasHostPidAccess: true,
+		Criteria: NormalizeGlobCriteria(config.Discovery.Instrument),
+		ExcludeCriteria: append(NormalizeGlobCriteria(config.Discovery.ExcludeInstrument),
+			NormalizeGlobCriteria(beylaservices.DefaultExcludeInstrument)...),
+	}
+	previous := namespaceFetcherFunc
+	t.Cleanup(func() { namespaceFetcherFunc = previous })
+	cases := []struct {
+		name, containerName, exe, namespace   string
+		port                                  uint32
+		metadataPresent, namespaceError, want bool
+	}{
+		{"identity8090", "tqi-identidade-app-1", "/usr/bin/python", "net:[app]", 8090, true, false, true},
+		{"rabbitManagement", "rabbitmq.1.task", "/usr/lib/erlang/beam.smp", "net:[app]", 15672, true, false, true},
+		{"rabbitMetrics", "rabbitmq.1.task", "/usr/lib/erlang/beam.smp", "net:[app]", 15692, true, false, true},
+		{"newPort", "future-service", "/usr/bin/custom", "net:[app]", 45678, true, false, true},
+		{"workerWithoutListeningPort", "worker", "/usr/bin/python", "net:[app]", 0, true, false, true},
+		{"host", "", "/usr/bin/python", "net:[host]", 8090, false, false, false},
+		{"hostReadlinkDenied", "", "/usr/bin/python", "", 8090, false, true, false},
+		{"hostUnknownNamespace", "", "/usr/bin/python", "net:[unknown]", 8090, false, false, false},
+		{"containerMetadataUnavailable", "", "/usr/bin/python", "net:[app]", 8090, false, false, false},
+		{"containerReadlinkDenied", "real-container", "/usr/bin/python", "", 8090, true, true, false},
+		{"containerEmptyNamespace", "real-container", "/usr/bin/python", "", 8090, true, false, false},
+		{"emptyContainerName", "", "/usr/bin/python", "net:[app]", 8090, true, false, false},
+		{"collectorCadvisor", "sentinelops-linux-collector-container-metrics-1", "/usr/bin/cadvisor", "net:[app]", 8080, true, false, false},
+		{"collectorLogReader", "sentinelops-linux-collector-local-container-logs-1", "/usr/bin/reader", "net:[app]", 12347, true, false, false},
+		{"defaultBeylaExcluded", "other-project-observer", "/usr/bin/beyla", "net:[app]", 9090, true, false, false},
+		{"defaultAlloyExcluded", "other-project-observer", "/usr/bin/alloy", "net:[app]", 12345, true, false, false},
+		{"defaultOtelcolExcluded", "other-project-observer", "/usr/bin/otelcol-contrib", "net:[app]", 4318, true, false, false},
+		{"hostNetworkContainer", "host-network-app", "/usr/bin/custom", "net:[host]", 8090, true, false, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			namespaceFetcherFunc = func(app.PID) (string, error) {
+				if tc.namespaceError {
+					return "", errors.New("permission denied")
+				}
+				return tc.namespace, nil
+			}
+			attrs := ProcessAttrs{pid: 123}
+			if tc.metadataPresent {
+				attrs.metadata = map[string]string{services.AttrOCIContainerName: tc.containerName}
+			}
+			proc := &services.ProcessInfo{Pid: 123, ExePath: tc.exe}
+			if tc.port != 0 {
+				proc.OpenPorts = []uint32{tc.port}
+			}
+			if got := matcher.matchCriteria(attrs, proc) != nil; got != tc.want {
+				t.Fatalf("matched=%v, want=%v", got, tc.want)
+			}
+		})
+	}
+	t.Run("instrumenterNamespaceUnavailable", func(t *testing.T) {
+		namespaceFetcherFunc = func(app.PID) (string, error) { return "net:[app]", nil }
+		matcher.Namespace = ""
+		attrs := ProcessAttrs{pid: 123, metadata: map[string]string{services.AttrOCIContainerName: "real-container"}}
+		if matcher.matchCriteria(attrs, &services.ProcessInfo{Pid: 123, ExePath: "/usr/bin/python"}) != nil {
+			t.Fatal("selected container with unknown instrumenter namespace")
+		}
+	})
+}
+
+func TestSentinelContainersOnlyIsNotAStandaloneCriterion(t *testing.T) {
+	criteria := services.GlobDefinitionCriteria{{ContainersOnly: true}}
+	if err := criteria.Validate(); err == nil {
+		t.Fatal("runtime unexpectedly accepted containers_only without criteria")
+	}
+}
+
+func TestSentinelChildMustNotBypassContainerBoundary(t *testing.T) {
+	previousNS, previousInfo := namespaceFetcherFunc, processInfo
+	t.Cleanup(func() { namespaceFetcherFunc, processInfo = previousNS, previousInfo })
+	// Valid namespace ensures the exclusion/metadata checks are independently exercised.
+	namespaceFetcherFunc = func(app.PID) (string, error) { return "net:[app]", nil }
+	processInfo = func(obj ProcessAttrs) (*services.ProcessInfo, error) {
+		return &services.ProcessInfo{Pid: obj.pid, PPid: 42, ExePath: "/usr/bin/python"}, nil
+	}
+	name := services.NewGlob("?*")
+	exclude := services.NewGlob("sentinelops-linux-collector-*")
+	criteria := NormalizeGlobCriteria(services.GlobDefinitionCriteria{{ContainersOnly: true, Metadata: services.MetadataGlobMap{services.AttrOCIContainerName: &name}}})
+	for _, test := range []struct {
+		name     string
+		metadata map[string]string
+	}{
+		{"childWithoutMetadata", nil},
+		{"excludedCollectorChild", map[string]string{services.AttrOCIContainerName: "sentinelops-linux-collector-reader-1"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			matcher := Matcher{Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Namespace: "net:[host]", HasHostPidAccess: true,
+				Criteria: criteria, ExcludeCriteria: NormalizeGlobCriteria(services.GlobDefinitionCriteria{{Metadata: services.MetadataGlobMap{services.AttrOCIContainerName: &exclude}}}),
+				ProcessHistory: map[app.PID]ProcessMatch{42: {Criteria: criteria, Process: &services.ProcessInfo{Pid: 42}}}}
+			if _, matched := matcher.filterCreated(ProcessAttrs{pid: 123, metadata: test.metadata}); matched {
+				t.Fatal("child inherited instrumentation despite missing OCI metadata or explicit exclusion")
+			}
+		})
+	}
+}
+
+func TestSentinelPortInheritanceRechecksOtherCriteria(t *testing.T) {
+	previousNS, previousInfo := namespaceFetcherFunc, processInfo
+	t.Cleanup(func() { namespaceFetcherFunc, processInfo = previousNS, previousInfo })
+	processInfo = func(obj ProcessAttrs) (*services.ProcessInfo, error) {
+		return &services.ProcessInfo{Pid: obj.pid, PPid: 42, ExePath: "/usr/bin/worker", CmdArgs: "worker --child"}, nil
+	}
+	portOnly := services.GlobAttributes{OpenPorts: services.IntEnum{Ranges: []services.IntRange{{Start: 8090}}}}
+	byExe := portOnly
+	byExe.Path = services.NewGlob("*/parent")
+	byCmd := portOnly
+	byCmd.CmdArgs = services.NewGlob("*--parent*")
+	byPID := portOnly
+	byPID.PIDs = []uint32{42}
+	byMeta := portOnly
+	requiredName := services.NewGlob("real-container")
+	byMeta.Metadata = services.MetadataGlobMap{services.AttrOCIContainerName: &requiredName}
+	byPod := portOnly
+	requiredPod := services.NewGlob("allowed")
+	byPod.PodLabels = map[string]*services.GlobAttr{"scope": &requiredPod}
+	byContainer := byMeta
+	byContainer.ContainersOnly = true
+	cases := []struct {
+		name        string
+		selector    services.GlobAttributes
+		metadata    map[string]string
+		ns          string
+		nsErr, want bool
+	}{
+		{"portOnlyChildNoListener", portOnly, nil, "net:[app]", false, true},
+		{"differentExecutableIntentionalScopeRestriction", byExe, nil, "net:[app]", false, false},
+		{"commandArgsNotInherited", byCmd, nil, "net:[app]", false, false},
+		{"explicitPidNotInherited", byPID, nil, "net:[app]", false, false},
+		{"podLabelNotInherited", byPod, nil, "net:[app]", false, false},
+		{"missingMetadata", byMeta, nil, "net:[app]", false, false},
+		{"validContainerChild", byContainer, map[string]string{services.AttrOCIContainerName: "real-container"}, "net:[app]", false, true},
+		{"containerNamespaceError", byContainer, map[string]string{services.AttrOCIContainerName: "real-container"}, "", true, false},
+		{"containerNamespaceEmpty", byContainer, map[string]string{services.AttrOCIContainerName: "real-container"}, "", false, false},
+		{"containerChildInHostNamespace", byContainer, map[string]string{services.AttrOCIContainerName: "real-container"}, "net:[host]", false, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			namespaceFetcherFunc = func(app.PID) (string, error) {
+				if tc.nsErr {
+					return "", errors.New("denied")
+				}
+				return tc.ns, nil
+			}
+			criteria := NormalizeGlobCriteria(services.GlobDefinitionCriteria{tc.selector})
+			matcher := Matcher{Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Namespace: "net:[host]", HasHostPidAccess: true,
+				Criteria: criteria, ProcessHistory: map[app.PID]ProcessMatch{42: {Criteria: criteria, Process: &services.ProcessInfo{Pid: 42}}}}
+			event, matched := matcher.filterCreated(ProcessAttrs{pid: 123, metadata: tc.metadata})
+			if matched != tc.want {
+				t.Fatalf("matched=%v, want=%v", matched, tc.want)
+			}
+			if matched && event.Obj.Process.Pid != 123 {
+				t.Fatal("inherited parent PID")
+			}
+		})
+	}
+	// Inheriting a listening port never grants a mismatched log-enrichment rule.
+	namespaceFetcherFunc = func(app.PID) (string, error) { return "net:[app]", nil }
+	parent := ProcessMatch{Criteria: NormalizeGlobCriteria(services.GlobDefinitionCriteria{portOnly}),
+		LogEnricherCriteria: NormalizeGlobCriteria(services.GlobDefinitionCriteria{byExe})}
+	matcher := Matcher{Log: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	child := matcher.inheritProcessMatch(&ProcessAttrs{pid: 123}, &services.ProcessInfo{Pid: 123, ExePath: "/usr/bin/worker"}, parent)
+	if child == nil || len(child.LogEnricherCriteria) != 0 {
+		t.Fatal("log enrichment expanded beyond child criteria")
+	}
+	// Multiple parent matches retain only the criteria actually satisfied by the child.
+	parent.Criteria = append(parent.Criteria, NormalizeGlobCriteria(services.GlobDefinitionCriteria{byExe})...)
+	child = matcher.inheritProcessMatch(&ProcessAttrs{pid: 123}, &services.ProcessInfo{Pid: 123, ExePath: "/usr/bin/worker"}, parent)
+	if child == nil || len(child.Criteria) != 1 {
+		t.Fatal("unmatched parent criterion inherited")
+	}
+}

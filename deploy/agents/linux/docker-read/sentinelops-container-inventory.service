@@ -1,0 +1,16 @@
+[Unit]
+Description=Inventário mínimo dos coletores SentinelOps
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/sentinelops-docker-read.env
+ExecStart=/usr/bin/python3 /opt/sentinelops-docker-read/inventory.py --expected-host ${SENTINEL_HOST_NAME} --output-dir /var/lib/sentinelops-docker-read/inventory
+User=root
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/sentinelops-docker-read/inventory

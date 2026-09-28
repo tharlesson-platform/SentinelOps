@@ -7,7 +7,7 @@ test('login e abertura do dashboard sem erros de console', async ({ page }) => {
   await page.getByLabel('Usuário').fill(process.env.LOCAL_ADMIN_USER || 'admin')
   await page.getByLabel('Senha').fill(process.env.LOCAL_ADMIN_PASSWORD || '')
   await page.getByRole('button', { name: 'Entrar' }).click()
-  await expect(page.getByText('Entrega confiável começa por evidência.')).toBeVisible()
+  await expect(page.getByText('Sua operação, com contexto.')).toBeVisible()
   await expect(page.locator('.time-range', { hasText: 'Catálogo/API em' })).toBeVisible()
   expect(errors).toEqual([])
 })

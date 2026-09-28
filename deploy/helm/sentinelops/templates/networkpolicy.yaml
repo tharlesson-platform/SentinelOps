@@ -210,7 +210,7 @@ spec:
             matchLabels:
               {{- toYaml . | nindent 14 }}
           {{- end }}
-      ports: [{ protocol: TCP, port: 443 }, { protocol: TCP, port: 9090 }, { protocol: TCP, port: 3100 }, { protocol: TCP, port: 4317 }, { protocol: TCP, port: 4318 }]
+      ports: [{ protocol: TCP, port: 443 }, { protocol: TCP, port: 9090 }, { protocol: TCP, port: 3100 }, { protocol: TCP, port: 4040 }, { protocol: TCP, port: 4317 }, { protocol: TCP, port: 4318 }]
     {{- range .Values.networkPolicy.externalHTTPSCIDRs }}
     - to: [{ ipBlock: { cidr: {{ . | quote }} } }]
       ports: [{ protocol: TCP, port: 443 }]

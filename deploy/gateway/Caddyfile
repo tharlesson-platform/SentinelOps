@@ -76,6 +76,48 @@ https://:8443 {
 # o gateway remove o cabeçalho de entrada e injeta X-Scope-OrgID no upstream.
 https://:8444 {
 	import collector_mtls
+	@discovery {
+	  method GET
+	  path_regexp discovery_path ^/prometheus/api/v1/(metadata|labels|series|targets|rules|label/[a-zA-Z_][a-zA-Z0-9_]*/values)$
+	  header_regexp discovery_tenant X-Sentinel-Organization ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$
+	  expression `{http.request.header.X-Sentinel-Organization}.matches("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")`
+	  vars_regexp discovery_api {http.request.tls.client.san.uris.0} ^spiffe://sentinelops/workloads/control-plane-api$
+	}
+	handle @discovery {
+	  uri strip_prefix /prometheus
+	  reverse_proxy prometheus:9090 {
+	    header_up X-Scope-OrgID {http.request.header.X-Sentinel-Organization}
+	    header_up -X-Sentinel-Organization
+	  }
+	}
+	@loki_discovery {
+	  method GET
+	  path_regexp loki_discovery_path ^/loki/loki/api/v1/(query|label/[a-zA-Z_][a-zA-Z0-9_]*/values)$
+	  header_regexp loki_discovery_tenant X-Sentinel-Organization ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$
+	  expression `{http.request.header.X-Sentinel-Organization}.matches("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")`
+	  vars_regexp loki_discovery_api {http.request.tls.client.san.uris.0} ^spiffe://sentinelops/workloads/control-plane-api$
+	}
+	handle @loki_discovery {
+	  uri strip_prefix /loki
+	  reverse_proxy loki:3100 {
+	    header_up X-Scope-OrgID {http.request.header.X-Sentinel-Organization}
+	    header_up -X-Sentinel-Organization
+	  }
+	}
+	@profile_queries {
+	  method POST
+	  path_regexp profile_queries_path ^/pyroscope/querier[.]v1[.]QuerierService/(ProfileTypes|LabelNames|LabelValues|SelectMergeStacktraces)$
+	  header_regexp profile_queries_tenant X-Sentinel-Organization ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$
+	  expression `{http.request.header.X-Sentinel-Organization}.matches("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")`
+	  vars_regexp profile_queries_api {http.request.tls.client.san.uris.0} ^spiffe://sentinelops/workloads/control-plane-api$
+	}
+	handle @profile_queries {
+	  uri strip_prefix /pyroscope
+	  reverse_proxy pyroscope:4040 {
+	    header_up X-Scope-OrgID {http.request.header.X-Sentinel-Organization}
+	    header_up -X-Sentinel-Organization
+	  }
+	}
 	@prometheus {
 		path /prometheus/api/v1/query /prometheus/api/v1/query_range
 		header X-Sentinel-Organization *
