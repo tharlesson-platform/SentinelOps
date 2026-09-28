@@ -1444,9 +1444,9 @@ func (s *Server) require(permission string, next http.Handler) http.Handler {
 					// role when no individual database binding exists yet.
 					role = "SRE Operator"
 				} else {
-						s.logger.Warn("oidc role binding missing", "subject", claims.Subject, "organization", claims.Organization)
-						fail(w, r, http.StatusForbidden, "role_binding_required", "identidade sem vínculo RBAC provisionado para a organização")
-						return
+					s.logger.Warn("oidc role binding missing", "subject", claims.Subject, "organization", claims.Organization)
+					fail(w, r, http.StatusForbidden, "role_binding_required", "identidade sem vínculo RBAC provisionado para a organização")
+					return
 				}
 			}
 		}
