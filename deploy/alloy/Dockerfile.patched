@@ -58,4 +58,8 @@ LABEL org.opencontainers.image.source="https://github.com/grafana/alloy" \
       io.sentinelops.moby.backport="v28.5.2+e89edb19ad7de0407a5d31e3111cb01aa10b5a38" \
       org.opencontainers.image.description="SentinelOps rebuild of Alloy v1.18.1 with patched Go, Moby and gRPC dependencies"
 COPY --from=build --chown=473:473 /src/alloy/build/alloy /bin/alloy
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends --only-upgrade libssl3t64 openssl \
+    && rm -rf /var/lib/apt/lists/*
 USER 473:473
