@@ -103,13 +103,16 @@ jobs:
           openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=sentinelops-ci \
             -keyout "$gateway_dir/tls.key" -out "$gateway_dir/tls.crt" >/dev/null 2>&1
           cp "$gateway_dir/tls.crt" "$gateway_dir/ca.crt"
+          # Use Docker Hub for syntax-only validation; the ECR mirror is rate-limited
+          # on GitHub-hosted runners. The production image remains built and scanned
+          # by the dedicated caddy matrix job.
           docker run --rm \
             -v "$gateway_dir/Caddyfile:/etc/caddy/Caddyfile:ro" \
             -v "$gateway_dir/tls.crt:/certs/server/tls.crt:ro" \
             -v "$gateway_dir/tls.key:/certs/server/tls.key:ro" \
             -v "$gateway_dir/ca.crt:/certs/client-ca/ca.crt:ro" \
             -v "$gateway_dir/ca.crt:/certs/upstream-ca/ca-bundle.crt:ro" \
-            public.ecr.aws/docker/library/caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648 \
+            caddy:2.11.4-alpine@sha256:040e9f7480b80b6d4a7e5013a21159b950a63dcbdb956e38abe2387fb28d9ec0 \
             caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
       - name: Validate safe Argo CD renderer
         run: |
@@ -173,6 +176,7 @@ jobs:
 
   images:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     needs: test
     strategy:
       fail-fast: false
@@ -193,7 +197,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
-      - uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
