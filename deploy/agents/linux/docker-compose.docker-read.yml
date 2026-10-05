@@ -1,0 +1,36 @@
+# Aplicar somente após instalar os proxies Unix e o inventário no host.
+services:
+  beyla:
+    environment:
+      DOCKER_HOST: unix:///run/sentinelops-docker-metadata/metadata.sock
+    volumes:
+      - /run/sentinelops-docker-metadata:/run/sentinelops-docker-metadata:ro
+
+  container-logs:
+    volumes:
+      - ./config-docker-logs-enriched.alloy:/etc/alloy/config-docker-logs.alloy:ro
+      - /var/lib/sentinelops-docker-read/inventory:/etc/sentinelops/container-inventory:ro
+
+  local-container-logs:
+    image: ${SENTINEL_ALLOY_IMAGE:-sentinelops-alloy:1.18.1-patched.2}
+    profiles: [local-logs]
+    user: "473:473"
+    command:
+      - run
+      - /etc/alloy/config-local-docker-logs.alloy
+      - --stability.level=public-preview
+      - --storage.path=/var/lib/alloy/local-data
+      - --server.http.listen-addr=0.0.0.0:12347
+    env_file: [.env]
+    volumes:
+      - ./config-local-docker-logs.alloy:/etc/alloy/config-local-docker-logs.alloy:ro
+      - /run/sentinelops-docker-logs:/run/sentinelops-docker-logs:ro
+      - /var/lib/sentinelops-docker-read/inventory:/etc/sentinelops/container-inventory:ro
+      - /var/lib/sentinelops-docker-read/local-alloy:/var/lib/alloy/local-data
+      - collector-certs:/etc/sentinelops/certs:ro
+    networks: [collector]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+    restart: unless-stopped

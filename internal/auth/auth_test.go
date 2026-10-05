@@ -50,6 +50,18 @@ func TestHasScopeAcceptsStandardAndArrayClaims(t *testing.T) {
 	}
 }
 
+func TestHasGroupIsCaseInsensitiveAndCanBeDisabled(t *testing.T) {
+	if !hasGroup([]string{"Infra", "SentinelOps"}, "sentinelops") {
+		t.Fatal("expected matching group")
+	}
+	if hasGroup([]string{"infra"}, "sentinelops") {
+		t.Fatal("unexpected group match")
+	}
+	if !hasGroup(nil, "") {
+		t.Fatal("empty group policy should be disabled")
+	}
+}
+
 func TestAssetPermissionsFollowRBAC(t *testing.T) {
 	if !Can("Viewer", "asset:read") || Can("Viewer", "asset:write") {
 		t.Fatal("viewer asset permissions are not read-only")

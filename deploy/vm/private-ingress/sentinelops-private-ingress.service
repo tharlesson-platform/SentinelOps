@@ -1,0 +1,19 @@
+[Unit]
+Description=SentinelOps HTTPS interno e caminhos das interfaces
+Requires=docker.service
+Wants=network-online.target
+After=docker.service network-online.target sentinelops.service
+PartOf=sentinelops.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/sentinelops/private-ingress
+ExecStartPre=/usr/bin/docker compose --env-file /opt/sentinelops/.env -f /opt/sentinelops/deploy/compose/docker-compose.yml -f /opt/sentinelops/deploy/compose/docker-compose.ha.yml -f /opt/sentinelops/artifacts/runtime/docker-compose.images.lock.yml -f /opt/sentinelops/private-ingress/backend-subpaths.yml up -d --no-deps --no-build --pull never grafana prometheus temporal-ui keycloak
+ExecStart=/usr/bin/docker compose -f /opt/sentinelops/private-ingress/docker-compose.yml up -d --no-build --pull never
+ExecStop=/usr/bin/docker compose -f /opt/sentinelops/private-ingress/docker-compose.yml stop
+TimeoutStartSec=180
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target

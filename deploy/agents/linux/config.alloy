@@ -16,6 +16,11 @@ discovery.relabel "linux_node" {
     target_label = "instance"
     replacement = sys.env("SENTINEL_HOST_NAME")
   }
+  // Explicit shared identity for metrics, Docker logs and host navigation.
+  rule {
+    target_label = "host_name"
+    replacement = sys.env("SENTINEL_HOST_NAME")
+  }
   rule {
     target_label = "deployment_environment"
     replacement = sys.env("SENTINEL_ENVIRONMENT")
@@ -99,9 +104,63 @@ otelcol.receiver.otlp "applications" {
   grpc { endpoint = "0.0.0.0:4317" }
   http { endpoint = "0.0.0.0:4318" }
   output {
-    metrics = [otelcol.processor.batch.applications.input]
+    metrics = [otelcol.processor.transform.collector_identity.input]
+    logs = [otelcol.processor.transform.collector_identity.input]
+    traces = [otelcol.processor.transform.collector_identity.input]
+  }
+}
+
+// A identidade do host é determinada pelo collector local autorizado.
+otelcol.processor.transform "collector_identity" {
+  error_mode = "ignore"
+  metric_statements {
+    context = "resource"
+    statements = [
+      string.format("set(attributes[\"host.name\"], %q)", sys.env("SENTINEL_HOST_NAME")),
+      string.format("set(attributes[\"deployment.environment\"], %q)", sys.env("SENTINEL_ENVIRONMENT")),
+    ]
+  }
+  log_statements {
+    context = "resource"
+    statements = [
+      string.format("set(attributes[\"host.name\"], %q)", sys.env("SENTINEL_HOST_NAME")),
+      string.format("set(attributes[\"deployment.environment\"], %q)", sys.env("SENTINEL_ENVIRONMENT")),
+    ]
+  }
+  trace_statements {
+    context = "resource"
+    statements = [
+      string.format("set(attributes[\"host.name\"], %q)", sys.env("SENTINEL_HOST_NAME")),
+      string.format("set(attributes[\"deployment.environment\"], %q)", sys.env("SENTINEL_ENVIRONMENT")),
+    ]
+  }
+  output {
+    metrics = [otelcol.processor.transform.metric_identity.input]
     logs = [otelcol.processor.attributes.redact.input]
-    traces = [otelcol.processor.batch.applications.input]
+    traces = [otelcol.processor.attributes.redact.input]
+  }
+}
+
+// Prometheus nao promove todos os atributos de recurso em cada serie OTLP.
+otelcol.processor.transform "metric_identity" {
+  error_mode = "ignore"
+  metric_statements {
+    context = "datapoint"
+    statements = [
+      `delete_key(attributes, "service.name") where resource.attributes["service.name"] != nil`,
+      `set(attributes["service_name"], resource.attributes["service.name"]) where resource.attributes["service.name"] != nil`,
+      `delete_key(attributes, "host.name")`,
+      `set(attributes["host_name"], resource.attributes["host.name"])`,
+      `delete_key(attributes, "deployment.environment")`,
+      `set(attributes["deployment_environment"], resource.attributes["deployment.environment"])`,
+      `delete_key(attributes, "container.name") where resource.attributes["container.name"] != nil`,
+      `set(attributes["container_name"], resource.attributes["container.name"]) where resource.attributes["container.name"] != nil`,
+      `delete_key(attributes, "container.id") where resource.attributes["container.id"] != nil`,
+      `set(attributes["container_id"], resource.attributes["container.id"]) where resource.attributes["container.id"] != nil`,
+    ]
+  }
+  output {
+    metrics = [otelcol.processor.batch.applications.input]
   }
 }
 
@@ -118,8 +177,33 @@ otelcol.processor.attributes "redact" {
     key = "user.email"
     action = "delete"
   }
+  action {
+    key = "http.response.header.set_cookie"
+    action = "delete"
+  }
+  action {
+    key = "http.response.header.set-cookie"
+    action = "delete"
+  }
+  action {
+    key = "url.full"
+    action = "delete"
+  }
+  action {
+    key = "url.query"
+    action = "delete"
+  }
+  action {
+    key = "http.url"
+    action = "delete"
+  }
+  action {
+    key = "http.target"
+    action = "delete"
+  }
   output {
     logs = [otelcol.processor.batch.applications.input]
+    traces = [otelcol.processor.batch.applications.input]
   }
 }
 

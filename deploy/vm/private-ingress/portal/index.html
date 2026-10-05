@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>TQI · Portal de observabilidade</title>
+    <style>
+      :root {
+        --navy: #1b2240;
+        --blue: #3781b0;
+        --cyan: #42d2f1;
+        --red: #ed1c29;
+        --bg: #f5f7fa;
+        --surface: #fff;
+        --ink: #1b2240;
+        --muted: #4b5d70;
+        --line: #cbd5df;
+        color-scheme: light;
+        font-family: system-ui, sans-serif;
+      }
+      html[data-theme="dark"] {
+        --bg: #10192d;
+        --surface: #182540;
+        --ink: #f1f5fa;
+        --muted: #b9c8da;
+        --line: #3d5271;
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+      }
+      header {
+        padding: 20px max(24px, calc((100% - 1120px) / 2));
+        background: var(--navy);
+        color: white;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+      }
+      header img {
+        width: 105px;
+        background: white;
+        padding: 8px;
+        border-radius: 4px;
+      }
+      header span {
+        font-weight: 600;
+      }
+      button {
+        margin-left: auto;
+        background: transparent;
+        border: 1px solid #8198b8;
+        color: white;
+        border-radius: 8px;
+        padding: 10px;
+        cursor: pointer;
+      }
+      main {
+        max-width: 1168px;
+        margin: auto;
+        padding: 48px 24px;
+      }
+      h1 {
+        font-size: clamp(30px, 5vw, 48px);
+        letter-spacing: -1.5px;
+        margin: 10px 0 18px;
+      }
+      .eyebrow {
+        font-size: 12px;
+        letter-spacing: 2px;
+        color: var(--blue);
+        font-weight: 700;
+      }
+      p {
+        color: var(--muted);
+        line-height: 1.7;
+        max-width: 780px;
+      }
+      section {
+        margin-top: 36px;
+      }
+      h2 {
+        font-size: 18px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 16px;
+      }
+      a {
+        display: block;
+        color: var(--ink);
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 24px;
+        text-decoration: none;
+      }
+      a:hover {
+        border-color: var(--blue);
+      }
+      a:focus-visible,
+      button:focus-visible {
+        outline: 3px solid var(--cyan);
+        outline-offset: 4px;
+      }
+      strong {
+        display: block;
+        font-size: 21px;
+        margin-bottom: 12px;
+      }
+      span.description {
+        color: var(--muted);
+        line-height: 1.6;
+        display: block;
+        font-size: 14px;
+      }
+      .primary {
+        border-top: 4px solid var(--blue);
+      }
+      footer {
+        max-width: 1168px;
+        padding: 24px;
+        margin: auto;
+        color: var(--muted);
+        font-size: 13px;
+        border-top: 1px solid var(--line);
+      }
+      @media (max-width: 520px) {
+        header {
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+        header span {
+          font-size: 13px;
+        }
+        main {
+          padding-top: 28px;
+        }
+        .cards {
+          grid-template-columns: 1fr;
+        }
+      }
+      html[data-theme="dark"] .eyebrow {
+        color: var(--cyan);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <img src="/sentinelops/tqi-logo.svg" alt="TQI" /><span
+        >Observabilidade</span
+      ><button type="button" id="theme">Alternar tema</button>
+    </header>
+    <main>
+      <p class="eyebrow">PORTAL DE FERRAMENTAS</p>
+      <h1>Do sinal à investigação.</h1>
+      <p>
+        Escolha o que precisa entender. Comece pelo SentinelOps para localizar
+        um servidor ou container; use as ferramentas de investigação para
+        aprofundar a análise.
+      </p>
+      <section aria-labelledby="operacao">
+        <h2 id="operacao">Visão operacional</h2>
+        <div class="cards">
+          <a class="primary" href="/sentinelops/"
+            ><strong>SentinelOps ↗</strong
+            ><span class="description"
+              >Escolha servidores e containers, acompanhe seus recursos e
+              investigue eventos.</span
+            ></a
+          ><a href="/grafana/"
+            ><strong>Grafana ↗</strong
+            ><span class="description"
+              >Painéis de acompanhamento e consultas. Entre aqui para acessar as
+              ferramentas protegidas.</span
+            ></a
+          >
+        </div>
+      </section>
+      <section aria-labelledby="investigacao">
+        <h2 id="investigacao">Investigação</h2>
+        <div class="cards">
+          <a href="/loki/"
+            ><strong>Registros de eventos</strong
+            ><span class="description"
+              >Loki no Grafana. Pesquise mensagens para entender o que
+              aconteceu.</span
+            ></a
+          ><a href="/tempo/"
+            ><strong>Caminho das requisições</strong
+            ><span class="description"
+              >Tempo no Grafana. Veja por onde uma requisição passou e onde
+              demorou.</span
+            ></a
+          ><a href="/pyroscope/"
+            ><strong>Perfis de execução</strong
+            ><span class="description"
+              >Pyroscope no Grafana. Investigue o consumo de processamento e
+              memória da aplicação.</span
+            ></a
+          >
+        </div>
+      </section>
+      <section aria-labelledby="avancadas">
+        <h2 id="avancadas">Ferramentas avançadas</h2>
+        <div class="cards">
+          <a href="/prometheus/"
+            ><strong>Prometheus</strong
+            ><span class="description"
+              >Consulte métricas, alvos de coleta e regras. Requer sessão no
+              Grafana; acesso de leitura.</span
+            ></a
+          ><a href="/temporal/"
+            ><strong>Temporal</strong
+            ><span class="description"
+              >Consulte fluxos e execuções automatizadas. Requer sessão no
+              Grafana; acesso de leitura.</span
+            ></a
+          >
+        </div>
+      </section>
+      <section aria-labelledby="administracao">
+        <h2 id="administracao">Administração</h2>
+        <div class="cards">
+          <a href="/keycloak/"
+            ><strong>Keycloak</strong
+            ><span class="description"
+              >Área de identidade para administradores autorizados. Possui
+              autenticação própria.</span
+            ></a
+          >
+        </div>
+      </section>
+    </main>
+    <footer>
+      TQI · SentinelOps · Acesso conforme as permissões da sua conta.
+    </footer>
+    <script>
+      const theme =
+        localStorage.getItem("sentinel-theme") ||
+        (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.dataset.theme = theme;
+      document.getElementById("theme").addEventListener("click", () => {
+        const next =
+          document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+        document.documentElement.dataset.theme = next;
+        localStorage.setItem("sentinel-theme", next);
+      });
+    </script>
+  </body>
+</html>

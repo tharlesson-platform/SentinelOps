@@ -40,15 +40,22 @@
       },
       "targets": [
         {
-          "expr": "sum(count_over_time({job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/(${container_id:regex})/.*\",stream=~\"$stream\"} |~ \"$search\" [$__range]))",
-          "refId": "A"
+          "expr": "sum(count_over_time({job=\"docker-container\",job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",container_id!=\"\",container_id=~\"${container_id:regex}\",stream=~\"$stream\"} |~ \"$search\" [$__range]))",
+          "refId": "A",
+          "legendFormat": "Docker por ID"
         },
         {
           "expr": "sum(count_over_time({job=~\"$log_source\",job!=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\"} |~ \"$search\" [$__range]))",
-          "refId": "B"
+          "refId": "B",
+          "legendFormat": "Sistema / outras fontes"
+        },
+        {
+          "expr": "sum(count_over_time({job=\"docker-container\",job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",container_id=\"\",filename=~\".*/(${container_id:regex})/.*\",stream=~\"$stream\"} |~ \"$search\" [$__range]))",
+          "refId": "C",
+          "legendFormat": "Docker legado"
         }
       ],
-      "description": "Eventos no período. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "description": "Consultas separadas: A = Docker por ID (container_id); B = sistema/outras fontes; C = Docker legado por filename somente sem container_id. Os conjuntos são disjuntos; valores exibidos por consulta, sem total consolidado. Container e stream filtram somente Docker.",
       "fieldConfig": {
         "defaults": {
           "unit": "short",
@@ -78,7 +85,7 @@
           "fields": ""
         },
         "orientation": "auto",
-        "textMode": "value",
+        "textMode": "value_and_name",
         "wideLayout": true,
         "colorMode": "background",
         "graphMode": "none",
@@ -102,9 +109,9 @@
       },
       "targets": [
         {
-          "expr": "sum by (host_name) (count_over_time({job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/(${container_id:regex})/.*\",stream=~\"$stream\"} |~ \"$search\" [$__interval]))",
+          "expr": "sum by (host_name) (count_over_time({job=\"docker-container\",job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",container_id!=\"\",container_id=~\"${container_id:regex}\",stream=~\"$stream\"} |~ \"$search\" [$__interval]))",
           "refId": "A",
-          "legendFormat": "{{host_name}}",
+          "legendFormat": "Docker por ID · {{host_name}}",
           "maxDataPoints": 600
         },
         {
@@ -112,9 +119,15 @@
           "refId": "B",
           "legendFormat": "{{job}} · {{host_name}}",
           "maxDataPoints": 600
+        },
+        {
+          "expr": "sum by (host_name) (count_over_time({job=\"docker-container\",job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",container_id=\"\",filename=~\".*/(${container_id:regex})/.*\",stream=~\"$stream\"} |~ \"$search\" [$__interval]))",
+          "refId": "C",
+          "legendFormat": "Docker legado · {{host_name}}",
+          "maxDataPoints": 600
         }
       ],
-      "description": "Volume de logs por aplicação/container. Exibe apenas telemetria real no escopo dos filtros; ausência é apresentada como Sem dados.",
+      "description": "Consultas separadas: A = Docker por ID (container_id); B = sistema/outras fontes; C = Docker legado por filename somente sem container_id. Os conjuntos são disjuntos; valores exibidos por consulta, sem total consolidado. Container e stream filtram somente Docker.",
       "fieldConfig": {
         "defaults": {
           "unit": "short",
@@ -185,17 +198,25 @@
       },
       "targets": [
         {
-          "expr": "sum(count_over_time({job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/(${container_id:regex})/.*\",stream=~\"$stream\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__interval]))",
+          "expr": "sum(count_over_time({job=\"docker-container\",job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",container_id!=\"\",container_id=~\"${container_id:regex}\",stream=~\"$stream\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__interval]))",
           "refId": "A",
+          "legendFormat": "Docker por ID",
           "maxDataPoints": 600
         },
         {
           "expr": "sum(count_over_time({job=~\"$log_source\",job!=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__interval]))",
           "refId": "B",
+          "legendFormat": "Sistema / outras fontes",
+          "maxDataPoints": 600
+        },
+        {
+          "expr": "sum(count_over_time({job=\"docker-container\",job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",container_id=\"\",filename=~\".*/(${container_id:regex})/.*\",stream=~\"$stream\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__interval]))",
+          "refId": "C",
+          "legendFormat": "Docker legado",
           "maxDataPoints": 600
         }
       ],
-      "description": "Triagem textual por error/exception/fatal; stack traces podem elevar a contagem.",
+      "description": "Consultas separadas: A = Docker por ID (container_id); B = sistema/outras fontes; C = Docker legado por filename somente sem container_id. Os conjuntos são disjuntos; valores exibidos por consulta, sem total consolidado. Container e stream filtram somente Docker. Triagem textual por error/exception/fatal, não severity estruturada; stack traces podem elevar a contagem.",
       "fieldConfig": {
         "defaults": {
           "unit": "short",
@@ -256,7 +277,7 @@
     },
     {
       "type": "logs",
-      "title": "Logs filtrados (máximo 200 linhas)",
+      "title": "Logs filtrados (até 200 linhas por consulta)",
       "id": 4,
       "gridPos": {
         "h": 9,
@@ -270,17 +291,25 @@
       },
       "targets": [
         {
-          "expr": "{job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/(${container_id:regex})/.*\",stream=~\"$stream\"} |~ \"$search\"",
+          "expr": "{job=\"docker-container\",job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",container_id!=\"\",container_id=~\"${container_id:regex}\",stream=~\"$stream\"} |~ \"$search\"",
           "refId": "A",
+          "legendFormat": "Docker por ID",
           "maxLines": 200
         },
         {
           "expr": "{job=~\"$log_source\",job!=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\"} |~ \"$search\"",
           "refId": "B",
+          "legendFormat": "Sistema / outras fontes",
+          "maxLines": 200
+        },
+        {
+          "expr": "{job=\"docker-container\",job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",container_id=\"\",filename=~\".*/(${container_id:regex})/.*\",stream=~\"$stream\"} |~ \"$search\"",
+          "refId": "C",
+          "legendFormat": "Docker legado",
           "maxLines": 200
         }
       ],
-      "description": "Conteúdo bruto pode conter dados pessoais; aplicar mascaramento no collector antes da ingestão.",
+      "description": "Consultas separadas: A = Docker por ID (container_id); B = sistema/outras fontes; C = Docker legado por filename somente sem container_id. Os conjuntos são disjuntos; valores exibidos por consulta, sem total consolidado. Container e stream filtram somente Docker. Até 200 linhas por consulta (até 600 no conjunto), sem garantia de cobertura completa. Conteúdo bruto pode conter dados pessoais; aplicar mascaramento no collector.",
       "options": {
         "showTime": true,
         "showLabels": false,
@@ -308,15 +337,22 @@
       },
       "targets": [
         {
-          "expr": "sum(count_over_time({job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",filename=~\".*/(${container_id:regex})/.*\",stream=~\"$stream\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__range]))",
-          "refId": "A"
+          "expr": "sum(count_over_time({job=\"docker-container\",job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",container_id!=\"\",container_id=~\"${container_id:regex}\",stream=~\"$stream\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__range]))",
+          "refId": "A",
+          "legendFormat": "Docker por ID"
         },
         {
           "expr": "sum(count_over_time({job=~\"$log_source\",job!=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__range]))",
-          "refId": "B"
+          "refId": "B",
+          "legendFormat": "Sistema / outras fontes"
+        },
+        {
+          "expr": "sum(count_over_time({job=\"docker-container\",job=~\"$log_source\",deployment_environment=~\"$environment\",host_name=~\"$host\",container_id=\"\",filename=~\".*/(${container_id:regex})/.*\",stream=~\"$stream\"} |~ \"$search\" |~ \"(?i)error|exception|fatal\" [$__range]))",
+          "refId": "C",
+          "legendFormat": "Docker legado"
         }
       ],
-      "description": "Fallback por regex; não equivale a uma contagem estruturada por severity.",
+      "description": "Consultas separadas: A = Docker por ID (container_id); B = sistema/outras fontes; C = Docker legado por filename somente sem container_id. Os conjuntos são disjuntos; valores exibidos por consulta, sem total consolidado. Container e stream filtram somente Docker. Triagem textual por error/exception/fatal, não severity estruturada; stack traces podem elevar a contagem.",
       "fieldConfig": {
         "defaults": {
           "unit": "short",
@@ -350,7 +386,7 @@
           "fields": ""
         },
         "orientation": "auto",
-        "textMode": "value",
+        "textMode": "value_and_name",
         "wideLayout": true,
         "colorMode": "background",
         "graphMode": "none",
@@ -478,14 +514,14 @@
       },
       {
         "name": "stream",
-        "label": "Stream",
+        "label": "Stream (host/ambiente)",
         "type": "query",
         "datasource": {
           "type": "loki",
           "uid": "loki"
         },
         "query": {
-          "query": "label_values({job=\"docker-container\",host_name=~\"$host\",filename=~\".*/(${container_id:regex})/.*\"}, stream)",
+          "query": "label_values({job=\"docker-container\",deployment_environment=~\"$environment\",host_name=~\"$host\"}, stream)",
           "refId": "var-stream"
         },
         "includeAll": true,
@@ -520,5 +556,5 @@
   "title": "Logs",
   "uid": "sentinel-logs",
   "version": 3,
-  "description": "Logs pesquisáveis por fonte, container Docker, ambiente, host, stream e conteúdo. A detecção de erro é fallback por regex, não severidade normalizada; dados pessoais exigem redaction upstream."
+  "description": "Logs pesquisáveis por fonte, container Docker, ambiente, host, stream e conteúdo. A lista de streams considera os containers do host/ambiente; os painéis aplicam o container selecionado. A detecção de erro é fallback por regex, não severidade normalizada; dados pessoais exigem redaction upstream."
 }

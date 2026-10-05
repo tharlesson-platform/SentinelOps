@@ -1,0 +1,38 @@
+# Opt-in: exige imagem 3.15.0-sentinelops.2 e overlay beyla-container-discovery.
+# Instrumentação eBPF somente para processos de contêiner. O collector Alloy
+# local recebe OTLP no loopback e aplica mTLS, redaction, retry e roteamento
+# ao SentinelOps central; nenhuma aplicação precisa conhecer credenciais.
+log_level: INFO
+
+discovery:
+  exclude_otel_instrumented_services: true
+  instrument:
+    # Nome OCI não vazio, confirmado por cgroup + inspect no proxy metadata
+    # do perfil docker-read. Sem metadata, não selecionar novos processos.
+    # Não depender de portas fixas; containers_only sozinho não é critério
+    # válido no Beyla 3.15 e erro de namespace não comprova contêiner.
+    - containers_only: true
+      container_name: '?*'
+      exports: [metrics, traces]
+  exclude_instrument:
+    - container_name: 'sentinelops-linux-collector-*'
+  # Defaults de exclusão de Beyla/Alloy/OTel permanecem ativos. Protocolos
+  # existentes são preservados; não habilitar payloads nem db.query.text.
+
+# Evita transformar identificadores variáveis de URL em séries e spans de alta
+# cardinalidade. Rotas Java, Go e Node usam o harvesting nativo quando houver.
+routes:
+  unmatched: heuristic
+
+otel_metrics_export:
+  endpoint: http://127.0.0.1:4318
+  interval: 15s
+  features:
+    - application
+    - application_span_otel
+    - application_process
+    - application_runtime
+    - application_service_graph
+
+otel_traces_export:
+  endpoint: http://127.0.0.1:4318

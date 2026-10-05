@@ -1,0 +1,160 @@
+{
+  "rule_files": [
+    "../../deploy/prometheus/rules.yml"
+  ],
+  "evaluation_interval": "1m",
+  "tests": [
+    {
+      "name": "SDK e Beyla nos dois hosts; 4xx isolado e host externo nao disparam",
+      "interval": "1m",
+      "input_series": [
+        {
+          "series": "http_server_request_duration_seconds_count{host_name=\"tqi-platform\",service_name=\"shared-service\",container_id=\"sdk-container\",job=\"tqi-platform/shared-service\",http_response_status_code=\"200\"}",
+          "values": "0+90x20"
+        },
+        {
+          "series": "http_server_request_duration_seconds_count{host_name=\"tqi-platform\",service_name=\"shared-service\",container_id=\"sdk-container\",job=\"tqi-platform/shared-service\",http_response_status_code=\"500\"}",
+          "values": "0+10x20"
+        },
+        {
+          "series": "http_server_request_duration_seconds_bucket{host_name=\"tqi-platform\",service_name=\"shared-service\",container_id=\"sdk-container\",job=\"tqi-platform/shared-service\",le=\"1\"}",
+          "values": "0+80x20"
+        },
+        {
+          "series": "http_server_request_duration_seconds_bucket{host_name=\"tqi-platform\",service_name=\"shared-service\",container_id=\"sdk-container\",job=\"tqi-platform/shared-service\",le=\"2\"}",
+          "values": "0+100x20"
+        },
+        {
+          "series": "http_server_request_duration_seconds_bucket{host_name=\"tqi-platform\",service_name=\"shared-service\",container_id=\"sdk-container\",job=\"tqi-platform/shared-service\",le=\"+Inf\"}",
+          "values": "0+100x20"
+        },
+        {
+          "series": "http_server_request_duration_seconds_count{host_name=\"easy-vm\",service_name=\"shared-service\",container_id=\"beyla-container\",job=\"shared-service\",http_response_status_code=\"200\"}",
+          "values": "0+90x20"
+        },
+        {
+          "series": "http_server_request_duration_seconds_count{host_name=\"easy-vm\",service_name=\"shared-service\",container_id=\"beyla-container\",job=\"shared-service\",http_response_status_code=\"500\"}",
+          "values": "0+10x20"
+        },
+        {
+          "series": "http_server_request_duration_seconds_bucket{host_name=\"easy-vm\",service_name=\"shared-service\",container_id=\"beyla-container\",job=\"shared-service\",le=\"1\"}",
+          "values": "0+80x20"
+        },
+        {
+          "series": "http_server_request_duration_seconds_bucket{host_name=\"easy-vm\",service_name=\"shared-service\",container_id=\"beyla-container\",job=\"shared-service\",le=\"2\"}",
+          "values": "0+100x20"
+        },
+        {
+          "series": "http_server_request_duration_seconds_bucket{host_name=\"easy-vm\",service_name=\"shared-service\",container_id=\"beyla-container\",job=\"shared-service\",le=\"+Inf\"}",
+          "values": "0+100x20"
+        },
+        {
+          "series": "http_server_request_duration_seconds_count{host_name=\"easy-vm\",service_name=\"client-errors-only\",container_id=\"other-container\",job=\"client-errors-only\",http_response_status_code=\"404\"}",
+          "values": "0+100x20"
+        },
+        {
+          "series": "http_server_request_duration_seconds_count{host_name=\"outside-pilot\",service_name=\"outside\",container_id=\"outside\",job=\"outside\",http_response_status_code=\"500\"}",
+          "values": "0+100x20"
+        },
+        {
+          "series": "http_server_request_duration_seconds_count{host_name=\"tqi-platform\",service_name=\"shared-service\",container_id=\"healthy-peer\",job=\"shared-service\",http_response_status_code=\"200\"}",
+          "values": "0+10000x20"
+        },
+        {
+          "series": "http_server_request_duration_seconds_bucket{host_name=\"tqi-platform\",service_name=\"shared-service\",container_id=\"healthy-peer\",job=\"shared-service\",le=\"1\"}",
+          "values": "0+10000x20"
+        },
+        {
+          "series": "http_server_request_duration_seconds_bucket{host_name=\"tqi-platform\",service_name=\"shared-service\",container_id=\"healthy-peer\",job=\"shared-service\",le=\"2\"}",
+          "values": "0+10000x20"
+        },
+        {
+          "series": "http_server_request_duration_seconds_bucket{host_name=\"tqi-platform\",service_name=\"shared-service\",container_id=\"healthy-peer\",job=\"shared-service\",le=\"+Inf\"}",
+          "values": "0+10000x20"
+        },
+        {
+          "series": "http_server_request_duration_seconds_count{host_name=\"easy-vm\",service_name=\"shared-service\",container_id=\"healthy-peer\",job=\"shared-service\",http_response_status_code=\"200\"}",
+          "values": "0+10000x20"
+        },
+        {
+          "series": "http_server_request_duration_seconds_bucket{host_name=\"easy-vm\",service_name=\"shared-service\",container_id=\"healthy-peer\",job=\"shared-service\",le=\"1\"}",
+          "values": "0+10000x20"
+        },
+        {
+          "series": "http_server_request_duration_seconds_bucket{host_name=\"easy-vm\",service_name=\"shared-service\",container_id=\"healthy-peer\",job=\"shared-service\",le=\"2\"}",
+          "values": "0+10000x20"
+        },
+        {
+          "series": "http_server_request_duration_seconds_bucket{host_name=\"easy-vm\",service_name=\"shared-service\",container_id=\"healthy-peer\",job=\"shared-service\",le=\"+Inf\"}",
+          "values": "0+10000x20"
+        }
+      ],
+      "alert_rule_test": [
+        {
+          "eval_time": "20m",
+          "alertname": "ApplicationErrorRateHigh",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "host_name": "tqi-platform",
+                "service_name": "shared-service",
+                "container_id": "sdk-container",
+                "severity": "warning",
+                "team": "platform"
+              },
+              "exp_annotations": {
+                "summary": "Taxa de erro da aplicação acima de 5%",
+                "runbook_url": "docs/runbooks/operational-response.md"
+              }
+            },
+            {
+              "exp_labels": {
+                "host_name": "easy-vm",
+                "service_name": "shared-service",
+                "container_id": "beyla-container",
+                "severity": "warning",
+                "team": "platform"
+              },
+              "exp_annotations": {
+                "summary": "Taxa de erro da aplicação acima de 5%",
+                "runbook_url": "docs/runbooks/operational-response.md"
+              }
+            }
+          ]
+        },
+        {
+          "eval_time": "20m",
+          "alertname": "ApplicationLatencyP95High",
+          "exp_alerts": [
+            {
+              "exp_labels": {
+                "host_name": "tqi-platform",
+                "service_name": "shared-service",
+                "container_id": "sdk-container",
+                "severity": "warning",
+                "team": "platform"
+              },
+              "exp_annotations": {
+                "summary": "Latência p95 da aplicação acima de 1 segundo",
+                "runbook_url": "docs/runbooks/operational-response.md"
+              }
+            },
+            {
+              "exp_labels": {
+                "host_name": "easy-vm",
+                "service_name": "shared-service",
+                "container_id": "beyla-container",
+                "severity": "warning",
+                "team": "platform"
+              },
+              "exp_annotations": {
+                "summary": "Latência p95 da aplicação acima de 1 segundo",
+                "runbook_url": "docs/runbooks/operational-response.md"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

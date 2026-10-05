@@ -1,0 +1,11 @@
+# Opt-in: requer proxy metadata instalado e imagem .2 revisada/carregada.
+# Aplicar por último nos dois hosts; nenhuma imagem upstream é fallback.
+services:
+  beyla:
+    image: ${SENTINEL_BEYLA_DISCOVERY_IMAGE:?Defina o digest carregado da imagem Beyla 3.15.0-sentinelops.2 revisada}
+    pull_policy: never
+    environment:
+      DOCKER_HOST: unix:///run/sentinelops-docker-metadata/metadata.sock
+    volumes:
+      - ./beyla-container-discovery.yml:/etc/beyla/config.yml:ro
+      - /run/sentinelops-docker-metadata:/run/sentinelops-docker-metadata:ro

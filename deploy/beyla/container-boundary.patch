@@ -1,0 +1,87 @@
+diff --git a/vendor/go.opentelemetry.io/obi/pkg/appolly/discover/matcher.go b/vendor/go.opentelemetry.io/obi/pkg/appolly/discover/matcher.go
+--- a/vendor/go.opentelemetry.io/obi/pkg/appolly/discover/matcher.go
++++ b/vendor/go.opentelemetry.io/obi/pkg/appolly/discover/matcher.go
+@@ -179,20 +179,39 @@
+ 	}
+ 
+ 	// We didn't match the process, but let's see if the parent PID is tracked, it might be the child hasn't opened the port yet
+-	if procMatch, ok := m.ProcessHistory[proc.PPid]; ok {
+-		m.Log.Debug("found process by matching the process parent id", "pid", proc.Pid, "ppid", proc.PPid, "comm", proc.ExePath, "metadata", obj.metadata)
+-
+-		procMatch.Process = proc
+-
+-		m.ProcessHistory[obj.pid] = procMatch
+-
+-		return Event[ProcessMatch]{
+-			Type: EventCreated,
+-			Obj:  procMatch,
+-		}, true
++	if parentMatch, ok := m.ProcessHistory[proc.PPid]; ok {
++		if procMatch := m.inheritProcessMatch(&obj, proc, parentMatch); procMatch != nil {
++			m.Log.Debug("found process by matching the process parent id", "pid", proc.Pid, "ppid", proc.PPid, "comm", proc.ExePath)
++			m.ProcessHistory[obj.pid] = *procMatch
++			return Event[ProcessMatch]{Type: EventCreated, Obj: *procMatch}, true
++		}
+ 	}
+ 
+ 	return Event[ProcessMatch]{}, false
++}
++
++// inheritProcessMatch relaxes only the child's listening-port requirement.
++// Parent history must never bypass the child's identity, container boundary or exclusions.
++func (m *Matcher) inheritProcessMatch(obj *ProcessAttrs, proc *services.ProcessInfo, parent ProcessMatch) *ProcessMatch {
++	if m.isExcluded(obj, proc) {
++		return nil
++	}
++	criteria := make([]services.Selector, 0, len(parent.Criteria))
++	for _, selector := range parent.Criteria {
++		if m.matchProcessSelection(obj, proc, selector, true) {
++			criteria = append(criteria, selector)
++		}
++	}
++	if len(criteria) == 0 {
++		return nil
++	}
++	logCriteria := make([]services.Selector, 0, len(parent.LogEnricherCriteria))
++	for _, selector := range parent.LogEnricherCriteria {
++		if m.matchProcessSelection(obj, proc, selector, true) {
++			logCriteria = append(logCriteria, selector)
++		}
++	}
++	return &ProcessMatch{Criteria: criteria, LogEnricherCriteria: logCriteria, Process: proc}
+ }
+ 
+ func (m *Matcher) filterDeleted(obj ProcessAttrs) (Event[ProcessMatch], bool) {
+@@ -220,6 +239,10 @@
+ }
+ 
+ func (m *Matcher) matchProcess(obj *ProcessAttrs, p *services.ProcessInfo, a services.Selector) bool {
++	return m.matchProcessSelection(obj, p, a, false)
++}
++
++func (m *Matcher) matchProcessSelection(obj *ProcessAttrs, p *services.ProcessInfo, a services.Selector, inheritedPort bool) bool {
+ 	log := m.Log.With("pid", p.Pid, "exe", p.ExePath)
+ 	pids, hasPIDs := a.GetPIDs()
+ 	if hasPIDs && len(pids) > 0 && !pidInList(p.Pid, pids) {
+@@ -240,7 +263,7 @@
+ 		log.Debug("command line arguments do not match", "path", a.GetPath(), "commandline", a.GetCmdArgs())
+ 		return false
+ 	}
+-	if a.GetOpenPorts().Len() > 0 && !m.matchByPort(p, a) {
++	if !inheritedPort && a.GetOpenPorts().Len() > 0 && !m.matchByPort(p, a) {
+ 		log.Debug("open ports do not match", "openPorts", a.GetOpenPorts(), "process ports", p.OpenPorts)
+ 		return false
+ 	}
+@@ -249,7 +272,11 @@
+ 		return false
+ 	}
+ 	if a.IsContainersOnly() {
+-		ns, _ := namespaceFetcherFunc(p.Pid)
++		ns, err := namespaceFetcherFunc(p.Pid)
++		if err != nil || ns == "" || m.Namespace == "" {
++			log.Debug("container namespace unavailable; refusing selection")
++			return false
++		}
+ 		if ns == m.Namespace && m.HasHostPidAccess {
+ 			log.Debug("not in a container", "namespace", ns)
+ 			return false
