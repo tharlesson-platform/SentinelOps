@@ -10,7 +10,7 @@
     "lint": "tsc -b --pretty false"
   },
   "dependencies": {
-    "i18next": "26.4.2",
+    "i18next": "26.4.3",
     "lucide-react": "1.50.0",
     "oidc-client-ts": "3.5.0",
     "react": "19.3.0",
