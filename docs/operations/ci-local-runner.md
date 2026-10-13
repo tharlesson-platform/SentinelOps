@@ -32,6 +32,10 @@ smoke não comprova a integração com a API nem o funcionamento em produção.
 O estágio `source-ui` do Alloy também usa `$BUILDPLATFORM` para seus assets
 estáticos; os estágios de compilação Go/CGO e a imagem final permanecem no
 alvo solicitado. A validação isolada da UI não substitui build e scan completos.
+O estágio `moby-backport` prepara apenas fontes e `go.mod`, também de forma
+nativa. Isso evita o SIGSEGV de QEMU observado na verificação do patch; o
+checksum, `git apply --check`, aplicação e verificação do conteúdo permanecem
+obrigatórios. Nenhum binário nativo desse estágio é copiado à imagem final.
 
 ## Correção de segurança da toolchain
 
