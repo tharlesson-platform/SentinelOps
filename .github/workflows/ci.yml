@@ -7,7 +7,7 @@ permissions:
 concurrency: { group: "ci-${{ github.ref }}", cancel-in-progress: true }
 jobs:
   test:
-    runs-on: [self-hosted, Linux, ARM64, sentinelops-ci-isolated, "sentinelops-run-${{ github.run_id }}"]
+    runs-on: ["sentinelops-run-${{ github.run_id }}"]
     timeout-minutes: 60
     services:
       postgres:
@@ -176,7 +176,7 @@ jobs:
         with: { scan-type: fs, scan-ref: ., severity: 'CRITICAL,HIGH', exit-code: '1', ignore-unfixed: true }
 
   images:
-    runs-on: [self-hosted, Linux, ARM64, sentinelops-ci-isolated, "sentinelops-run-${{ github.run_id }}"]
+    runs-on: ["sentinelops-run-${{ github.run_id }}"]
     timeout-minutes: 90
     needs: test
     strategy:
