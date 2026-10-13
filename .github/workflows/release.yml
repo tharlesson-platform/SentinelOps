@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, ARM64, sentinelops-ci-isolated, "sentinelops-run-${{ github.run_id }}"]
     strategy:
       fail-fast: false
       matrix:
@@ -74,7 +74,7 @@ jobs:
 
   stage:
     needs: verify
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, ARM64, sentinelops-ci-isolated, "sentinelops-run-${{ github.run_id }}"]
     environment: production
     permissions:
       contents: read
@@ -137,7 +137,7 @@ jobs:
 
   promote:
     needs: stage
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, ARM64, sentinelops-ci-isolated, "sentinelops-run-${{ github.run_id }}"]
     environment: production
     permissions:
       contents: write
