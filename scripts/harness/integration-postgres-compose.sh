@@ -28,5 +28,5 @@ $compose up -d postgres >/dev/null
 $compose run --rm database-role-bootstrap >/dev/null
 
 docker run --rm --network "$network" --env-file "$root/.env" -e "SENTINELOPS_INTEGRATION_PACKAGES=$packages" -v "$root":/src -w /src \
-  golang:1.26.6-bookworm@sha256:116d58cbd88c1297624acc6e967a060012422bacf9930927e23fb719189c6f36 \
+  golang:1.26.9-bookworm@sha256:d9c68c2c51161e12fd77e4c6320687c9cd86e1af1e3ad6e6cd63ff970641453c \
   sh -ec 'export SENTINELOPS_TEST_DATABASE_MIGRATION_URL="postgres://sentinel:${POSTGRES_PASSWORD}@postgres:5432/sentinel?sslmode=disable"; export SENTINELOPS_TEST_DATABASE_URL="postgres://sentinel_app:${POSTGRES_PASSWORD}@postgres:5432/sentinel?sslmode=disable"; go test -race $SENTINELOPS_INTEGRATION_PACKAGES -run TestPostgres'
