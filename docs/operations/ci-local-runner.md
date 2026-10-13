@@ -29,6 +29,9 @@ O job da imagem web executa `scripts/ci/web-image-smoke.sh`: exige alvo AMD64,
 usuário `nginx`, PID gravável, HTML e assets JS/CSS com tipos corretos. Usa
 porta efêmera apenas em loopback e remove seu container ao terminar. Esse
 smoke não comprova a integração com a API nem o funcionamento em produção.
+O estágio `source-ui` do Alloy também usa `$BUILDPLATFORM` para seus assets
+estáticos; os estágios de compilação Go/CGO e a imagem final permanecem no
+alvo solicitado. A validação isolada da UI não substitui build e scan completos.
 
 ## Correção de segurança da toolchain
 
