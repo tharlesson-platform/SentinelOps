@@ -45,6 +45,10 @@ jobs:
           SENTINELOPS_TEST_DATABASE_URL: postgres://sentinel_app:sentinel-ci-runtime-password@127.0.0.1:5432/sentinel?sslmode=disable
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
       - run: shellcheck -x scripts/*.sh scripts/lib/*.sh
+      - name: Test supplemental sensor security gate
+        run: |
+          python3 -m unittest discover -s scripts/ci -p 'test_*.py'
+          shellcheck scripts/ci/*.sh
       - name: Validate managed dashboard render and filters
         run: |
           ./scripts/render-production-dashboards.sh
@@ -230,3 +234,18 @@ jobs:
           severity: 'CRITICAL,HIGH'
           exit-code: '1'
           ignore-unfixed: true
+      - name: Validate Alloy binary inventory and supplementary SDK scan
+        if: matrix.name == 'alloy'
+        env:
+          ALLOY_IMAGE: sentinelops-alloy:${{ github.sha }}
+        run: bash scripts/ci/alloy-security.sh "$ALLOY_IMAGE" "$RUNNER_TEMP/alloy-security"
+      - name: Preserve Alloy security evidence on isolated host
+        if: always() && matrix.name == 'alloy'
+        run: |
+          evidence="$RUNNER_TEMP/alloy-security/image-alloy.json"
+          test -s "$evidence"
+          test -n "${LOCAL_ARTIFACT_TOKEN:?}" && test -n "${LOCAL_ARTIFACT_URL:?}"
+          curl --fail --silent --show-error --noproxy '*' --max-time 120 \
+            -X PUT -H "Authorization: Bearer $LOCAL_ARTIFACT_TOKEN" \
+            -H 'Content-Type: application/json' --data-binary "@$evidence" \
+            "$LOCAL_ARTIFACT_URL/artifacts/image-alloy.json"
