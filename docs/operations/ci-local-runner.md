@@ -81,13 +81,17 @@ antigos falha ao compilar tipos `KeyValue`/`Value`; não remover logging como
 forma de contornar essa incompatibilidade.
 O alerta Snowflake `CVE-2026-86597` exige a migração real dos dois
 consumidores para `gosnowflake/v2 v2.2.0`: exporter Grafana no commit
-`5be547ff96d8` e SQL Exporter no commit `25d03ba286a6`. Não declarar uma
+`5be547ff96d8` e SQL Exporter no commit `7186d9947bc1`. Não declarar uma
 versão v1 artificialmente corrigida; verificar ausência do driver v1 no
 binário e preservar testes de DSN, autenticação e registro do driver.
-Exigir os testes dos seis pacotes consumidores/integrações e os testes
+Exigir a compilação/testes dos sete pacotes consumidores/config/integrações e os testes
 oficiais internos de DSN e redaction do SDK v2.2.0. Estes últimos executam
 com rede de módulos desligada após preparação, sem credenciais reais;
 não equivalem a autenticação ou scrape em uma conta Snowflake de produção.
+O commit SQL selecionado é a migração upstream real para `/v2`, com o SDK
+explicitamente elevado a `v2.2.0` corrigido. Evita introduzir o upgrade
+Kubernetes da release posterior que quebra os informers do collector;
+não força um `client-go` inferior às dependências nem simula versão segura.
 
 ## Correção de segurança da toolchain
 
