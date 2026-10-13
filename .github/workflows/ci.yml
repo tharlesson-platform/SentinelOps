@@ -235,17 +235,19 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
       - name: Validate Alloy binary inventory and supplementary SDK scan
-        if: matrix.name == 'alloy'
+        if: always() && matrix.name == 'alloy'
         env:
           ALLOY_IMAGE: sentinelops-alloy:${{ github.sha }}
         run: bash scripts/ci/alloy-security.sh "$ALLOY_IMAGE" "$RUNNER_TEMP/alloy-security"
       - name: Preserve Alloy security evidence on isolated host
         if: always() && matrix.name == 'alloy'
+        env:
+          ARTIFACT_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           evidence="$RUNNER_TEMP/alloy-security/image-alloy.json"
+          if ! test -s "$evidence"; then
+            python3 scripts/ci/alloy-security.py diagnose "$RUNNER_TEMP/alloy-security" \
+              "$RUNNER_TEMP/alloy-security/alloy" unavailable || true
+          fi
           test -s "$evidence"
-          test -n "${LOCAL_ARTIFACT_TOKEN:?}" && test -n "${LOCAL_ARTIFACT_URL:?}"
-          curl --fail --silent --show-error --noproxy '*' --max-time 120 \
-            -X PUT -H "Authorization: Bearer $LOCAL_ARTIFACT_TOKEN" \
-            -H 'Content-Type: application/json' --data-binary "@$evidence" \
-            "$LOCAL_ARTIFACT_URL/artifacts/image-alloy.json"
+          python3 scripts/ci/upload-local-artifact.py "$evidence"
