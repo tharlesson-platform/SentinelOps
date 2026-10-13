@@ -10,7 +10,8 @@ WORKDIR /src/alloy/internal/web/ui
 RUN --mount=type=cache,target=/root/.npm,sharing=locked npm ci --ignore-scripts --no-audit --no-fund \
     && npm run build
 
-FROM golang:1.26.9-bookworm@sha256:d9c68c2c51161e12fd77e4c6320687c9cd86e1af1e3ad6e6cd63ff970641453c AS moby-backport
+# This stage exports patched sources and go.mod, never target binaries.
+FROM --platform=$BUILDPLATFORM golang:1.26.9-bookworm@sha256:d9c68c2c51161e12fd77e4c6320687c9cd86e1af1e3ad6e6cd63ff970641453c AS moby-backport
 ARG MOBY_LEGACY_REF=89c5e8fd66634b6128fc4c0e6f1236e2540e46e0
 ENV PATH=/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin
 RUN git clone --filter=blob:none --no-checkout https://github.com/moby/moby.git /src/docker \
