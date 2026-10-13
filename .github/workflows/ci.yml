@@ -219,6 +219,11 @@ jobs:
           # Release builds publish provenance and SBOM to the registry.
           provenance: false
           sbom: false
+      - name: Validate web image runtime and static assets
+        if: matrix.name == 'web'
+        env:
+          WEB_IMAGE: sentinelops-web:${{ github.sha }}
+        run: bash scripts/ci/web-image-smoke.sh "$WEB_IMAGE"
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: sentinelops-${{ matrix.name }}:${{ github.sha }}
