@@ -36,6 +36,16 @@ O estágio `moby-backport` prepara apenas fontes e `go.mod`, também de forma
 nativa. Isso evita o SIGSEGV de QEMU observado na verificação do patch; o
 checksum, `git apply --check`, aplicação e verificação do conteúdo permanecem
 obrigatórios. Nenhum binário nativo desse estágio é copiado à imagem final.
+O rebuild Alloy alinha `golang.org/x/mod` em `v0.41.0`, mínimo exigido
+indiretamente por `golang.org/x/net v0.60.0`. Fixar `v0.40.0` junto desse
+`x/net` torna o comando `go get` incompatível e interrompe o build.
+O source Moby é `v28.5.2` (`89c5e8fd66634b6128fc4c0e6f1236e2540e46e0`)
+com backport de `e89edb19ad7de0407a5d31e3111cb01aa10b5a38`, não uma release
+`v29.3.1`. Os testes upstream do limite de body e sua preservação são
+aplicados com checksum e executados junto da suíte de autorização legada.
+Um `replace` local pode ocultar a versão no scanner: seu exit code sozinho
+não comprova avaliação do Moby. Exigir inventário/proveniência e análise de
+aplicabilidade do backport antes da aprovação de segurança ou do merge.
 
 ## Correção de segurança da toolchain
 
