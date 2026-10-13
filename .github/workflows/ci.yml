@@ -7,7 +7,8 @@ permissions:
 concurrency: { group: "ci-${{ github.ref }}", cancel-in-progress: true }
 jobs:
   test:
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64, sentinelops-ci-isolated]
+    timeout-minutes: 60
     services:
       postgres:
         image: public.ecr.aws/docker/library/postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db
@@ -25,7 +26,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with: { go-version: 1.26.6, cache: true }
+        with: { go-version: 1.26.9, cache: true }
       - name: Provision least-privilege database role and migrate
         run: |
           docker run --rm --network host \
@@ -175,7 +176,7 @@ jobs:
         with: { scan-type: fs, scan-ref: ., severity: 'CRITICAL,HIGH', exit-code: '1', ignore-unfixed: true }
 
   images:
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64, sentinelops-ci-isolated]
     timeout-minutes: 30
     needs: test
     strategy:
@@ -194,6 +195,7 @@ jobs:
           - { name: web, context: apps/web, file: apps/web/Dockerfile, build_args: '' }
           - { name: alloy, context: ., file: deploy/alloy/Dockerfile.patched, build_args: '' }
           - { name: caddy, context: ., file: deploy/caddy/Dockerfile.patched, build_args: '' }
+          - { name: beyla, context: ., file: deploy/beyla/Dockerfile.patched, build_args: '' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
