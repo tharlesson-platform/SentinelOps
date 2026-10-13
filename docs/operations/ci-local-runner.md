@@ -71,6 +71,23 @@ Os JSON de `go list` são fluxos de objetos, não arrays; consumir até EOF.
 A captura usa resolução somente leitura e a arquitetura lida do binário,
 exigindo correspondência com a toolchain do build e Linux/CGO=1. A plataforma
 dos testes AuthZ nativos é registrada separadamente da imagem AMD64.
+O rebuild Alloy atualiza todos os pacotes Ubuntu da base na mesma release,
+além dos SDK/exporters trace OTel `v1.45.0` e log `v0.21.0`, para os achados
+LOW/MEDIUM com correção disponível. Repetir o scan completo após os upgrades;
+achados sem versão corrigida continuam visíveis e exigem avaliação própria.
+Manter o conjunto de logs coerente: exporters HTTP/gRPC/stdout em `v0.21.0`
+e bridge `otelzap v0.20.0`. Misturar a API log nova com esses consumidores
+antigos falha ao compilar tipos `KeyValue`/`Value`; não remover logging como
+forma de contornar essa incompatibilidade.
+O alerta Snowflake `CVE-2026-86597` exige a migração real dos dois
+consumidores para `gosnowflake/v2 v2.2.0`: exporter Grafana no commit
+`5be547ff96d8` e SQL Exporter no commit `25d03ba286a6`. Não declarar uma
+versão v1 artificialmente corrigida; verificar ausência do driver v1 no
+binário e preservar testes de DSN, autenticação e registro do driver.
+Exigir os testes dos seis pacotes consumidores/integrações e os testes
+oficiais internos de DSN e redaction do SDK v2.2.0. Estes últimos executam
+com rede de módulos desligada após preparação, sem credenciais reais;
+não equivalem a autenticação ou scrape em uma conta Snowflake de produção.
 
 ## Correção de segurança da toolchain
 
