@@ -93,6 +93,32 @@ explicitamente elevado a `v2.2.0` corrigido. Evita introduzir o upgrade
 Kubernetes da release posterior que quebra os informers do collector;
 não força um `client-go` inferior às dependências nem simula versão segura.
 
+## Gate complementar do SDK Moby
+
+O job Alloy executa `scripts/ci/alloy-security.sh` após o scanner obrigatório.
+Extrai o binário e inventário de um container **nunca iniciado**, sem rede ou
+mounts do host; confere hash, versão real, plataforma, patches e testes AuthZ.
+Exige grafo completo até EOF, sem erros, imports ausentes ou entrada diferente
+do collector efetivamente compilado (`github.com/grafana/alloy/otel_engine`).
+
+Gera um CycloneDX complementar do SDK `v28.5.2+incompatible` para que o Trivy
+também examine o `replace` local. Não modifica nem substitui o SBOM completo.
+As quatro CVEs daemon/plugin avaliadas podem ser consideradas não aplicáveis
+**somente se os pacotes vulneráveis estiverem ausentes do grafo deste artefato**.
+Advisory novo, versão divergente, evidência ausente ou pacote vulnerável
+presente mantém o gate vermelho. O scan completo adicional rejeita HIGH e
+CRITICAL inclusive sem patch disponível. Não há VEX automático nem arquivo
+de ignore; os relatórios brutos continuam intactos, inclusive os residuais
+LOW/MEDIUM/UNKNOWN. Isso não avalia o daemon Docker externo nem prova runtime.
+
+`image-alloy.json` conserva avaliação e todas as evidências JSON/texto em
+`gzip+base64`, com SHA256 individual do conteúdo original. É enviado ao
+serviço local de artifacts com capability temporária e nome restrito, também
+em falhas de avaliação. A identidade registrada é o **image ID local**, não
+um manifest digest publicado. Não reutilizar o diretório de outro build.
+Reexecutar os testes positivos/negativos de `test_alloy_security.py` ao
+alterar o gate, e submeter mudanças de aplicabilidade à revisão independente.
+
 ## Correção de segurança da toolchain
 
 Os jobs anteriores usavam Go 1.26.6 e falharam com 11 vulnerabilidades
