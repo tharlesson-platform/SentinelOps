@@ -1,8 +1,9 @@
 # CI local isolado do SentinelOps
 
-Os workflows exigem um runner local Linux ARM64 com as labels
-`self-hosted`, `Linux`, `ARM64`, `sentinelops-ci-isolated` e a label
-`sentinelops-run-<run_id>` específica da execução aprovada. Não há fallback
+Os workflows exigem uma VM local Linux ARM64 registrada com
+`--no-default-labels` e somente `sentinelops-run-<run_id>`, específica da
+execução aprovada. Não adicionar labels genéricas ou compartilhadas.
+Não há fallback
 para runners hospedados. A ausência desse runner deixa o job aguardando;
 nunca constitui validação bem-sucedida.
 
