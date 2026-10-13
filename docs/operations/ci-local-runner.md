@@ -49,6 +49,19 @@ smoke não comprova a integração com a API nem o funcionamento em produção.
 O estágio `source-ui` do Alloy também usa `$BUILDPLATFORM` para seus assets
 estáticos; os estágios de compilação Go/CGO e a imagem final permanecem no
 alvo solicitado. A validação isolada da UI não substitui build e scan completos.
+
+O builder de `Dockerfile.app` usa `FROM --platform=$BUILDPLATFORM`, preservando
+a toolchain Go `1.27.2` e seu digest. Com `CGO_ENABLED=0`, os argumentos
+automáticos `TARGETOS` e `TARGETARCH` definem explicitamente o binário de saída;
+a imagem Alpine final continua na plataforma solicitada. Esse é o padrão de
+[cross-compilation documentado pelo Docker](https://docs.docker.com/build/building/multi-platform/#cross-compilation).
+No job `115528669280`, o compilador AMD64 foi observado sob QEMU em uma VM
+ARM64, com longa inatividade. Isso confirma emulação, mas não determina a
+causa exata da inatividade nem demonstra deadlock. Validar o builder nativo,
+os sete apps AMD64, ao menos a API ARM64, metadados Go/ELF, tempos e scans
+completos antes de publicar. Os builds de release AMD64/ARM64 e seus gates
+permanecem obrigatórios; cross-compilation não comprova funcionamento em produção.
+
 O estágio `moby-backport` prepara apenas fontes e `go.mod`, também de forma
 nativa. Isso evita o SIGSEGV de QEMU observado na verificação do patch; o
 checksum, `git apply --check`, aplicação e verificação do conteúdo permanecem
