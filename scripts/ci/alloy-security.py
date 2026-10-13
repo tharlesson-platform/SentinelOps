@@ -167,6 +167,7 @@ def assess(directory, names, image, digest):
     require(not any(v.get("Severity") in ("HIGH", "CRITICAL") for v in full), "full scan has HIGH/CRITICAL findings")
     extra_findings = findings(extra)
     require(extra_findings, "supplement scan unexpectedly empty; review database coverage")
+    require(len(extra_findings) == len({v.get("VulnerabilityID") for v in extra_findings}), "duplicate supplementary advisory")
     evaluations = []
     for v in extra_findings:
         cve = v["VulnerabilityID"]

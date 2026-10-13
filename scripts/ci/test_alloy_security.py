@@ -191,6 +191,11 @@ class SecurityGateTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "advisory coverage mismatch"):
             self.assess()
 
+    def test_duplicate_sdk_scan_fails(self):
+        self.extra["Results"][0]["Vulnerabilities"].append(self.extra["Results"][0]["Vulnerabilities"][0])
+        with self.assertRaisesRegex(ValueError, "duplicate supplementary"):
+            self.assess()
+
     def test_real_binary_metadata_mismatch_fails(self):
         binary = self.fixture_inventory()
         with mock.patch.object(gate, "binary_metadata", return_value="different: go1.25.0\n"):
