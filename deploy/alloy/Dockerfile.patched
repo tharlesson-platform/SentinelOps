@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
-FROM node@sha256:0353e48e0e8a993db87b720c242f54b207059d1bcc0106534896e8a11054c837 AS source-ui
+# Generate static UI assets natively; the later Go/CGO build keeps its target.
+FROM --platform=$BUILDPLATFORM node@sha256:0353e48e0e8a993db87b720c242f54b207059d1bcc0106534896e8a11054c837 AS source-ui
 ARG ALLOY_SOURCE_REF=6012ec4ac6a541ade720777ecec2f2b02b496def
 RUN git clone --filter=blob:none --no-checkout https://github.com/grafana/alloy.git /src/alloy \
     && git -C /src/alloy checkout --detach "$ALLOY_SOURCE_REF" \
