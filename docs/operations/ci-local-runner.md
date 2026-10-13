@@ -1,7 +1,8 @@
 # CI local isolado do SentinelOps
 
-O workflow `ci` exige um runner local Linux x64 com as labels
-`self-hosted`, `Linux`, `X64` e `sentinelops-ci-isolated`. Não há fallback
+Os workflows exigem um runner local Linux ARM64 com as labels
+`self-hosted`, `Linux`, `ARM64`, `sentinelops-ci-isolated` e a label
+`sentinelops-run-<run_id>` específica da execução aprovada. Não há fallback
 para runners hospedados. A ausência desse runner deixa o job aguardando;
 nunca constitui validação bem-sucedida.
 
