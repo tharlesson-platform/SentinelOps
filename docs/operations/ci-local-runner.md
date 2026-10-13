@@ -18,6 +18,18 @@ A imagem `postgres` usada pelos testes é temporária. Não usar o banco de
 produção. O workflow mantém testes, `govulncheck`, scanners de secrets,
 validações de Helm/Terraform e scans das imagens como gates obrigatórios.
 
+O estágio Node do frontend usa `$BUILDPLATFORM`: gera assets estáticos na
+arquitetura nativa do builder. Isso evita o SIGSEGV reproduzido ao executar
+JavaScript Node AMD64 sob QEMU no runner ARM64. A imagem final Nginx continua
+no alvo solicitado (`linux/amd64` no CI), com usuário sem privilégios,
+atualizações de pacotes e scans preservados. Não remover o suporte AMD64.
+O PID do Nginx usa `/tmp/nginx.pid`, pois o usuário `nginx` não pode escrever
+em `/run`. Validar resposta HTTP e assets da imagem sem promover a produção.
+O job da imagem web executa `scripts/ci/web-image-smoke.sh`: exige alvo AMD64,
+usuário `nginx`, PID gravável, HTML e assets JS/CSS com tipos corretos. Usa
+porta efêmera apenas em loopback e remove seu container ao terminar. Esse
+smoke não comprova a integração com a API nem o funcionamento em produção.
+
 ## Correção de segurança da toolchain
 
 Os jobs anteriores usavam Go 1.26.6 e falharam com 11 vulnerabilidades
