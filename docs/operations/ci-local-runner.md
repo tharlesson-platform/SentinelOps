@@ -1,11 +1,28 @@
 # CI local isolado do SentinelOps
 
-Os workflows exigem uma VM local Linux ARM64 registrada com
+Os workflows versionados neste repositório exigem uma VM local Linux ARM64 registrada com
 `--no-default-labels` e somente `sentinelops-run-<run_id>`, específica da
 execução aprovada. Não adicionar labels genéricas ou compartilhadas.
 Não há fallback
 para runners hospedados. A ausência desse runner deixa o job aguardando;
 nunca constitui validação bem-sucedida.
+
+O **GitHub Code Quality gerenciado** é uma execução separada, com path
+`dynamic/github-code-quality/codeql`; seus runners não são determinados
+pelos YAML acima. Na auditoria de 2026-10-13, ele ainda usava `ubuntu-latest`
+hospedado no SentinelOps. Portanto, checks `Analyze` verdes não comprovam
+que essa análise ocorreu localmente. A migração desse serviço permanece
+pendente; não declarar toda a organização local antes do readback dos jobs.
+
+Consultar sua configuração pelo endpoint `code-quality/setup` com versão
+API `2026-03-10`, não pelo `code-scanning/default-setup`. A
+[API oficial de Code Quality](https://docs.github.com/en/rest/code-quality/code-quality?apiVersion=2026-03-10)
+suporta `runner_type: labeled` e `runner_label`. Preservar estado, linguagens,
+agenda e opções existentes; não desabilitar análises para tornar o gate verde.
+Um label fixo do serviço não equivale ao label exclusivo por run do CI:
+submeter o agendamento/isolamento à revisão independente antes de mudar.
+Os quatro gates privados de Code Security mantidos pendentes por decisão
+do usuário não autorizam ativação de licença ou cobrança.
 
 Como este repositório é público, não habilitar acesso ao pool local
 compartilhado. Provisionar uma VM descartável dedicada, sem credenciais
