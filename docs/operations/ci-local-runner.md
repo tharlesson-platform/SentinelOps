@@ -46,6 +46,31 @@ aplicados com checksum e executados junto da suíte de autorização legada.
 Um `replace` local pode ocultar a versão no scanner: seu exit code sozinho
 não comprova avaliação do Moby. Exigir inventário/proveniência e análise de
 aplicabilidade do backport antes da aprovação de segurança ou do merge.
+O rebuild Beyla atualiza `x/crypto`, `x/mod`, `x/net`, `x/text` e gRPC para
+as versões corrigidas, regenerando o vendor **antes** dos patches OBI.
+Inicializar antes o submódulo OBI no commit exato registrado pelo Beyla,
+`d4a4eaae78ceb3053343c15d1d2e651bc362927e`, pois `go.mod` usa `.obi-src`.
+Depois exige `git apply --check` e os testes existentes de identidade e
+descoberta, evitando que `go mod vendor` apague as correções locais.
+O scan completo também exige Cilium eBPF `v0.22.0` e os SDK/exporters OTel
+`v1.45.0` para corrigir achados LOW. O aviso OpenPGP sem versão corrigida
+exige avaliação do grafo real, conservado em
+`/usr/share/sentinelops/beyla-security`; não declarar zero em todas as
+severidades apenas por satisfazer o gate HIGH/CRITICAL.
+O patch de compatibilidade OBI remove as duas chamadas obsoletas a
+`btf.FlushKernelSpec`: Cilium `v0.22.0` não mantém mais esse cache global e
+usa caches locais/cleanup. A carga dos tracers permanece intacta; exigir
+aplicação do patch, testes e build após a migração, sem baixar a versão segura.
+O rebuild Alloy conserva em `/usr/share/sentinelops/alloy-security` o grafo
+de pacotes do collector após geração, módulos selecionados, metadados Go,
+SHA base Moby, resultado JSON da suíte AuthZ e hashes do binário/fontes.
+Esses arquivos são evidência bruta, não uma aprovação automática: comparar
+tags/CGO/arquitetura com o binário, ligar os dados ao digest final e avaliar
+cada advisory antes do merge. Ausência ou inconsistência mantém o bloqueio.
+Os JSON de `go list` são fluxos de objetos, não arrays; consumir até EOF.
+A captura usa resolução somente leitura e a arquitetura lida do binário,
+exigindo correspondência com a toolchain do build e Linux/CGO=1. A plataforma
+dos testes AuthZ nativos é registrada separadamente da imagem AMD64.
 
 ## Correção de segurança da toolchain
 
