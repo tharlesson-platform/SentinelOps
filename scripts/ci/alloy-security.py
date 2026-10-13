@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import re
 import sys
+import subprocess
 import uuid
 
 MOBY = "github.com/docker/docker"
@@ -24,6 +25,12 @@ ABSENT = {
     "CVE-2026-41568": ("daemon", "daemon.openContainerFS/fileutils.CreateIfNotExists"),
     "CVE-2026-41567": ("daemon", "daemon.containerExtractToDir/archive.Untar"),
     "CVE-2026-33997": ("plugin", "plugin.validatePrivileges/isEqual"),
+}
+EVIDENCE_NAMES = {
+    "build-info.txt", "go-env.json", "modules.json", "packages.json",
+    "moby-base-sha.txt", "moby-authz-tests.json", "moby-authz-platform.json",
+    "source-and-binary-sha256.txt", "trivy-full.json", "trivy-moby.json",
+    "trivy-sbom.json", "trivy-version.txt", "moby-supplement.cdx.json", "image-inspect.json",
 }
 
 
@@ -53,7 +60,24 @@ def stream(path):
     return result
 
 
+def binary_metadata(binary):
+    # Reader is native, pinned and offline; the Linux target is never executed.
+    image = "golang:1.26.9-bookworm@sha256:d9c68c2c51161e12fd77e4c6320687c9cd86e1af1e3ad6e6cd63ff970641453c"
+    return subprocess.run([
+        "docker", "run", "--rm", "--network", "none", "--read-only",
+        "--mount", "type=bind,src=" + str(binary.resolve()) + ",target=/artifact/alloy,readonly",
+        "--entrypoint", "/usr/local/go/bin/go", image, "version", "-m", "/artifact/alloy",
+    ], check=True, capture_output=True, text=True, timeout=180).stdout
+
+
+def normalized_metadata(info):
+    lines = info.splitlines()
+    require(lines and ": " in lines[0], "invalid build information")
+    return [lines[0].split(": ", 1)[1], *lines[1:]]
+
+
 def inspect(directory, binary, image, patches):
+    require(not directory.is_symlink() and not binary.is_symlink(), "symlink evidence rejected")
     require(re.fullmatch(r"sha256:[a-f0-9]{64}", image), "invalid local image ID")
     digest = sha(binary)
     sums = (directory / "source-and-binary-sha256.txt").read_text().splitlines()
@@ -62,6 +86,8 @@ def inspect(directory, binary, image, patches):
     for name, expected in PATCHES.items():
         require(sha(patches / name) == expected, "patch mismatch: " + name)
     info = (directory / "build-info.txt").read_text()
+    actual = binary_metadata(binary)
+    require(normalized_metadata(info) == normalized_metadata(actual), "embedded binary metadata mismatch")
     for setting in ("GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=1"):
         require(re.search(r"^\s*build\s+" + setting + r"$", info, re.M), "binary platform mismatch")
     require("go1.26.9" in info, "unexpected Go toolchain")
@@ -77,10 +103,25 @@ def inspect(directory, binary, image, patches):
     require(not any(p.get("Error") or p.get("DepsErrors") or p.get("Incomplete") for p in packages), "incomplete graph")
     require("github.com/grafana/alloy/otel_engine" in names, "collector entrypoint missing")
     require([p["ImportPath"] for p in packages if not p.get("DepOnly")] == ["github.com/grafana/alloy/otel_engine"], "unexpected graph entrypoint")
+    by_name = {p["ImportPath"]: p for p in packages}
+    root = "github.com/grafana/alloy/otel_engine"
+    require(set(by_name[root].get("Deps", [])) == names - {root}, "root Deps coverage mismatch")
     # All imports must be represented: an arbitrary truncated graph cannot pass.
     for p in packages:
         imports = {p.get("ImportMap", {}).get(n, n) for n in p.get("Imports", [])}
         require(imports - {"C"} <= names, "missing imported package: " + p["ImportPath"])
+        require(set(p.get("Deps", [])) <= names, "missing transitive dependency")
+    # runtime/cgo is compiler-injected for CGO builds, rather than a Go import.
+    pending = [root] + (["runtime/cgo"] if "runtime/cgo" in names else [])
+    reached = set()
+    while pending:
+        name = pending.pop()
+        if name in reached or name == "C":
+            continue
+        reached.add(name)
+        p = by_name[name]
+        pending.extend(p.get("ImportMap", {}).get(n, n) for n in p.get("Imports", []))
+    require(reached == names, "unreachable inventory packages")
     moby = [p for p in packages if p.get("Module", {}).get("Path") == MOBY]
     require(moby, "Moby SDK inventory missing")
     require(all(p["Module"].get("Version") == VERSION and p["Module"].get("Replace", {}).get("Dir") == "/src/docker" for p in moby), "false Moby module version")
@@ -121,6 +162,8 @@ def assess(directory, names, image, digest):
     extra = json.loads((directory / "trivy-moby.json").read_text())
     require(raw.get("Metadata", {}).get("ImageID") == image, "raw scan image mismatch")
     full = findings(raw)
+    require(any(r.get("Type") == "ubuntu" and r.get("Class") == "os-pkgs" and r.get("Packages") for r in raw["Results"]), "OS scan coverage missing")
+    require(any(r.get("Type") == "gobinary" and r.get("Target") in ("usr/bin/alloy", "bin/alloy") and r.get("Packages") for r in raw["Results"]), "binary scan coverage missing")
     require(not any(v.get("Severity") in ("HIGH", "CRITICAL") for v in full), "full scan has HIGH/CRITICAL findings")
     extra_findings = findings(extra)
     require(extra_findings, "supplement scan unexpectedly empty; review database coverage")
@@ -133,6 +176,7 @@ def assess(directory, names, image, digest):
         require(not any(n == MOBY + "/" + prefix or n.startswith(MOBY + "/" + prefix + "/") for n in names), "vulnerable package present: " + cve)
         evaluations.append({"id": cve, "severity": v["Severity"],
                             "assessment": "vulnerable_code_not_present", "function": function})
+    require({v.get("VulnerabilityID") for v in extra_findings} == set(ABSENT), "supplement advisory coverage mismatch")
     return {"localImageID": image, "binarySHA256": digest,
             "packagesSHA256": sha(directory / "packages.json"),
             "packageCount": len(names), "moby": evaluations,
@@ -142,11 +186,13 @@ def assess(directory, names, image, digest):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("prepare", "assess"))
+    parser.add_argument("mode", choices=("prepare", "assess", "diagnose"))
     parser.add_argument("directory", type=Path)
     parser.add_argument("binary", type=Path)
     parser.add_argument("image")
     args = parser.parse_args()
+    require(not args.directory.is_symlink(), "symlink directory rejected")
+    args.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     patches = Path(__file__).resolve().parents[2] / "deploy/alloy/patches"
     if args.mode == "prepare":
         digest, _ = inspect(args.directory, args.binary, args.image, patches)
@@ -155,24 +201,31 @@ def main():
     else:
         error = None
         try:
+            require(args.mode != "diagnose", "security collection unavailable; inspect preceding build/scan failures")
             digest, names = inspect(args.directory, args.binary, args.image, patches)
             output = assess(args.directory, names, args.image, digest)
-        except (ValueError, OSError, KeyError, TypeError) as exc:
+        except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError) as exc:
             error = str(exc)
             output = {"error": error, "localImageID": args.image}
         # Preserve the complete raw evidence without exceeding the bounded local
         # artifact service. Each member can be independently decoded and hashed.
         evidence = {}
         for path in sorted(args.directory.iterdir()):
-            if path.is_file() and path.name != "image-alloy.json" and path.suffix in (".json", ".txt"):
+            if path.is_symlink() or path.name not in EVIDENCE_NAMES | {"alloy", "image-alloy.json"}:
+                error = "unexpected or symlink evidence member: " + path.name
+                continue
+            if path.name in EVIDENCE_NAMES and path.is_file():
                 data = path.read_bytes()
                 evidence[path.name] = {"sha256": hashlib.sha256(data).hexdigest(),
                                        "encoding": "gzip+base64",
                                        "data": base64.b64encode(gzip.compress(data, mtime=0)).decode()}
+        if error:
+            output["error"] = error
         output = {"assessment": output, "rawEvidence": evidence}
         name = "image-alloy.json"
+    require(not (args.directory / name).is_symlink(), "symlink output rejected")
     (args.directory / name).write_text(json.dumps(output, separators=(",", ":")) + "\n")
-    if args.mode == "assess" and error:
+    if args.mode != "prepare" and error:
         sys.exit(error)
 
 

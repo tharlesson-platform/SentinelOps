@@ -100,6 +100,9 @@ Extrai o binário e inventário de um container **nunca iniciado**, sem rede ou
 mounts do host; confere hash, versão real, plataforma, patches e testes AuthZ.
 Exige grafo completo até EOF, sem erros, imports ausentes ou entrada diferente
 do collector efetivamente compilado (`github.com/grafana/alloy/otel_engine`).
+Confere também `Deps` e alcance transitivo, além de comparar o registro com
+`go version -m` lido do binário real por uma toolchain Docker nativa fixada,
+offline e somente leitura. O alvo AMD64 nunca é executado nessa leitura.
 
 Gera um CycloneDX complementar do SDK `v28.5.2+incompatible` para que o Trivy
 também examine o `replace` local. Não modifica nem substitui o SBOM completo.
@@ -114,7 +117,11 @@ LOW/MEDIUM/UNKNOWN. Isso não avalia o daemon Docker externo nem prova runtime.
 `image-alloy.json` conserva avaliação e todas as evidências JSON/texto em
 `gzip+base64`, com SHA256 individual do conteúdo original. É enviado ao
 serviço local de artifacts com capability temporária e nome restrito, também
-em falhas de avaliação. A identidade registrada é o **image ID local**, não
+em falhas de avaliação. Um build/coleta indisponível produz diagnóstico
+vermelho, não avaliação bem-sucedida. O uploader compara SHA256, tamanho,
+nome, repositório, run e source SHA do receipt antes de aceitar persistência.
+O empacotador admite somente membros previstos e rejeita symlinks.
+A identidade registrada é o **image ID local**, não
 um manifest digest publicado. Não reutilizar o diretório de outro build.
 Reexecutar os testes positivos/negativos de `test_alloy_security.py` ao
 alterar o gate, e submeter mudanças de aplicabilidade à revisão independente.
