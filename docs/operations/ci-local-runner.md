@@ -151,8 +151,41 @@ em falhas de avaliação. Um build/coleta indisponível produz diagnóstico
 vermelho, não avaliação bem-sucedida. O uploader compara SHA256, tamanho,
 nome, repositório, run e source SHA do receipt antes de aceitar persistência.
 O empacotador admite somente membros previstos e rejeita symlinks.
-A identidade registrada é o **image ID local**, não
-um manifest digest publicado. Não reutilizar o diretório de outro build.
+A identidade registrada é o **image ID local**, não evidência de publicação
+no registry. O engine clássico identifica o config por SHA-256; o containerd
+pode identificar o manifesto. `Trivy.Metadata.ImageID` pode expor config ou
+manifesto conforme o backend/caminho de coleta; não inferir essa superfície
+pela versão do scanner sem prova. Comparar os IDs sem distinguir a cadeia
+pode produzir um falso mismatch.
+
+O shell captura `docker image save "$image_id"` em stream, sem reter outro
+tar completo, extrair camadas ou executar a imagem. Preserva somente os bytes
+exatos de config/manifesto em `image-config.json` e `image-manifest.json`.
+No engine clássico, o hash do config deve ser o `.Id`, e o manifest do save
+deve referenciar esse config. No containerd, o hash do manifesto deve ser o
+`.Id` e o Descriptor Docker; o descriptor de config deve conferir hash e
+tamanho do config capturado. Index multiarch não é aceito silenciosamente:
+este gate exige manifesto linux/amd64 individual e falha se receber outro formato.
+
+Os DiffIDs **ordenados** do config devem conferir com Docker RootFS,
+Trivy DiffIDs, ImageConfig.rootfs e cada Layers.DiffID. No containerd, também
+confere os digests das camadas Trivy com os descriptors do manifesto.
+Somente **depois** de validar essa cadeia completa, o ImageID do Trivy deve
+ser igual ao configDigest ou ao manifestDigest calculados dos bytes capturados.
+Nenhum ID externo, tag, annotation ou digest de manifesto não verificado é
+fallback. A avaliação registra `trivyImageID` e `trivyImageIDSurface`.
+DiffID é hash da camada descomprimida, não sinônimo do digest da camada
+comprimida. Plataforma e configuração de execução também precisam conferir.
+Ausência, troca, truncamento ou ambiguidade de identidade mantém o gate vermelho;
+não substitui a comparação por tags nem por igualdade parcial das camadas.
+O stream permite até 10.000 membros, metadata individual até 1 MiB e
+metadata candidata agregada até 16 MiB; camadas grandes passam sem serem
+armazenadas em memória. O custo adicional é ler uma exportação local da imagem.
+Config/manifesto brutos continuam no bundle diagnóstico, inclusive em falhas.
+Não reutilizar o diretório de outro build.
+
+Referências primárias: [OCI config/DiffIDs](https://github.com/opencontainers/image-spec/blob/main/config.md),
+[OCI manifesto/config descriptor](https://github.com/opencontainers/image-spec/blob/main/manifest.md).
 Reexecutar os testes positivos/negativos de `test_alloy_security.py` ao
 alterar o gate, e submeter mudanças de aplicabilidade à revisão independente.
 

@@ -3,6 +3,9 @@ import base64
 import gzip
 import hashlib
 import json
+import io
+import copy
+import tarfile
 from pathlib import Path
 import tempfile
 import subprocess
@@ -16,7 +19,11 @@ spec.loader.exec_module(gate)
 upload_spec = importlib.util.spec_from_file_location("upload", Path(__file__).with_name("upload-local-artifact.py"))
 upload = importlib.util.module_from_spec(upload_spec)
 upload_spec.loader.exec_module(upload)
-IMAGE = "sha256:" + "a" * 64
+DIFF_IDS = ["sha256:" + "a" * 64, "sha256:" + "b" * 64]
+CONFIG = {"os": "linux", "architecture": "amd64", "config": {"User": "473:473"},
+          "rootfs": {"type": "layers", "diff_ids": DIFF_IDS}}
+CONFIG_BYTES = json.dumps(CONFIG, sort_keys=True).encode()
+IMAGE = gate.content_id(CONFIG_BYTES)
 
 
 class SecurityGateTest(unittest.TestCase):
@@ -24,7 +31,11 @@ class SecurityGateTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.directory = Path(self.temp.name)
-        self.full = {"Metadata": {"ImageID": IMAGE}, "Results": [
+        self.image = IMAGE
+        self.full = {"Metadata": {"ImageID": IMAGE, "DiffIDs": DIFF_IDS,
+                                  "Layers": [{"DiffID": diff, "Digest": "sha256:" + str(n) * 64}
+                                             for n, diff in enumerate(DIFF_IDS, 1)],
+                                  "ImageConfig": copy.deepcopy(CONFIG)}, "Results": [
             {"Class": "os-pkgs", "Type": "ubuntu", "Packages": [{"Name": "libc6"}], "Vulnerabilities": []},
             {"Class": "lang-pkgs", "Type": "gobinary", "Target": "usr/bin/alloy", "Packages": [{"Name": "stdlib"}]},
         ]}
@@ -34,11 +45,39 @@ class SecurityGateTest(unittest.TestCase):
             for cve in gate.ABSENT
         ]}]}
         (self.directory / "packages.json").write_text("fixture graph")
+        self.identity_fixture()
+
+    def identity_fixture(self, containerd=False):
+        self.docker = {"Id": IMAGE, "Os": "linux", "Architecture": "amd64",
+                       "RootFS": {"Type": "layers", "Layers": DIFF_IDS}, "Config": CONFIG["config"]}
+        if containerd:
+            manifest = {"schemaVersion": 2, "mediaType": "application/vnd.oci.image.manifest.v1+json",
+                        "config": {"mediaType": "application/vnd.oci.image.config.v1+json",
+                                   "digest": IMAGE, "size": len(CONFIG_BYTES)},
+                        "layers": [{"mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+                                    "digest": "sha256:" + str(n) * 64, "size": 10} for n in (1, 2)]}
+            self.manifest = json.dumps(manifest, sort_keys=True).encode()
+            self.image = gate.content_id(self.manifest)
+            self.docker["Id"] = self.image
+            self.docker["Descriptor"] = {"mediaType": manifest["mediaType"], "digest": self.image,
+                                         "size": len(self.manifest)}
+        else:
+            self.image = IMAGE
+            self.manifest = json.dumps([{"Config": IMAGE[7:] + ".json", "Layers": ["1/layer.tar", "2/layer.tar"]}]).encode()
+        (self.directory / "image-config.json").write_bytes(CONFIG_BYTES)
+        (self.directory / "image-manifest.json").write_bytes(self.manifest)
+        self.write_docker()
+
+    def write_docker(self):
+        (self.directory / "image-inspect.json").write_text(json.dumps([self.docker]))
+
+    def identity(self):
+        return gate.image_identity(self.directory, self.image, self.full)
 
     def assess(self, names=None):
         (self.directory / "trivy-full.json").write_text(json.dumps(self.full))
         (self.directory / "trivy-moby.json").write_text(json.dumps(self.extra))
-        return gate.assess(self.directory, names or {gate.MOBY + "/client"}, IMAGE, "b" * 64)
+        return gate.assess(self.directory, names or {gate.MOBY + "/client"}, self.image, "b" * 64)
 
     def test_scoped_assessment_keeps_raw_residual(self):
         warning = {"Severity": "UNKNOWN", "VulnerabilityID": "GO-2026-5932"}
@@ -69,6 +108,286 @@ class SecurityGateTest(unittest.TestCase):
         self.full["Metadata"]["ImageID"] = "sha256:" + "c" * 64
         with self.assertRaisesRegex(ValueError, "image mismatch"):
             self.assess()
+
+    def test_classic_config_binding_passes(self):
+        identity = self.identity()
+        self.assertEqual(identity["kind"], "docker-classic")
+        self.assertEqual(identity["configDigest"], IMAGE)
+        self.assertIsNone(identity["manifestDigest"])
+
+    def test_containerd_manifest_config_binding_passes(self):
+        self.identity_fixture(containerd=True)
+        result = self.assess()
+        self.assertNotEqual(self.image, IMAGE)
+        self.assertEqual(result["imageIdentity"]["manifestDigest"], self.image)
+        self.assertEqual(result["imageIdentity"]["configDigest"], IMAGE)
+
+    def test_containerd_scanner_accepts_only_verified_config_or_manifest_surface(self):
+        self.identity_fixture(True)
+        for surface, image_id in (("config", IMAGE), ("manifest", self.image)):
+            with self.subTest(surface=surface):
+                self.full["Metadata"]["ImageID"] = image_id
+                identity = self.identity()
+                self.assertEqual(identity["trivyImageID"], image_id)
+                self.assertEqual(identity["trivyImageIDSurface"], surface)
+
+    def test_both_surfaces_reject_external_ids_config_layers_and_runtime_mismatch(self):
+        self.identity_fixture(True)
+        original = copy.deepcopy(self.full)
+        for surface, image_id in (("config", IMAGE), ("manifest", self.image)):
+            for fault in ("external-id", "config", "runtime", "diffids", "layers", "manifest-layers"):
+                with self.subTest(surface=surface, fault=fault):
+                    self.full = copy.deepcopy(original)
+                    metadata = self.full["Metadata"]
+                    metadata["ImageID"] = image_id
+                    if fault == "external-id":
+                        metadata["ImageID"] = "sha256:" + "e" * 64
+                    elif fault == "config":
+                        metadata["ImageConfig"]["rootfs"]["diff_ids"] = DIFF_IDS[::-1]
+                    elif fault == "runtime":
+                        metadata["ImageConfig"]["config"]["User"] = "0"
+                    elif fault == "diffids":
+                        metadata["DiffIDs"] = DIFF_IDS[::-1]
+                    elif fault == "layers":
+                        metadata["Layers"][0]["DiffID"] = "sha256:" + "e" * 64
+                    else:
+                        metadata["Layers"][0]["Digest"] = "sha256:" + "e" * 64
+                    with self.assertRaises(ValueError):
+                        self.identity()
+
+    def test_both_surfaces_reject_tampered_captured_config_and_manifest(self):
+        for surface in ("config", "manifest"):
+            for member in ("image-config.json", "image-manifest.json"):
+                with self.subTest(surface=surface, member=member):
+                    self.identity_fixture(True)
+                    self.full["Metadata"]["ImageID"] = IMAGE if surface == "config" else self.image
+                    target = self.directory / member
+                    target.write_bytes(target.read_bytes() + b" ")
+                    with self.assertRaises(ValueError):
+                        self.identity()
+
+    def test_manifest_surface_cannot_bypass_high_findings(self):
+        self.identity_fixture(True)
+        self.full["Metadata"]["ImageID"] = self.image
+        self.full["Results"][0]["Vulnerabilities"].append({"Severity": "HIGH"})
+        with self.assertRaisesRegex(ValueError, "HIGH/CRITICAL"):
+            self.assess()
+
+    def test_classic_save_manifest_is_not_a_verified_manifest_id(self):
+        self.full["Metadata"]["ImageID"] = gate.content_id(self.manifest)
+        with self.assertRaisesRegex(ValueError, "raw scan image mismatch"):
+            self.identity()
+
+    def test_containerd_high_gate_still_fails(self):
+        self.identity_fixture(containerd=True)
+        self.full["Results"][0]["Vulnerabilities"].append({"Severity": "HIGH"})
+        with self.assertRaisesRegex(ValueError, "HIGH/CRITICAL"):
+            self.assess()
+
+    def test_swapped_config_bytes_fail_for_both_stores(self):
+        for containerd in (False, True):
+            with self.subTest(containerd=containerd):
+                self.identity_fixture(containerd)
+                (self.directory / "image-config.json").write_bytes(CONFIG_BYTES + b" ")
+                with self.assertRaises(ValueError):
+                    self.identity()
+
+    def test_swapped_manifest_bytes_fail(self):
+        self.identity_fixture(True)
+        (self.directory / "image-manifest.json").write_bytes(self.manifest + b" ")
+        with self.assertRaisesRegex(ValueError, "manifest image mismatch"):
+            self.identity()
+
+    def test_swapped_docker_image_fails(self):
+        self.docker["Id"] = "sha256:" + "c" * 64
+        self.write_docker()
+        with self.assertRaisesRegex(ValueError, "Docker image mismatch"):
+            self.identity()
+
+    def test_swapped_or_reordered_scan_diffids_fail(self):
+        for layers in (DIFF_IDS[::-1], DIFF_IDS[:1], ["sha256:" + "d" * 64]):
+            with self.subTest(layers=layers):
+                self.full["Metadata"]["DiffIDs"] = layers
+                with self.assertRaisesRegex(ValueError, "raw scan DiffIDs mismatch"):
+                    self.identity()
+
+    def test_swapped_docker_layers_fail(self):
+        self.docker["RootFS"] = {"Type": "layers", "Layers": DIFF_IDS[::-1]}
+        self.write_docker()
+        with self.assertRaisesRegex(ValueError, "Docker DiffIDs mismatch"):
+            self.identity()
+
+    def test_swapped_scan_config_fails(self):
+        self.full["Metadata"]["ImageConfig"]["config"]["User"] = "0"
+        with self.assertRaisesRegex(ValueError, "raw scan config mismatch"):
+            self.identity()
+
+    def test_manifest_descriptor_mismatch_fails(self):
+        self.identity_fixture(True)
+        self.docker["Descriptor"]["size"] += 1
+        self.write_docker()
+        with self.assertRaisesRegex(ValueError, "descriptor mismatch"):
+            self.identity()
+
+    def test_swapped_scanner_compressed_layers_fail(self):
+        self.identity_fixture(True)
+        self.full["Metadata"]["Layers"][0]["Digest"] = "sha256:" + "f" * 64
+        with self.assertRaisesRegex(ValueError, "raw scan manifest layers mismatch"):
+            self.identity()
+
+    def test_swapped_scanner_layer_diffids_fail(self):
+        self.full["Metadata"]["Layers"][0]["DiffID"] = "sha256:" + "f" * 64
+        with self.assertRaisesRegex(ValueError, "raw scan layer identity mismatch"):
+            self.identity()
+
+    def test_swapped_manifest_layers_even_same_config_fail(self):
+        self.identity_fixture(True)
+        manifest = json.loads(self.manifest)
+        manifest["layers"].reverse()
+        changed = json.dumps(manifest).encode()
+        self.image = gate.content_id(changed)
+        self.docker["Id"] = self.image
+        self.docker["Descriptor"]["digest"] = self.image
+        self.docker["Descriptor"]["size"] = len(changed)
+        self.write_docker()
+        (self.directory / "image-manifest.json").write_bytes(changed)
+        with self.assertRaisesRegex(ValueError, "raw scan manifest layers mismatch"):
+            self.identity()
+
+    def test_bad_platform_and_missing_scan_metadata_fail(self):
+        for key, changed in (("ImageConfig", None), ("Layers", None), ("DiffIDs", [])):
+            with self.subTest(key=key):
+                old = self.full["Metadata"][key]
+                self.full["Metadata"][key] = changed
+                with self.assertRaises(ValueError):
+                    self.identity()
+                self.full["Metadata"][key] = old
+        self.docker["Architecture"] = "arm64"
+        self.write_docker()
+        with self.assertRaisesRegex(ValueError, "image platform mismatch"):
+            self.identity()
+
+    def test_manifest_swapped_config_descriptor_fails(self):
+        self.identity_fixture(True)
+        manifest = json.loads(self.manifest)
+        manifest["config"]["digest"] = "sha256:" + "f" * 64
+        changed = json.dumps(manifest).encode()
+        self.image = gate.content_id(changed)
+        self.docker["Id"] = self.image
+        self.docker["Descriptor"]["digest"] = self.image
+        self.docker["Descriptor"]["size"] = len(changed)
+        self.write_docker()
+        (self.directory / "image-manifest.json").write_bytes(changed)
+        with self.assertRaisesRegex(ValueError, "manifest config mismatch"):
+            self.identity()
+
+    def test_index_not_silently_accepted(self):
+        self.identity_fixture(True)
+        index = json.dumps({"schemaVersion": 2, "mediaType": "application/vnd.oci.image.index.v1+json",
+                            "manifests": []}).encode()
+        self.image = gate.content_id(index)
+        self.docker["Id"] = self.image
+        self.write_docker()
+        (self.directory / "image-manifest.json").write_bytes(index)
+        with self.assertRaisesRegex(ValueError, "unsupported image manifest"):
+            self.identity()
+
+    def test_malformed_identity_json_rejected(self):
+        for data in (b"{", b'{"x":1,"x":2}', b'{"x":NaN}', b"null", b"[]"):
+            with self.subTest(data=data):
+                (self.directory / "image-config.json").write_bytes(data)
+                with self.assertRaises(ValueError):
+                    self.identity()
+
+    def test_missing_identity_evidence_fails(self):
+        (self.directory / "image-config.json").unlink()
+        with self.assertRaises(OSError):
+            self.identity()
+
+    def test_ambiguous_inspect_rejected(self):
+        (self.directory / "image-inspect.json").write_text(json.dumps([self.docker, self.docker]))
+        with self.assertRaisesRegex(ValueError, "ambiguous"):
+            self.identity()
+
+    def save_tar(self, containerd=False, duplicate=False):
+        self.identity_fixture(containerd)
+        entries = [("blobs/sha256/" + IMAGE[7:] if containerd else IMAGE[7:] + ".json", CONFIG_BYTES)]
+        if containerd:
+            entries.append(("blobs/sha256/" + self.image[7:], self.manifest))
+        else:
+            entries.append(("manifest.json", self.manifest))
+        if duplicate:
+            entries.append(entries[0])
+        archive = io.BytesIO()
+        with tarfile.open(fileobj=archive, mode="w") as target:
+            for name, data in entries:
+                info = tarfile.TarInfo(name)
+                info.size = len(data)
+                target.addfile(info, io.BytesIO(data))
+        archive.seek(0)
+        (self.directory / "image-config.json").unlink()
+        (self.directory / "image-manifest.json").unlink()
+        return archive
+
+    def test_stream_capture_classic_and_containerd(self):
+        for containerd in (False, True):
+            with self.subTest(containerd=containerd):
+                archive = self.save_tar(containerd)
+                result = gate.capture_identity(self.directory, self.image, archive)
+                self.assertEqual(result["configDigest"], IMAGE)
+                self.assertEqual(self.identity()["diffIDs"], DIFF_IDS)
+
+    def test_stream_capture_duplicates_fail_before_write(self):
+        archive = self.save_tar(True, duplicate=True)
+        with self.assertRaisesRegex(ValueError, "duplicate"):
+            gate.capture_identity(self.directory, self.image, archive)
+        self.assertFalse((self.directory / "image-config.json").exists())
+
+    def test_save_link_rejected_without_extracting(self):
+        archive = io.BytesIO()
+        with tarfile.open(fileobj=archive, mode="w") as target:
+            member = tarfile.TarInfo("manifest.json")
+            member.type, member.linkname = tarfile.SYMTYPE, "/outside-fixture"
+            target.addfile(member)
+        archive.seek(0)
+        with self.assertRaisesRegex(ValueError, "linked save member"):
+            gate.capture_identity(self.directory, self.image, archive)
+
+    def test_metadata_limit_rejected(self):
+        with self.assertRaisesRegex(ValueError, "too large"):
+            gate.identity_json(b" " * (1024 * 1024 + 1))
+
+    def test_failed_cli_keeps_raw_config_and_manifest_evidence(self):
+        proc = subprocess.run([sys.executable, gate.__file__, "diagnose", str(self.directory),
+                               str(self.directory / "missing-binary"), self.image],
+                              capture_output=True, timeout=10)
+        self.assertNotEqual(proc.returncode, 0)
+        packed = json.loads((self.directory / "image-alloy.json").read_text())["rawEvidence"]
+        for name in ("image-config.json", "image-manifest.json", "image-inspect.json"):
+            original = (self.directory / name).read_bytes()
+            self.assertEqual(gzip.decompress(base64.b64decode(packed[name]["data"])), original)
+            self.assertEqual(packed[name]["sha256"], hashlib.sha256(original).hexdigest())
+
+    def test_truncated_save_fails(self):
+        with self.assertRaises(tarfile.TarError):
+            gate.capture_identity(self.directory, self.image, io.BytesIO(b"invalid tar"))
+
+    def test_capture_cli_consumes_stdin_without_docker_or_target_execution(self):
+        archive = self.save_tar(True)
+        result = subprocess.run([sys.executable, gate.__file__, "capture-identity", str(self.directory),
+                                 str(self.directory / "not-executed"), self.image],
+                                input=archive.read(), capture_output=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["configDigest"], IMAGE)
+        self.identity()
+
+    def test_shell_capture_keeps_immutable_reference_and_scan_policy(self):
+        shell = Path(gate.__file__).with_suffix(".sh").read_text()
+        self.assertIn('set -euo pipefail', shell)
+        self.assertIn('docker image save "$image_id" | python3', shell)
+        self.assertLess(shell.index('capture-identity'), shell.index('trivy image --scanners'))
+        self.assertIn('--severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --exit-code 0', shell)
+        self.assertIn('--ignore-unfixed=false --ignorefile /dev/null', shell)
 
     def test_empty_supplement_fails(self):
         self.extra["Results"][0]["Vulnerabilities"] = []

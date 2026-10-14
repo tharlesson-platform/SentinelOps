@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import sys
 import subprocess
+import tarfile
 import uuid
 
 MOBY = "github.com/docker/docker"
@@ -31,6 +32,7 @@ EVIDENCE_NAMES = {
     "moby-base-sha.txt", "moby-authz-tests.json", "moby-authz-platform.json",
     "source-and-binary-sha256.txt", "trivy-full.json", "trivy-moby.json",
     "trivy-sbom.json", "trivy-version.txt", "moby-supplement.cdx.json", "image-inspect.json",
+    "image-config.json", "image-manifest.json",
 }
 
 
@@ -41,6 +43,159 @@ def require(condition, message):
 
 def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def content_id(data):
+    return "sha256:" + hashlib.sha256(data).hexdigest()
+
+
+def valid_id(value):
+    return isinstance(value, str) and re.fullmatch(r"sha256:[a-f0-9]{64}", value)
+
+
+def identity_json(data):
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            require(key not in result, "duplicate identity JSON key")
+            result[key] = value
+        return result
+    require(len(data) <= 1024 * 1024, "identity metadata too large")
+    return json.loads(data, object_pairs_hook=unique,
+                      parse_constant=lambda _: require(False, "invalid identity JSON constant"))
+
+
+def image_identity(directory, image, raw=None):
+    """Bind immutable Docker ID to raw config bytes and ordered uncompressed layers."""
+    require(valid_id(image), "invalid local image ID")
+    records = identity_json((directory / "image-inspect.json").read_bytes())
+    require(isinstance(records, list) and len(records) == 1 and isinstance(records[0], dict),
+            "ambiguous image inspect")
+    docker = records[0]
+    require(docker.get("Id") == image, "Docker image mismatch")
+    config_bytes = (directory / "image-config.json").read_bytes()
+    config = identity_json(config_bytes)
+    require(isinstance(config, dict), "invalid image config")
+    config_id = content_id(config_bytes)
+    rootfs = config.get("rootfs")
+    require(isinstance(rootfs, dict) and rootfs.get("type") == "layers", "invalid config rootfs")
+    layers = rootfs.get("diff_ids")
+    require(isinstance(layers, list) and layers and all(valid_id(d) for d in layers), "invalid config DiffIDs")
+    require(docker.get("RootFS") == {"Type": "layers", "Layers": layers}, "Docker DiffIDs mismatch")
+    require(config.get("os") == docker.get("Os") == "linux" and
+            config.get("architecture") == docker.get("Architecture") == "amd64", "image platform mismatch")
+    runtime = config.get("config")
+    require(isinstance(runtime, dict) and isinstance(docker.get("Config"), dict) and
+            all(docker["Config"].get(k) == v for k, v in runtime.items()), "Docker runtime config mismatch")
+    manifest_bytes = (directory / "image-manifest.json").read_bytes()
+    manifest = identity_json(manifest_bytes)
+    if image == config_id:
+        # Classic Docker: .Id is already the config's content address.
+        require(isinstance(manifest, list) and len(manifest) == 1 and isinstance(manifest[0], dict),
+                "invalid classic manifest")
+        entry = manifest[0]
+        require(entry.get("Config") in (config_id[7:] + ".json", "blobs/sha256/" + config_id[7:]),
+                "classic config mismatch")
+        saved_layers = entry.get("Layers")
+        require(isinstance(saved_layers, list) and len(saved_layers) == len(layers) and
+                all(isinstance(p, str) and re.fullmatch(r"[A-Za-z0-9_./-]+", p) and
+                    not p.startswith("/") and ".." not in p.split("/") for p in saved_layers),
+                "invalid classic layers")
+        kind, manifest_id = "docker-classic", None
+    else:
+        # Containerd: .Id is a manifest digest, whose config digest is distinct.
+        require(content_id(manifest_bytes) == image, "manifest image mismatch")
+        require(isinstance(manifest, dict) and manifest.get("schemaVersion") == 2 and
+                manifest.get("mediaType") in ("application/vnd.oci.image.manifest.v1+json",
+                                             "application/vnd.docker.distribution.manifest.v2+json"),
+                "unsupported image manifest (index not accepted)")
+        descriptor = docker.get("Descriptor")
+        require(isinstance(descriptor, dict) and descriptor.get("digest") == image and
+                descriptor.get("mediaType") == manifest["mediaType"] and
+                descriptor.get("size") == len(manifest_bytes), "Docker manifest descriptor mismatch")
+        selected_config = manifest.get("config")
+        require(isinstance(selected_config, dict) and selected_config.get("digest") == config_id and
+                selected_config.get("size") == len(config_bytes) and selected_config.get("mediaType") in
+                ("application/vnd.oci.image.config.v1+json", "application/vnd.docker.container.image.v1+json"),
+                "manifest config mismatch")
+        descriptors = manifest.get("layers")
+        require(isinstance(descriptors, list) and len(descriptors) == len(layers) and
+                all(isinstance(d, dict) and valid_id(d.get("digest")) and
+                    type(d.get("size")) is int and d["size"] >= 0 and
+                    isinstance(d.get("mediaType"), str) for d in descriptors), "invalid manifest layers")
+        kind, manifest_id = "containerd-manifest", image
+    scanner_identity = {}
+    if raw is not None:
+        require(isinstance(raw, dict), "invalid raw image report")
+        metadata = raw.get("Metadata")
+        require(isinstance(metadata, dict), "raw scan metadata missing")
+        require(metadata.get("DiffIDs") == layers, "raw scan DiffIDs mismatch")
+        scanned_layers = metadata.get("Layers")
+        require(isinstance(scanned_layers, list) and
+                all(isinstance(d, dict) and valid_id(d.get("Digest")) for d in scanned_layers) and
+                [d.get("DiffID") for d in scanned_layers] == layers, "raw scan layer identity mismatch")
+        if manifest_id is not None:
+            require([d["Digest"] for d in scanned_layers] == [d["digest"] for d in descriptors],
+                    "raw scan manifest layers mismatch")
+        scanned_config = metadata.get("ImageConfig")
+        require(isinstance(scanned_config, dict) and scanned_config.get("rootfs") == rootfs and
+                scanned_config.get("os") == "linux" and scanned_config.get("architecture") == "amd64" and
+                isinstance(scanned_config.get("config"), dict) and
+                all(scanned_config["config"].get(k) == v for k, v in runtime.items()), "raw scan config mismatch")
+        # Only now interpret the backend's ID surface. Both values originate
+        # from the fully verified content-addressed chain, never tags/annotations
+        # or an independently supplied fallback ID. Do not infer a version rule.
+        scanned_id = metadata.get("ImageID")
+        require(valid_id(scanned_id), "invalid raw scan image ID")
+        if scanned_id == config_id:
+            surface = "config"
+        else:
+            require(manifest_id is not None and scanned_id == manifest_id, "raw scan image mismatch")
+            surface = "manifest"
+        scanner_identity = {"trivyImageID": scanned_id, "trivyImageIDSurface": surface}
+    return {"kind": kind, "dockerImageID": image, "manifestDigest": manifest_id,
+            "configDigest": config_id, "diffIDs": layers, **scanner_identity}
+
+
+def capture_identity(directory, image, archive):
+    """Read docker-save stream without extracting/executing any layer or retaining its tar."""
+    require(valid_id(image), "invalid local image ID")
+    metadata, seen, total = {}, set(), 0
+    with tarfile.open(fileobj=archive, mode="r|") as saved:
+        for member in saved:
+            require(member.name not in seen and len(seen) < 10000, "duplicate/oversized save inventory")
+            seen.add(member.name)
+            require(not member.issym() and not member.islnk(), "linked save member")
+            if member.isdir():
+                continue
+            require(member.isfile(), "nonregular save member")
+            candidate = (member.name == "manifest.json" or
+                         re.fullmatch(r"(?:blobs/sha256/[a-f0-9]{64}|[a-f0-9]{64}\.json)", member.name))
+            if candidate and member.size <= 1024 * 1024:
+                total += member.size
+                require(total <= 16 * 1024 * 1024, "save metadata budget exceeded")
+                metadata[member.name] = saved.extractfile(member).read()
+    manifest_path = "blobs/sha256/" + image[7:]
+    if manifest_path in metadata:
+        selected = identity_json(metadata[manifest_path])
+        # An OCI config blob can also have the Docker classic ID as its name.
+        if isinstance(selected, dict) and isinstance(selected.get("config"), dict) and valid_id(selected["config"].get("digest")):
+            config_path = "blobs/sha256/" + selected["config"]["digest"][7:]
+            manifest = metadata[manifest_path]
+        else:
+            config_path = manifest_path
+            manifest = metadata.get("manifest.json")
+    else:
+        classic = identity_json(metadata.get("manifest.json", b"null"))
+        require(isinstance(classic, list) and len(classic) == 1 and isinstance(classic[0], dict), "ambiguous saved image")
+        config_path = classic[0].get("Config")
+        manifest = metadata["manifest.json"]
+    require(isinstance(config_path, str) and config_path in metadata and isinstance(manifest, bytes),
+            "saved config/manifest missing")
+    for name, data in (("image-config.json", metadata[config_path]), ("image-manifest.json", manifest)):
+        with (directory / name).open("xb") as out:
+            out.write(data)
+    return image_identity(directory, image)
 
 
 def stream(path):
@@ -160,7 +315,7 @@ def findings(report):
 def assess(directory, names, image, digest):
     raw = json.loads((directory / "trivy-full.json").read_text())
     extra = json.loads((directory / "trivy-moby.json").read_text())
-    require(raw.get("Metadata", {}).get("ImageID") == image, "raw scan image mismatch")
+    identity = image_identity(directory, image, raw)
     full = findings(raw)
     require(any(r.get("Type") == "ubuntu" and r.get("Class") == "os-pkgs" and r.get("Packages") for r in raw["Results"]), "OS scan coverage missing")
     require(any(r.get("Type") == "gobinary" and r.get("Target") in ("usr/bin/alloy", "bin/alloy") and r.get("Packages") for r in raw["Results"]), "binary scan coverage missing")
@@ -178,7 +333,7 @@ def assess(directory, names, image, digest):
         evaluations.append({"id": cve, "severity": v["Severity"],
                             "assessment": "vulnerable_code_not_present", "function": function})
     require({v.get("VulnerabilityID") for v in extra_findings} == set(ABSENT), "supplement advisory coverage mismatch")
-    return {"localImageID": image, "binarySHA256": digest,
+    return {"localImageID": image, "imageIdentity": identity, "binarySHA256": digest,
             "packagesSHA256": sha(directory / "packages.json"),
             "packageCount": len(names), "moby": evaluations,
             "residualRawFindings": full,
@@ -187,13 +342,16 @@ def assess(directory, names, image, digest):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("prepare", "assess", "diagnose"))
+    parser.add_argument("mode", choices=("capture-identity", "prepare", "assess", "diagnose"))
     parser.add_argument("directory", type=Path)
     parser.add_argument("binary", type=Path)
     parser.add_argument("image")
     args = parser.parse_args()
     require(not args.directory.is_symlink(), "symlink directory rejected")
     args.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if args.mode == "capture-identity":
+        print(json.dumps(capture_identity(args.directory, args.image, sys.stdin.buffer)))
+        return
     patches = Path(__file__).resolve().parents[2] / "deploy/alloy/patches"
     if args.mode == "prepare":
         digest, _ = inspect(args.directory, args.binary, args.image, patches)
