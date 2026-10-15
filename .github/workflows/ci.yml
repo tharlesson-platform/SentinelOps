@@ -7,7 +7,8 @@ permissions:
 concurrency: { group: "ci-${{ github.ref }}", cancel-in-progress: true }
 jobs:
   test:
-    runs-on: ubuntu-24.04
+    runs-on: ["sentinelops-run-${{ github.run_id }}"]
+    timeout-minutes: 60
     services:
       postgres:
         image: public.ecr.aws/docker/library/postgres:18.3@sha256:7e32e9833a6fb1c92c32552794cb6ed569d51b445a54907d35fc112ef39684db
@@ -25,7 +26,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with: { go-version: 1.26.6, cache: true }
+        with: { go-version: 1.26.9, cache: true }
       - name: Provision least-privilege database role and migrate
         run: |
           docker run --rm --network host \
@@ -44,6 +45,10 @@ jobs:
           SENTINELOPS_TEST_DATABASE_URL: postgres://sentinel_app:sentinel-ci-runtime-password@127.0.0.1:5432/sentinel?sslmode=disable
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
       - run: shellcheck -x scripts/*.sh scripts/lib/*.sh
+      - name: Test supplemental sensor security gate
+        run: |
+          python3 -m unittest discover -s scripts/ci -p 'test_*.py'
+          shellcheck scripts/ci/*.sh
       - name: Validate managed dashboard render and filters
         run: |
           ./scripts/render-production-dashboards.sh
@@ -167,16 +172,13 @@ jobs:
             terraform -chdir="infra/terraform/environments/$environment" validate
           done
       - name: Scan repository history for secrets
-        run: |
-          docker run --rm -v "$PWD:/repo:ro" \
-            ghcr.io/gitleaks/gitleaks:v8.30.0@sha256:691af3c7c5a48b16f187ce3446d5f194838f91238f27270ed36eef6359a574d9 \
-            git /repo --redact --no-banner
+        run: bash scripts/ci/gitleaks-history.sh
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with: { scan-type: fs, scan-ref: ., severity: 'CRITICAL,HIGH', exit-code: '1', ignore-unfixed: true }
 
   images:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    runs-on: ["sentinelops-run-${{ github.run_id }}"]
+    timeout-minutes: 90
     needs: test
     strategy:
       fail-fast: false
@@ -194,10 +196,15 @@ jobs:
           - { name: web, context: apps/web, file: apps/web/Dockerfile, build_args: '' }
           - { name: alloy, context: ., file: deploy/alloy/Dockerfile.patched, build_args: '' }
           - { name: caddy, context: ., file: deploy/caddy/Dockerfile.patched, build_args: '' }
+          - { name: beyla, context: ., file: deploy/beyla/Dockerfile.patched, build_args: '' }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { persist-credentials: false }
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        with:
+          driver-opts: |
+            env.HTTP_PROXY=http://192.168.5.100:3128
+            env.HTTPS_PROXY=http://192.168.5.100:3128
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: ${{ matrix.context }}
@@ -213,9 +220,31 @@ jobs:
           # Release builds publish provenance and SBOM to the registry.
           provenance: false
           sbom: false
+      - name: Validate web image runtime and static assets
+        if: matrix.name == 'web'
+        env:
+          WEB_IMAGE: sentinelops-web:${{ github.sha }}
+        run: bash scripts/ci/web-image-smoke.sh "$WEB_IMAGE"
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: sentinelops-${{ matrix.name }}:${{ github.sha }}
           severity: 'CRITICAL,HIGH'
           exit-code: '1'
           ignore-unfixed: true
+      - name: Validate Alloy binary inventory and supplementary SDK scan
+        if: always() && matrix.name == 'alloy'
+        env:
+          ALLOY_IMAGE: sentinelops-alloy:${{ github.sha }}
+        run: bash scripts/ci/alloy-security.sh "$ALLOY_IMAGE" "$RUNNER_TEMP/alloy-security"
+      - name: Preserve Alloy security evidence on isolated host
+        if: always() && matrix.name == 'alloy'
+        env:
+          ARTIFACT_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          evidence="$RUNNER_TEMP/alloy-security/image-alloy.json"
+          if ! test -s "$evidence"; then
+            python3 scripts/ci/alloy-security.py diagnose "$RUNNER_TEMP/alloy-security" \
+              "$RUNNER_TEMP/alloy-security/alloy" unavailable || true
+          fi
+          test -s "$evidence"
+          python3 scripts/ci/upload-local-artifact.py "$evidence"
