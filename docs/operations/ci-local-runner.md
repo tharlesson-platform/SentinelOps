@@ -220,3 +220,18 @@ demais testes, mas o Trivy de filesystem identificou CVE-2026-116587 em
 mesma atualização proposta na PR #78, com checksums verificados pelo Go.
 O scanner continua obrigatório; não usar a ausência de chamadas diretas como
 motivo para dispensar o finding de dependência ou simular sucesso.
+
+O primeiro build posterior atingiu outro bloqueio comprovado: o índice Alpine
+passou a oferecer `ca-certificates=20261020-r0`, removendo a revisão exata
+`20260909-r0` solicitada pelo builder. A imagem base imutável não congela o
+índice externo do APK. Os builders da aplicação e Caddy passam a imagens Go
+Bookworm fixadas por digest, que já incluem Git e certificados; sua presença
+é verificada sem instalação adicional. Go, `CGO_ENABLED=0`, targets, flags e
+runtime Alpine permanecem preservados. Repetir builds/scans do SHA novo e não
+cancelar jobs efetivamente executando apenas para substituir o candidato.
+
+Os manifests dos commits upstream fixados de Caddy e Alloy também requerem
+go-jose/v4 4.1.4; seus overlays passam a exigir a mesma correção 4.1.6 antes
+de `go mod tidy`. Caddy ainda declara go-jose/v3 3.0.5: o advisory não informa
+patch dessa série. Não declarar a imagem segura sem scan do binário produzido
+e, se necessário, remediação adicional dessa cadeia. Nenhum ignore foi adicionado.

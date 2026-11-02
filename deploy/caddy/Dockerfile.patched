@@ -2,11 +2,11 @@
 # Rebuild Caddy from the verified upstream v2.11.4 commit with patched Go
 # dependencies. The vendor image is intentionally not used at runtime: its
 # embedded Go dependency graph may lag security fixes even when Alpine is current.
-FROM golang:1.26.10-alpine3.23@sha256:34414731924cf2263160f0021f5cf6e1807382d85248f7cb419d4187b96d5e43 AS build
+FROM golang:1.26.10-bookworm@sha256:23ce71337b726608afb1bc00986e630a05034a87a87ea1fc2cd1ae5cf33387eb AS build
 
 ARG CADDY_SOURCE_REF=e2eee6a7fce366321294c9c2a79f3146891dcbdf
 
-RUN apk add --no-cache ca-certificates=20260909-r0 git=2.52.0-r0
+RUN test -s /etc/ssl/certs/ca-certificates.crt && command -v git
 RUN git clone --filter=blob:none --no-checkout https://github.com/caddyserver/caddy.git /src/caddy \
     && git -C /src/caddy checkout --detach "$CADDY_SOURCE_REF" \
     && test "$(git -C /src/caddy rev-parse HEAD)" = "$CADDY_SOURCE_REF"
@@ -14,7 +14,7 @@ RUN git clone --filter=blob:none --no-checkout https://github.com/caddyserver/ca
 WORKDIR /src/caddy
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
-    go get golang.org/x/crypto@v0.57.0 golang.org/x/net@v0.60.0 golang.org/x/text@v0.42.0 google.golang.org/grpc@v1.83.2 \
+    go get golang.org/x/crypto@v0.57.0 golang.org/x/net@v0.60.0 golang.org/x/text@v0.42.0 google.golang.org/grpc@v1.83.2 github.com/go-jose/go-jose/v4@v4.1.6 \
     && go mod tidy \
     && CGO_ENABLED=0 go build -trimpath -ldflags='-s -w -buildid=' -o /out/caddy ./cmd/caddy
 

@@ -1,10 +1,11 @@
-FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine3.23@sha256:8a5046497cda39860b832ffdbe8dd66018a0f05bb01352f533a36e7e2ced66a0 AS build
+FROM --platform=$BUILDPLATFORM golang:1.27.3-bookworm@sha256:d9b6a1beb9474adc2a1ce842573639b44b2a0dd49b6669f51d3821baf9ec37c9 AS build
 ARG APP
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /src
-# Keep package pins compatible with the pinned Alpine package index in this base digest.
-RUN apk add --no-cache ca-certificates=20260909-r0 git=2.52.0-r0
+# The pinned official builder already includes Git and trust roots. Avoid
+# fetching removed package revisions from a rolling Alpine package index.
+RUN test -s /etc/ssl/certs/ca-certificates.crt && command -v git
 COPY go.mod go.sum* ./
 RUN go mod download
 COPY apps ./apps
