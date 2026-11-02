@@ -1,0 +1,1589 @@
+diff --git a/go.mod b/go.mod
+index cc6b164..b4fca6e 100644
+--- a/go.mod
++++ b/go.mod
+@@ -14,7 +14,7 @@ require (
+ 	github.com/ThalesGroup/crypto11 v1.6.2
+ 	github.com/aws/aws-sdk-go-v2/config v1.33.10
+ 	github.com/aws/aws-sdk-go-v2/service/kms v1.61.6
+-	github.com/go-jose/go-jose/v3 v3.0.5
++	github.com/go-jose/go-jose/v4 v4.1.6
+ 	github.com/go-piv/piv-go/v2 v2.6.0
+ 	github.com/google/go-tpm v0.9.8
+ 	github.com/google/go-tpm-tools v0.4.11
+diff --git a/go.sum b/go.sum
+index 5b89e96..461f787 100644
+--- a/go.sum
++++ b/go.sum
+@@ -449,8 +449,8 @@ github.com/go-gl/glfw v0.0.0-20190409004039-e6da0acd62b1/go.mod h1:vR7hzQXu2zJy9
+ github.com/go-gl/glfw/v3.3/glfw v0.0.0-20191125211704-12ad95a8df72/go.mod h1:tQ2UAYgL5IevRw8kRxooKSPJfGvJ9fJQFa0TUsXzTg8=
+ github.com/go-gl/glfw/v3.3/glfw v0.0.0-20200222043503-6f7a984d4dc4/go.mod h1:tQ2UAYgL5IevRw8kRxooKSPJfGvJ9fJQFa0TUsXzTg8=
+ github.com/go-ini/ini v1.25.4/go.mod h1:ByCAeIL28uOIIG0E3PJtZPDL8WnHpFKFOtgjp+3Ies8=
+-github.com/go-jose/go-jose/v3 v3.0.5 h1:BLLJWbC4nMZOfuPVxoZIxeYsn6Nl2r1fITaJ78UQlVQ=
+-github.com/go-jose/go-jose/v3 v3.0.5/go.mod h1:5b+7YgP7ZICgJDBdfjZaIt+H/9L9T/YQrVfLAMboGkQ=
++github.com/go-jose/go-jose/v4 v4.1.6 h1:sNRkftxFJxwsILiQukqp5z83QBSmntVwmgRY7AqBDO4=
++github.com/go-jose/go-jose/v4 v4.1.6/go.mod h1:x4oUasVrzR7071A4TnHLGSPpNOm2a21K9Kf04k1rs08=
+ github.com/go-kit/kit v0.8.0/go.mod h1:xBxKIO96dXMWWy0MnWVtmwkA9/13aqxPnvrjFYMA2as=
+ github.com/go-kit/kit v0.9.0/go.mod h1:xBxKIO96dXMWWy0MnWVtmwkA9/13aqxPnvrjFYMA2as=
+ github.com/go-kit/kit v0.10.0/go.mod h1:xUsJbQ/Fp4kEt7AFgCuvyX4a71u8h9jB8tj/ORgOZ7o=
+@@ -603,7 +603,6 @@ github.com/google/go-cmp v0.5.4/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/
+ github.com/google/go-cmp v0.5.5/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
+ github.com/google/go-cmp v0.5.6/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
+ github.com/google/go-cmp v0.5.8/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
+-github.com/google/go-cmp v0.5.9/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
+ github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
+ github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
+ github.com/google/go-configfs-tsm v0.3.3 h1:8mrlZLYrFFxyc8PFpT1piBUFDEYBVsBjAkFCwqQ2f9Y=
+@@ -1365,7 +1364,6 @@ golang.org/x/crypto v0.0.0-20191117063200-497ca9f6d64f/go.mod h1:LzIPMQfyMNhhGPh
+ golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9/go.mod h1:LzIPMQfyMNhhGPhUkYOs5KpL4U8rLKemX1yGLhDgUto=
+ golang.org/x/crypto v0.0.0-20201002170205-7f63de1d35b0/go.mod h1:LzIPMQfyMNhhGPhUkYOs5KpL4U8rLKemX1yGLhDgUto=
+ golang.org/x/crypto v0.0.0-20210921155107-089bfa567519/go.mod h1:GvvjBRRGRdwPK5ydBHafDWAxML/pGHZbMvKqRZ5+Abc=
+-golang.org/x/crypto v0.19.0/go.mod h1:Iy9bg/ha4yyC70EfRS8jz+B6ybOBKMaSxLj6P6oBDfU=
+ golang.org/x/crypto v0.58.0 h1:COkYLr4k7nDI4r6QtMML2AfzeIswWHAJthLS6K/M/54=
+ golang.org/x/crypto v0.58.0/go.mod h1:Xh+kl5A+M0gMiWDytH2Hhr5Z7WbNCpv/eB/EFgfSk+w=
+ golang.org/x/exp v0.0.0-20190121172915-509febef88a4/go.mod h1:CJ0aWSM057203Lf6IL+f9T1iT9GByDxfZKAQTCR3kQA=
+@@ -1471,7 +1469,6 @@ golang.org/x/net v0.0.0-20210525063256-abc453219eb5/go.mod h1:9nx3DQGgdP8bBQD5qx
+ golang.org/x/net v0.0.0-20211015210444-4f30a5c0130f/go.mod h1:9nx3DQGgdP8bBQD5qxJ1jj9UTztislL4KSBs9R2vV5Y=
+ golang.org/x/net v0.0.0-20220722155237-a158d28d115b/go.mod h1:XRhObCWvk6IyKnWLug+ECip1KBveYUHfp+8e9klMJ9c=
+ golang.org/x/net v0.6.0/go.mod h1:2Tu9+aMcznHK/AK1HMvgo6xiTLG5rD5rZLDS+rp2Bjs=
+-golang.org/x/net v0.10.0/go.mod h1:0qNGK6F8kojg2nk9dLZ2mShWaEBan6FAoqfSigmmuDg=
+ golang.org/x/net v0.61.0 h1:RR+6j/BTBCrggOLugxa+66R8FvoN6MHlzDlZIbN9YFw=
+ golang.org/x/net v0.61.0/go.mod h1:WgDCOTH8iwtB66T4/GfI94AHo/hhdb7Hah9NDseQfiI=
+ golang.org/x/oauth2 v0.0.0-20180821212333-d2e6202438be/go.mod h1:N/0e6XlmueqKjAGxoOufVs8QHGRruUQn6yWY3a++T0U=
+@@ -1591,8 +1588,6 @@ golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a/go.mod h1:oPkhp1MJrh7nUepCBc
+ golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
+ golang.org/x/sys v0.1.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
+ golang.org/x/sys v0.5.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
+-golang.org/x/sys v0.8.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
+-golang.org/x/sys v0.17.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
+ golang.org/x/sys v0.49.0 h1:XbzkgYJHdqh/8m2Uu0W/dQv8nktxx4BFHp1M0gROTXA=
+ golang.org/x/sys v0.49.0/go.mod h1:hNLxWAXmnKAxqDtdwIYC4bM9oQPEecfsnNMuSxOs3og=
+ golang.org/x/telemetry v0.0.0-20260924152758-ed294f943157 h1:DftxASHKl6JolFPqoN+2WrFO53JvkHwRXvFqf8gsivA=
+@@ -1600,8 +1595,6 @@ golang.org/x/telemetry v0.0.0-20260924152758-ed294f943157/go.mod h1:i+ivNqjDnTF3
+ golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1/go.mod h1:bj7SfCRtBDWHUb9snDiAeCFNEtKQo2Wmx5Cou7ajbmo=
+ golang.org/x/term v0.0.0-20210927222741-03fcf44c2211/go.mod h1:jbD1KX2456YbFQfuXm/mYQcufACuNUgVhRMnK/tPxf8=
+ golang.org/x/term v0.5.0/go.mod h1:jMB1sMXY+tzblOD4FWmEbocvup2/aLOaQEp7JmGp78k=
+-golang.org/x/term v0.8.0/go.mod h1:xPskH00ivmX89bAKVGSKKtLOWNx2+17Eiy94tnKShWo=
+-golang.org/x/term v0.17.0/go.mod h1:lLRBjIVuehSbZlaOtGMbcMncT+aqLLLmKrsjNrUguwk=
+ golang.org/x/term v0.47.0 h1:cpyOwQkr2Nzxe2p6KnrTG7Ei2wtzjsuSjhpXXepZ/BM=
+ golang.org/x/term v0.47.0/go.mod h1:efAfAuG6RKABvg1ArGebRkvX6LXul14SM67o2e4mUCY=
+ golang.org/x/text v0.0.0-20170915032832-14c0d48ead0c/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
+@@ -1614,8 +1607,6 @@ golang.org/x/text v0.3.5/go.mod h1:5Zoc/QRtKVWzQhOtBMvqHzDpF6irO9z98xDceosuGiQ=
+ golang.org/x/text v0.3.6/go.mod h1:5Zoc/QRtKVWzQhOtBMvqHzDpF6irO9z98xDceosuGiQ=
+ golang.org/x/text v0.3.7/go.mod h1:u+2+/6zg+i71rQMx5EYifcz6MCKuco9NR6JIITiCfzQ=
+ golang.org/x/text v0.7.0/go.mod h1:mrYo+phRRbMaCq/xk9113O4dZlRixOauAjOtrjsXDZ8=
+-golang.org/x/text v0.9.0/go.mod h1:e1OnstbJyHTd6l/uOt8jFFHp6TRDWZR/bV3emEE/zU8=
+-golang.org/x/text v0.14.0/go.mod h1:18ZOQIKpY8NJVqYksKHtTdi31H5itFRjB5/qKTNYzSU=
+ golang.org/x/text v0.43.0 h1:1QivrlhwAsnMOcqgOdl9my7s9OyZl8O5/UGUTJVXoWc=
+ golang.org/x/text v0.43.0/go.mod h1:hbSIYA/amXcRXTFSZqh8tWHEoqRvvbKPJ2uz/KU+a+s=
+ golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2/go.mod h1:tRJNPiyCQ0inRvYxbN9jk5I+vvW/OXSQhTDSoE431IQ=
+diff --git a/jose/compatibility_test.go b/jose/compatibility_test.go
+new file mode 100644
+index 0000000..9c2e957
+--- /dev/null
++++ b/jose/compatibility_test.go
+@@ -0,0 +1,188 @@
++package jose
++
++import (
++	"bytes"
++	"crypto/rand"
++	"crypto/rsa"
++	"encoding/base64"
++	"encoding/json"
++	"go.step.sm/crypto/x25519"
++	"os"
++	"strings"
++	"testing"
++	"time"
++)
++
++func TestLegacyBuilderUsesCorrectedV4JWT(t *testing.T) {
++	key := bytes.Repeat([]byte{0x42}, 32)
++	signer, err := NewSigner(SigningKey{Algorithm: HS256, Key: key}, nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	now := time.Now()
++	builder := Signed(signer).Claims(Claims{
++		Issuer: "issuer", Audience: Audience{"expected"},
++		Expiry: NewNumericDate(now.Add(time.Minute)),
++	}).Claims(map[string]interface{}{"tenant": "synthetic"})
++	legacy, err := builder.CompactSerialize()
++	if err != nil {
++		t.Fatal(err)
++	}
++	modern, err := builder.Serialize()
++	if err != nil || modern != legacy {
++		t.Fatalf("compact JWT changed: %v", err)
++	}
++	parsed, err := ParseSigned(legacy)
++	if err != nil {
++		t.Fatal(err)
++	}
++	var claims Claims
++	var extra struct {
++		Tenant string `json:"tenant"`
++	}
++	if err := parsed.Claims(key, &claims, &extra); err != nil {
++		t.Fatal(err)
++	}
++	if extra.Tenant != "synthetic" {
++		t.Fatal("chained claims were lost")
++	}
++	if err := claims.Validate(Expected{Issuer: "issuer", AnyAudience: Audience{"expected"}, Time: now}); err != nil {
++		t.Fatal(err)
++	}
++	if err := claims.Validate(Expected{Issuer: "issuer", AnyAudience: Audience{"other"}, Time: now}); err == nil {
++		t.Fatal("wrong audience accepted")
++	}
++	if err := parsed.Claims(bytes.Repeat([]byte{0x43}, 32), &claims); err == nil {
++		t.Fatal("wrong signing key accepted")
++	}
++	if _, err := builder.Token(); err != nil {
++		t.Fatal(err)
++	}
++}
++
++func TestKnownX25519OpaqueAdapter(t *testing.T) {
++	pub, priv, err := x25519.GenerateKey(rand.Reader)
++	if err != nil {
++		t.Fatal(err)
++	}
++	opts := new(SignerOptions).WithType("JWT").WithHeader(HeaderKey("nebula"), "synthetic-certificate")
++	signer, err := NewSigner(SigningKey{Algorithm: XEdDSA, Key: priv}, opts)
++	if err != nil {
++		t.Fatal(err)
++	}
++	raw, err := Signed(signer).Claims(Claims{Issuer: "issuer", Audience: Audience{"expected"}}).Serialize()
++	if err != nil {
++		t.Fatal(err)
++	}
++	token, err := ParseSigned(raw)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if token.Headers[0].Algorithm != string(XEdDSA) || token.Headers[0].ExtraHeaders[HeaderKey("nebula")] != "synthetic-certificate" {
++		t.Fatal("signing metadata changed")
++	}
++	var claims Claims
++	if err := Verify(token, pub, &claims); err != nil {
++		t.Fatal(err)
++	}
++	wrong, _, err := x25519.GenerateKey(rand.Reader)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := Verify(token, wrong, &claims); err == nil {
++		t.Fatal("wrong key accepted")
++	}
++	parts := strings.Split(raw, ".")
++	parts[1] = base64.RawURLEncoding.EncodeToString([]byte(`{"iss":"altered"}`))
++	altered, err := ParseSigned(strings.Join(parts, "."))
++	if err != nil {
++		t.Fatal(err)
++	}
++	if err := Verify(altered, pub, &claims); err == nil {
++		t.Fatal("altered payload accepted")
++	}
++	for _, invalid := range []SigningKey{{Algorithm: HS256, Key: priv}, {Algorithm: XEdDSA, Key: x25519.PrivateKey(nil)}, {Algorithm: XEdDSA, Key: x25519.PrivateKey(make([]byte, 31))}, {Algorithm: XEdDSA, Key: x25519.PrivateKey(make([]byte, 33))}} {
++		if _, err := NewSigner(invalid, nil); err == nil {
++			t.Fatal("invalid X25519 key or algorithm accepted")
++		}
++	}
++	for _, forbidden := range []*SignerOptions{{EmbedJWK: true}, new(SignerOptions).WithHeader(HeaderKey("jwk"), nil)} {
++		if _, err := NewSigner(SigningKey{Algorithm: XEdDSA, Key: priv}, forbidden); err == nil {
++			t.Fatal("unsupported JWK embedding accepted")
++		}
++	}
++}
++
++type privatePublicSigner struct {
++	OpaqueSigner
++	key *JSONWebKey
++}
++
++func (s privatePublicSigner) Public() *JSONWebKey { return s.key }
++
++func TestGenericOpaquePrivateJWKStillRejected(t *testing.T) {
++	key, err := rsa.GenerateKey(rand.Reader, 2048)
++	if err != nil {
++		t.Fatal(err)
++	}
++	opaque := privatePublicSigner{OpaqueSigner: NewOpaqueSigner(key), key: &JSONWebKey{Key: key}}
++	if _, err := NewSigner(SigningKey{Algorithm: RS256, Key: opaque}, nil); err == nil {
++		t.Fatal("generic opaque signer private JWK accepted")
++	}
++}
++
++func TestInconsistentEd25519FixtureRejected(t *testing.T) {
++	bad, err := os.ReadFile("testdata/okp.mismatched.priv.json")
++	if err != nil {
++		t.Fatal(err)
++	}
++	var key JSONWebKey
++	if err := json.Unmarshal(bad, &key); err == nil || !strings.Contains(err.Error(), "x does not match d") {
++		t.Fatal("inconsistent private/public JWK accepted")
++	}
++	if _, err := ParseKey(bad); err == nil {
++		t.Fatal("inconsistent key accepted by wrapper")
++	}
++	encrypted, err := Encrypt(bad, WithPassword([]byte("password")))
++	if err != nil {
++		t.Fatal(err)
++	}
++	decrypted, err := Decrypt([]byte(encrypted.FullSerialize()), WithPassword([]byte("password")))
++	if err != nil || !bytes.Equal(decrypted, bad) {
++		t.Fatal("negative encrypted fixture did not round-trip")
++	}
++	if _, err := ParseKey([]byte(encrypted.FullSerialize()), WithPassword([]byte("password"))); err == nil {
++		t.Fatal("inconsistent encrypted key accepted")
++	}
++	fixed, err := os.ReadFile("testdata/okp.priv.json")
++	if err != nil {
++		t.Fatal(err)
++	}
++	var oldFields, newFields map[string]interface{}
++	if err := json.Unmarshal(bad, &oldFields); err != nil {
++		t.Fatal(err)
++	}
++	if err := json.Unmarshal(fixed, &newFields); err != nil {
++		t.Fatal(err)
++	}
++	if oldFields["d"] != newFields["d"] || oldFields["x"] == newFields["x"] {
++		t.Fatal("fixture private seed changed or public mismatch not repaired")
++	}
++}
++
++func TestLegacyBuilderPreservesSerializationErrors(t *testing.T) {
++	signer, err := NewSigner(SigningKey{Algorithm: HS256, Key: bytes.Repeat([]byte{0x42}, 32)}, nil)
++	if err != nil {
++		t.Fatal(err)
++	}
++	builder := Signed(signer).Claims(make(chan int))
++	if _, err := builder.CompactSerialize(); err == nil {
++		t.Fatal("legacy API swallowed invalid claims")
++	}
++	if _, err := builder.Serialize(); err == nil {
++		t.Fatal("new API swallowed invalid claims")
++	}
++	if _, err := builder.Token(); err == nil {
++		t.Fatal("token API swallowed invalid claims")
++	}
++}
+diff --git a/jose/encrypt.go b/jose/encrypt.go
+index 5ec7eee..d1715c3 100644
+--- a/jose/encrypt.go
++++ b/jose/encrypt.go
+@@ -1,7 +1,9 @@
+ package jose
+ 
+ import (
++	"encoding/base64"
+ 	"encoding/json"
++	"strings"
+ 
+ 	"github.com/pkg/errors"
+ 
+@@ -20,9 +22,24 @@ type PasswordPrompter func(s string) ([]byte, error)
+ // the parse of the key will fail.
+ var PromptPassword PasswordPrompter
+ 
++// Dependencies are passed only to the private helper. Public encryption always
++// uses the real salt generator and the corrected upstream JOSE implementation.
++type encryptionDeps struct {
++	salt         func(int) ([]byte, error)
++	newEncrypter func(ContentEncryption, Recipient, *EncrypterOptions) (Encrypter, error)
++}
++
++func productionEncryptionDeps() encryptionDeps {
++	return encryptionDeps{salt: randutil.Salt, newEncrypter: NewEncrypter}
++}
++
+ // Encrypt returns the given data encrypted with the default encryption
+ // algorithm (PBES2-HS256+A128KW).
+ func Encrypt(data []byte, opts ...Option) (*JSONWebEncryption, error) {
++	return encrypt(data, productionEncryptionDeps(), opts...)
++}
++
++func encrypt(data []byte, deps encryptionDeps, opts ...Option) (*JSONWebEncryption, error) {
+ 	ctx, err := new(context).apply(opts...)
+ 	if err != nil {
+ 		return nil, err
+@@ -44,7 +61,7 @@ func Encrypt(data []byte, opts ...Option) (*JSONWebEncryption, error) {
+ 		return nil, errors.New("failed to encrypt the data: missing password")
+ 	}
+ 
+-	salt, err := randutil.Salt(PBKDF2SaltSize)
++	salt, err := deps.salt(PBKDF2SaltSize)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+@@ -62,7 +79,7 @@ func Encrypt(data []byte, opts ...Option) (*JSONWebEncryption, error) {
+ 		encrypterOptions.WithContentType(ContentType(ctx.contentType))
+ 	}
+ 
+-	encrypter, err := NewEncrypter(DefaultEncAlgorithm, recipient, encrypterOptions)
++	encrypter, err := deps.newEncrypter(DefaultEncAlgorithm, recipient, encrypterOptions)
+ 	if err != nil {
+ 		return nil, errors.Wrap(err, "error creating cipher")
+ 	}
+@@ -78,12 +95,16 @@ func Encrypt(data []byte, opts ...Option) (*JSONWebEncryption, error) {
+ // EncryptJWK returns the given JWK encrypted with the default encryption
+ // algorithm (PBES2-HS256+A128KW).
+ func EncryptJWK(jwk *JSONWebKey, passphrase []byte) (*JSONWebEncryption, error) {
++	return encryptJWK(jwk, passphrase, productionEncryptionDeps())
++}
++
++func encryptJWK(jwk *JSONWebKey, passphrase []byte, deps encryptionDeps) (*JSONWebEncryption, error) {
+ 	b, err := json.Marshal(jwk)
+ 	if err != nil {
+ 		return nil, errors.Wrap(err, "error marshaling JWK")
+ 	}
+ 
+-	return Encrypt(b, WithPassword(passphrase), WithContentType("jwk+json"))
++	return encrypt(b, deps, WithPassword(passphrase), WithContentType("jwk+json"))
+ }
+ 
+ // Decrypt returns the decrypted version of the given data if it's encrypted,
+@@ -97,7 +118,12 @@ func Decrypt(data []byte, opts ...Option) ([]byte, error) {
+ 
+ 	enc, err := ParseEncrypted(string(data))
+ 	if err != nil {
+-		return data, nil //nolint:nilerr // Return the given data if we cannot parse it as encrypted.
++		// go-jose v4 rejects unsupported algorithms when parsing, do not return
++		// a JWE as if it was plain data.
++		if looksLikeJWE(data) {
++			return nil, errors.Wrap(err, "error parsing JWE")
++		}
++		return data, nil
+ 	}
+ 
+ 	// Try with the given password.
+@@ -134,3 +160,29 @@ func Decrypt(data []byte, opts ...Option) ([]byte, error) {
+ 
+ 	return nil, errors.New("failed to decrypt JWE: invalid password")
+ }
++
++// looksLikeJWE returns true if the given data has the shape of a JWE, a JSON
++// object with a ciphertext, or five dot-separated parts where the first one is
++// a header with an "enc" parameter.
++func looksLikeJWE(data []byte) bool {
++	s := stripWhitespace(string(data))
++	if strings.HasPrefix(s, "{") {
++		var v struct {
++			Ciphertext *string `json:"ciphertext"`
++		}
++		return json.Unmarshal([]byte(s), &v) == nil && v.Ciphertext != nil
++	}
++
++	parts := strings.Split(s, ".")
++	if len(parts) != 5 {
++		return false
++	}
++	b, err := base64.RawURLEncoding.DecodeString(parts[0])
++	if err != nil {
++		return false
++	}
++	var h struct {
++		Enc string `json:"enc"`
++	}
++	return json.Unmarshal(b, &h) == nil && h.Enc != ""
++}
+diff --git a/jose/encrypt_test.go b/jose/encrypt_test.go
+index 70e5535..9921cc9 100644
+--- a/jose/encrypt_test.go
++++ b/jose/encrypt_test.go
+@@ -6,36 +6,32 @@ import (
+ 	"crypto/rand"
+ 	"crypto/rsa"
+ 	"crypto/x509"
++	"encoding/base64"
+ 	"encoding/json"
+ 	"io"
+ 	"reflect"
+ 	"testing"
++	"testing/cryptotest"
++	"testing/iotest"
+ 	"time"
+ 
+-	jose "github.com/go-jose/go-jose/v3"
+ 	"github.com/pkg/errors"
+ 	"github.com/stretchr/testify/assert"
+ 	"github.com/stretchr/testify/require"
+-
+ 	"go.step.sm/crypto/randutil"
+ )
+ 
+ var testPassword = []byte("Supercalifragilisticexpialidocious")
+ 
+-// mustTeeReader returns a buffer that can be used to capture reads from
+-// rand.Reader and replay them if we set `rand.Reader` to that buffer.
+-// mustTeeReader resets rand.Reader on cleanup.
++// X25519 signer tests still inject their explicit reader; JOSE v4's private
++// randomness is tested independently through cryptotest or its upstream suite.
+ func mustTeeReader(t *testing.T) *bytes.Buffer {
+ 	t.Helper()
+-	reader := rand.Reader
+-	t.Cleanup(func() {
+-		rand.Reader = reader
+-		jose.RandReader = reader
+-	})
+-	buf := new(bytes.Buffer)
+-	rand.Reader = io.TeeReader(reader, buf)
+-	jose.RandReader = rand.Reader
+-	return buf
++	previous := rand.Reader
++	t.Cleanup(func() { rand.Reader = previous })
++	buffer := new(bytes.Buffer)
++	rand.Reader = io.TeeReader(previous, buffer)
++	return buffer
+ }
+ 
+ func mustGenerateJWK(t *testing.T, kty, crv, alg, use, kid string, size int) *JSONWebKey {
+@@ -117,160 +113,175 @@ func rsaEqual(priv *rsa.PrivateKey, x crypto.PrivateKey) bool {
+ 	return true
+ }
+ 
+-func TestEncrypt(t *testing.T) {
+-	jwk := fixJWK(mustGenerateJWK(t, "EC", "P-256", "ES256", "", "", 0))
+-	data, err := json.Marshal(jwk)
+-	if err != nil {
+-		t.Fatal(err)
++type brokenEncrypter struct{ Encrypter }
++
++var errEncryptionFailure = errors.New("synthetic encryption failure")
++
++func (brokenEncrypter) Encrypt([]byte) (*JSONWebEncryption, error) {
++	return nil, errEncryptionFailure
++}
++
++func withBrokenCipher(constructor bool) encryptionDeps {
++	deps := productionEncryptionDeps()
++	deps.newEncrypter = func(ContentEncryption, Recipient, *EncrypterOptions) (Encrypter, error) {
++		if constructor {
++			return nil, errEncryptionFailure
++		}
++		return brokenEncrypter{}, nil
+ 	}
++	return deps
++}
+ 
+-	type args struct {
+-		data []byte
+-		opts []Option
++func failSalt(t *testing.T) {
++	t.Helper()
++	previous := rand.Reader
++	t.Cleanup(func() { rand.Reader = previous })
++	rand.Reader = iotest.ErrReader(io.ErrUnexpectedEOF)
++}
++
++func prompt(t *testing.T, fails bool) {
++	t.Helper()
++	previous := PromptPassword
++	t.Cleanup(func() { PromptPassword = previous })
++	PromptPassword = func(string) ([]byte, error) {
++		if fails {
++			return nil, errors.New("test error")
++		}
++		return []byte("password"), nil
+ 	}
++}
++
++func TestEncrypt(t *testing.T) {
++	jwk := fixJWK(mustGenerateJWK(t, "EC", "P-256", "ES256", "", "", 0))
++	data, err := json.Marshal(jwk)
++	require.NoError(t, err)
+ 	tests := []struct {
+ 		name    string
+-		args    args
+-		wantFn  func(t *testing.T) *JSONWebEncryption
++		opts    []Option
++		setup   func(*testing.T)
++		deps    *encryptionDeps
+ 		wantErr bool
+ 	}{
+-		{"ok", args{data, []Option{WithPassword([]byte("password")), WithContentType("jwk+json")}},
+-			func(t *testing.T) *JSONWebEncryption {
+-				reader := mustTeeReader(t)
+-				jwe := mustEncryptJWK(t, jwk, []byte("password"))
+-				rand.Reader = reader
+-				jose.RandReader = reader
+-				return jwe
+-			}, false},
+-		{"ok WithPasswordPrompter", args{data, []Option{
+-			WithContentType("jwk+json"),
+-			WithPasswordPrompter("Enter the password", func(s string) ([]byte, error) {
+-				return []byte("password"), nil
+-			})}},
+-			func(t *testing.T) *JSONWebEncryption {
+-				reader := mustTeeReader(t)
+-				jwe := mustEncryptJWK(t, jwk, []byte("password"))
+-				rand.Reader = reader
+-				jose.RandReader = reader
+-				return jwe
+-			}, false},
+-		{"ok with PromptPassword", args{data, []Option{WithContentType("jwk+json")}},
+-			func(t *testing.T) *JSONWebEncryption {
+-				tmp := PromptPassword
+-				t.Cleanup(func() { PromptPassword = tmp })
+-				PromptPassword = func(s string) ([]byte, error) {
+-					return []byte("password"), nil
+-				}
+-				reader := mustTeeReader(t)
+-				jwe := mustEncryptJWK(t, jwk, []byte("password"))
+-				rand.Reader = reader
+-				jose.RandReader = reader
+-				return jwe
+-			}, false},
+-		{"fail apply", args{data, []Option{WithPasswordFile("testdata/missing.txt")}},
+-			func(t *testing.T) *JSONWebEncryption {
+-				return nil
+-			}, true},
+-		{"fail WithPasswordPrompter", args{data, []Option{
+-			WithContentType("jwk+json"),
+-			WithPasswordPrompter("Enter the password", func(s string) ([]byte, error) {
+-				return nil, errors.New("test error")
+-			})}},
+-			func(t *testing.T) *JSONWebEncryption {
+-				return nil
+-			}, true},
+-		{"fail with PromptPassword", args{data, []Option{WithContentType("jwk+json")}},
+-			func(t *testing.T) *JSONWebEncryption {
+-				tmp := PromptPassword
+-				t.Cleanup(func() { PromptPassword = tmp })
+-				PromptPassword = func(s string) ([]byte, error) {
+-					return nil, errors.New("test error")
+-				}
+-				return nil
+-			}, true},
+-		{"fail no passowrd", args{data, nil},
+-			func(t *testing.T) *JSONWebEncryption {
+-				return nil
+-			}, true},
+-		{"fail encrypt", args{data, []Option{WithPassword([]byte("password"))}},
+-			func(t *testing.T) *JSONWebEncryption {
+-				reader := mustTeeReader(t)
+-				_, _ = randutil.Salt(PBKDF2SaltSize)
+-				rand.Reader = reader
+-				jose.RandReader = reader
+-				return nil
+-			}, true},
+-		{"fail salt", args{data, []Option{WithPassword([]byte("password"))}},
+-			func(t *testing.T) *JSONWebEncryption {
+-				reader := mustTeeReader(t)
+-				rand.Reader = reader
+-				jose.RandReader = reader
+-				return nil
+-			}, true},
++		{name: "ok", opts: []Option{WithPassword([]byte("password")), WithContentType("jwk+json")}},
++		{name: "ok WithPasswordPrompter", opts: []Option{WithContentType("jwk+json"), WithPasswordPrompter("password", func(string) ([]byte, error) { return []byte("password"), nil })}},
++		{name: "ok with PromptPassword", opts: []Option{WithContentType("jwk+json")}, setup: func(t *testing.T) { prompt(t, false) }},
++		{name: "fail apply", opts: []Option{WithPasswordFile("testdata/missing.txt")}, wantErr: true},
++		{name: "fail WithPasswordPrompter", opts: []Option{WithPasswordPrompter("password", func(string) ([]byte, error) { return nil, errors.New("test error") })}, wantErr: true},
++		{name: "fail with PromptPassword", setup: func(t *testing.T) { prompt(t, true) }, wantErr: true},
++		{name: "fail no passowrd", wantErr: true},
++		{name: "fail encrypt", opts: []Option{WithPassword([]byte("password"))}, deps: newBrokenDeps(false), wantErr: true},
++		{name: "fail new cipher", opts: []Option{WithPassword([]byte("password"))}, deps: newBrokenDeps(true), wantErr: true},
++		{name: "fail salt", opts: []Option{WithPassword([]byte("password"))}, setup: failSalt, wantErr: true},
+ 	}
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+-			want := tt.wantFn(t)
+-			got, err := Encrypt(tt.args.data, tt.args.opts...)
+-			if (err != nil) != tt.wantErr {
+-				t.Errorf("Encrypt() error = %v, wantErr %v", err, tt.wantErr)
+-				return
++			if tt.setup != nil {
++				tt.setup(t)
++			}
++			var want *JSONWebEncryption
++			if !tt.wantErr {
++				cryptotest.SetGlobalRandom(t, 42)
++				want = mustEncryptJWK(t, jwk, []byte("password"))
++				cryptotest.SetGlobalRandom(t, 42)
++			}
++			var got *JSONWebEncryption
++			var err error
++			if tt.deps == nil {
++				got, err = Encrypt(data, tt.opts...)
++			} else {
++				got, err = encrypt(data, *tt.deps, tt.opts...)
+ 			}
+-			if !reflect.DeepEqual(got, want) {
+-				t.Errorf("Encrypt() = %v, want %v", got, want)
++			if tt.wantErr {
++				require.Error(t, err)
++				require.Nil(t, got)
++				if tt.deps != nil {
++					require.ErrorIs(t, err, errEncryptionFailure)
++				}
++				if tt.name == "fail salt" {
++					require.ErrorIs(t, err, io.ErrUnexpectedEOF)
++				}
++				return
+ 			}
++			require.NoError(t, err)
++			assert.Equal(t, want, got)
++			plain, err := got.Decrypt([]byte("password"))
++			require.NoError(t, err)
++			assert.Equal(t, data, plain)
++			assertJWEContentType(t, got)
+ 		})
+ 	}
+ }
+ 
+-func TestEncryptJWK(t *testing.T) {
+-	jwk := fixJWK(mustGenerateJWK(t, "EC", "P-256", "ES256", "", "", 0))
++func newBrokenDeps(constructor bool) *encryptionDeps {
++	deps := withBrokenCipher(constructor)
++	return &deps
++}
+ 
+-	type args struct {
+-		jwk        *JSONWebKey
+-		passphrase []byte
++func assertJWEContentType(t *testing.T, encrypted *JSONWebEncryption) {
++	t.Helper()
++	var wire struct {
++		Protected string `json:"protected"`
+ 	}
++	require.NoError(t, json.Unmarshal([]byte(encrypted.FullSerialize()), &wire))
++	header, err := base64.RawURLEncoding.DecodeString(wire.Protected)
++	require.NoError(t, err)
++	var fields map[string]interface{}
++	require.NoError(t, json.Unmarshal(header, &fields))
++	assert.Equal(t, "jwk+json", fields["cty"])
++}
++
++func TestEncryptJWK(t *testing.T) {
++	jwk := fixJWK(mustGenerateJWK(t, "EC", "P-256", "ES256", "", "", 0))
+ 	tests := []struct {
+ 		name    string
+-		args    args
+-		wantFn  func(t *testing.T) *JSONWebEncryption
++		jwk     *JSONWebKey
++		setup   func(*testing.T)
++		deps    *encryptionDeps
+ 		wantErr bool
+ 	}{
+-		{"ok", args{jwk, []byte("planned password")}, func(t *testing.T) *JSONWebEncryption {
+-			reader := mustTeeReader(t)
+-			jwe := mustEncryptJWK(t, jwk, []byte("planned password"))
+-			rand.Reader = reader
+-			jose.RandReader = reader
+-			return jwe
+-		}, false},
+-		{"fail marshal", args{&JSONWebKey{Key: "a string"}, []byte("planned password")}, func(t *testing.T) *JSONWebEncryption {
+-			return nil
+-		}, true},
+-		{"fail encrypt", args{jwk, []byte("planned password")}, func(t *testing.T) *JSONWebEncryption {
+-			reader := mustTeeReader(t)
+-			_, _ = randutil.Salt(PBKDF2SaltSize)
+-			rand.Reader = reader
+-			jose.RandReader = reader
+-			return nil
+-		}, true},
+-		{"fail salt", args{jwk, []byte("planned password")}, func(t *testing.T) *JSONWebEncryption {
+-			reader := mustTeeReader(t)
+-			rand.Reader = reader
+-			jose.RandReader = reader
+-			return nil
+-		}, true},
++		{name: "ok", jwk: jwk},
++		{name: "fail marshal", jwk: &JSONWebKey{Key: "a string"}, wantErr: true},
++		{name: "fail encrypt", jwk: jwk, deps: newBrokenDeps(false), wantErr: true},
++		{name: "fail new cipher", jwk: jwk, deps: newBrokenDeps(true), wantErr: true},
++		{name: "fail salt", jwk: jwk, setup: failSalt, wantErr: true},
+ 	}
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+-			want := tt.wantFn(t)
+-			got, err := EncryptJWK(tt.args.jwk, tt.args.passphrase)
+-			if (err != nil) != tt.wantErr {
+-				t.Errorf("EncryptJWK() error = %v, wantErr %v", err, tt.wantErr)
+-				return
++			if tt.setup != nil {
++				tt.setup(t)
++			}
++			var want *JSONWebEncryption
++			if !tt.wantErr {
++				cryptotest.SetGlobalRandom(t, 42)
++				want = mustEncryptJWK(t, jwk, []byte("planned password"))
++				cryptotest.SetGlobalRandom(t, 42)
+ 			}
+-			if !reflect.DeepEqual(got, want) {
+-				t.Errorf("EncryptJWK() = %v, want %v", got, want)
++			var got *JSONWebEncryption
++			var err error
++			if tt.deps == nil {
++				got, err = EncryptJWK(tt.jwk, []byte("planned password"))
++			} else {
++				got, err = encryptJWK(tt.jwk, []byte("planned password"), *tt.deps)
+ 			}
++			if tt.wantErr {
++				require.Error(t, err)
++				require.Nil(t, got)
++				if tt.deps != nil {
++					require.ErrorIs(t, err, errEncryptionFailure)
++				}
++				if tt.name == "fail salt" {
++					require.ErrorIs(t, err, io.ErrUnexpectedEOF)
++				}
++				return
++			}
++			require.NoError(t, err)
++			assert.Equal(t, want, got)
++			plain, err := got.Decrypt([]byte("planned password"))
++			require.NoError(t, err)
++			serialized, err := json.Marshal(tt.jwk)
++			require.NoError(t, err)
++			assert.Equal(t, serialized, plain)
++			assertJWEContentType(t, got)
+ 		})
+ 	}
+ }
+@@ -364,6 +375,12 @@ func TestDecrypt(t *testing.T) {
+ 		t.Fatal(err)
+ 	}
+ 
++	// JWEs with algorithms not supported by go-jose fail to parse, they must
++	// not be returned as plain data.
++	b64 := base64.RawURLEncoding.EncodeToString
++	unsupportedAlg := []byte(b64([]byte(`{"alg":"foo","enc":"A256GCM"}`)) + ".AA.AA.AA.AA")
++	unsupportedEnc := []byte(`{"protected":"` + b64([]byte(`{"alg":"A256KW","enc":"foo"}`)) + `","encrypted_key":"AA","iv":"AA","ciphertext":"AA","tag":"AA"}`)
++
+ 	type args struct {
+ 		data             []byte
+ 		opts             []Option
+@@ -376,6 +393,8 @@ func TestDecrypt(t *testing.T) {
+ 		wantErr bool
+ 	}{
+ 		{"ok not encrypted", args{[]byte("foobar"), nil, nil}, []byte("foobar"), false},
++		{"ok not encrypted json", args{[]byte(`{"kty":"oct","k":"AA"}`), nil, nil}, []byte(`{"kty":"oct","k":"AA"}`), false},
++		{"ok not encrypted five parts", args{[]byte("a.b.c.d.e"), nil, nil}, []byte("a.b.c.d.e"), false},
+ 		{"ok WithPassword", args{encryptedData, []Option{WithPassword(testPassword)}, nil}, data, false},
+ 		{"ok WithPasswordFile", args{encryptedData, []Option{WithPasswordFile("testdata/passphrase.txt")}, nil}, data, false},
+ 		{"ok WithPasswordPrompter", args{encryptedData, []Option{WithPasswordPrompter("What's the password?", func(s string) ([]byte, error) {
+@@ -388,6 +407,8 @@ func TestDecrypt(t *testing.T) {
+ 			return testPassword, nil
+ 		}}, data, false},
+ 		{"fail bad data", args{badEncryptedData, []Option{WithPassword(testPassword)}, nil}, nil, true},
++		{"fail unsupported alg", args{unsupportedAlg, []Option{WithPassword(testPassword)}, nil}, nil, true},
++		{"fail unsupported enc", args{unsupportedEnc, []Option{WithPassword(testPassword)}, nil}, nil, true},
+ 		{"fail WithPassword", args{encryptedData, []Option{WithPassword([]byte("bad-password"))}, nil}, nil, true},
+ 		{"fail WithPasswordFile", args{encryptedData, []Option{WithPasswordFile("testdata/oct.txt")}, nil}, nil, true},
+ 		{"fail WithPasswordPrompter", args{encryptedData, []Option{WithPasswordPrompter("What's the password?", func(s string) ([]byte, error) {
+diff --git a/jose/generate.go b/jose/generate.go
+index 73329b0..9febffa 100644
+--- a/jose/generate.go
++++ b/jose/generate.go
+@@ -84,6 +84,48 @@ func GenerateDefaultKeyPair(passphrase []byte) (*JSONWebKey, *JSONWebEncryption,
+ 	return &public, jwe, nil
+ }
+ 
++// hmacKeySize returns the minimum size in bytes of the key for the given HMAC
++// algorithm, or 0 if alg is not an HMAC algorithm.
++func hmacKeySize(alg string) int {
++	switch alg {
++	case HS256:
++		return 32
++	case HS384:
++		return 48
++	case HS512:
++		return 64
++	default:
++		return 0
++	}
++}
++
++// aesKeySize returns the exact size in bytes of the key for the given AES key
++// wrap algorithm, or 0 if alg is not an AES key wrap algorithm.
++func aesKeySize(alg string) int {
++	switch KeyAlgorithm(alg) {
++	case A128KW, A128GCMKW:
++		return 16
++	case A192KW, A192GCMKW:
++		return 24
++	case A256KW, A256GCMKW:
++		return 32
++	default:
++		return 0
++	}
++}
++
++// defaultOctSize returns the size in bytes of the oct key generated by
++// default for the given algorithm.
++func defaultOctSize(alg string) int {
++	if n := hmacKeySize(alg); n > 0 {
++		return n
++	}
++	if n := aesKeySize(alg); n > 0 {
++		return n
++	}
++	return DefaultOctSize
++}
++
+ // GenerateJWK generates a JWK given the key type, curve, alg, use, kid and
+ // the size of the RSA or oct keys if necessary.
+ func GenerateJWK(kty, crv, alg, use, kid string, size int) (jwk *JSONWebKey, err error) {
+@@ -98,8 +140,29 @@ func GenerateJWK(kty, crv, alg, use, kid string, size int) (jwk *JSONWebKey, err
+ 		crv = Ed25519
+ 	case kty == "RSA" && size == 0:
+ 		size = DefaultRSASize
+-	case kty == "oct" && size == 0:
+-		size = DefaultOctSize
++	case kty == "oct":
++		// Resolve the default algorithm before generating the key, so the
++		// size defaults and checks use the algorithm the key will have.
++		if alg == "" {
++			if use == "enc" {
++				alg = string(DefaultOctKeyAlgorithm)
++			} else {
++				alg = DefaultOctSigAlgorithm
++			}
++		}
++		if size == 0 {
++			size = defaultOctSize(alg)
++		}
++		// go-jose v4 enforces RFC 7518 §3.2, which says an HMAC key must be at
++		// least as long as the hash output.
++		if n := hmacKeySize(alg); size < n {
++			return nil, errors.Errorf("invalid size: %s requires a key of at least %d bytes", alg, n)
++		}
++		// go-jose selects the AES variant from the key size, so the size must
++		// match the algorithm exactly.
++		if n := aesKeySize(alg); n > 0 && size != n {
++			return nil, errors.Errorf("invalid size: %s requires a key of %d bytes", alg, n)
++		}
+ 	}
+ 
+ 	key, err := keyutil.GenerateKey(kty, crv, size)
+diff --git a/jose/generate_test.go b/jose/generate_test.go
+index 5c71096..6042f42 100644
+--- a/jose/generate_test.go
++++ b/jose/generate_test.go
+@@ -19,6 +19,7 @@ import (
+ 	"github.com/stretchr/testify/assert"
+ 	"github.com/stretchr/testify/require"
+ 
++	"go.step.sm/crypto/keyutil"
+ 	"go.step.sm/crypto/pemutil"
+ 	"go.step.sm/crypto/x25519"
+ )
+@@ -61,8 +62,8 @@ func TestThumbprint(t *testing.T) {
+ 		{"ec pub", args{parse("testdata/p256.pub.json")}, "V93A-Yh7Bhw1W2E0igFciviJzX4PXPswoVgriehm9Co", false},
+ 		{"rsa", args{parse("testdata/rsa.priv.json")}, "CIsktcixZ5GyfkoWFyEV0tp5foASmBV4D-W7clYrCu8", false},
+ 		{"rsa pub", args{parse("testdata/rsa.pub.json")}, "CIsktcixZ5GyfkoWFyEV0tp5foASmBV4D-W7clYrCu8", false},
+-		{"okp", args{parse("testdata/okp.priv.json")}, "qiCJG7r2L80rmWRrZMPfpanQHmZRcncOG7A7MBWn9qM", false},
+-		{"okp pub", args{parse("testdata/okp.pub.json")}, "qiCJG7r2L80rmWRrZMPfpanQHmZRcncOG7A7MBWn9qM", false},
++		{"okp", args{parse("testdata/okp.priv.json")}, "p9IlLmkPhg1zy_1yOaJu6fNhXUsc1yU-WDD6j8GXSiI", false},
++		{"okp pub", args{parse("testdata/okp.pub.json")}, "p9IlLmkPhg1zy_1yOaJu6fNhXUsc1yU-WDD6j8GXSiI", false},
+ 		{"x25519", args{&JSONWebKey{Key: x25519Key}}, "ir3T3GeoaZWjfhX-K_7c6E01N4mwLPehV_FyBAk28Vk", false},
+ 		{"x25519 pub", args{&JSONWebKey{Key: x25519Key.Public()}}, "ir3T3GeoaZWjfhX-K_7c6E01N4mwLPehV_FyBAk28Vk", false},
+ 		{"opaque", args{opaqueKey}, "V93A-Yh7Bhw1W2E0igFciviJzX4PXPswoVgriehm9Co", false},
+@@ -114,17 +115,28 @@ func TestGenerateJWK(t *testing.T) {
+ 		{"OKP", "", "", "EdDSA", "sig", 0, "EdDSA", 64, ed25519.PrivateKey{}, true},
+ 		{"oct", "", "", "", "", 0, "HS256", 32, []byte{}, true},
+ 		{"oct", "", "", "sig", "", 0, "HS256", 32, []byte{}, true},
+-		{"oct", "", "HS384", "sig", "a-kid", 16, "HS384", 16, []byte{}, true},
+-		{"oct", "", "HS521", "sig", "a-kid", 64, "HS521", 64, []byte{}, true},
+-		{"oct", "", "", "enc", "a-kid", 64, "A256GCMKW", 64, []byte{}, true},
++		{"oct", "", "HS384", "sig", "a-kid", 0, "HS384", 48, []byte{}, true},
++		{"oct", "", "HS384", "sig", "a-kid", 50, "HS384", 50, []byte{}, true},
++		{"oct", "", "HS512", "sig", "a-kid", 0, "HS512", 64, []byte{}, true},
++		{"oct", "", "HS512", "sig", "a-kid", 64, "HS512", 64, []byte{}, true},
++		{"oct", "", "", "enc", "a-kid", 32, "A256GCMKW", 32, []byte{}, true},
+ 		{"oct", "", "dir", "enc", "a-kid", 0, "dir", 32, []byte{}, true},
+-		{"oct", "", "A128KW", "enc", "a-kid", 0, "A128KW", 32, []byte{}, true},
+-		{"oct", "", "A192KW", "enc", "a-kid", 0, "A192KW", 32, []byte{}, true},
++		{"oct", "", "A128KW", "enc", "a-kid", 0, "A128KW", 16, []byte{}, true},
++		{"oct", "", "A192KW", "enc", "a-kid", 0, "A192KW", 24, []byte{}, true},
+ 		{"oct", "", "A256KW", "enc", "a-kid", 0, "A256KW", 32, []byte{}, true},
+-		{"oct", "", "A128GCMKW", "enc", "a-kid", 0, "A128GCMKW", 32, []byte{}, true},
+-		{"oct", "", "A192GCMKW", "enc", "a-kid", 0, "A192GCMKW", 32, []byte{}, true},
++		{"oct", "", "A128GCMKW", "enc", "a-kid", 0, "A128GCMKW", 16, []byte{}, true},
++		{"oct", "", "A192GCMKW", "enc", "a-kid", 0, "A192GCMKW", 24, []byte{}, true},
+ 		{"oct", "", "A256GCMKW", "enc", "a-kid", 0, "A256GCMKW", 32, []byte{}, true},
+ 		{"fail", "", "", "", "", 0, "", 0, nil, false},
++		{"oct", "", "", "sig", "", 16, "", 0, nil, false},
++		{"oct", "", "HS256", "sig", "", 31, "", 0, nil, false},
++		{"oct", "", "HS384", "sig", "a-kid", 16, "", 0, nil, false},
++		{"oct", "", "HS512", "sig", "a-kid", 32, "", 0, nil, false},
++		{"oct", "", "", "enc", "a-kid", 64, "", 0, nil, false},
++		{"oct", "", "A128KW", "enc", "a-kid", 32, "", 0, nil, false},
++		{"oct", "", "A192KW", "enc", "a-kid", 16, "", 0, nil, false},
++		{"oct", "", "A256KW", "enc", "a-kid", 20, "", 0, nil, false},
++		{"oct", "", "A128GCMKW", "enc", "a-kid", 32, "", 0, nil, false},
+ 	}
+ 
+ 	for _, tt := range tests {
+@@ -169,6 +181,45 @@ func TestGenerateJWK(t *testing.T) {
+ 	}
+ }
+ 
++func TestHMACMinimumKeySize(t *testing.T) {
++	tests := []struct {
++		name      string
++		algorithm SignatureAlgorithm
++		size      int
++		assertion assert.ErrorAssertionFunc
++	}{
++		{"HS256", HS256, 32, assert.NoError},
++		{"HS384", HS384, 48, assert.NoError},
++		{"HS512", HS512, 64, assert.NoError},
++		{"HS256 large", HS256, 33, assert.NoError},
++		{"HS384 large", HS384, 50, assert.NoError},
++		{"HS512 large", HS512, 67, assert.NoError},
++		{"fail HS256 small", HS256, 31, assert.Error},
++		{"fail HS384 small", HS384, 46, assert.Error},
++		{"fail HS512 small", HS512, 61, assert.Error},
++	}
++
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			key, err := keyutil.GenerateKey("oct", "", tt.size)
++			require.NoError(t, err)
++			sig, err := NewSigner(SigningKey{
++				Algorithm: tt.algorithm,
++				Key:       key,
++			}, nil)
++			require.NoError(t, err)
++
++			jws, err := sig.Sign([]byte(`{"sub": "sub"}`))
++			tt.assertion(t, err)
++
++			if err == nil {
++				_, err = jws.CompactSerialize()
++				require.NoError(t, err)
++			}
++		})
++	}
++}
++
+ func TestKeyUsageForCert(t *testing.T) {
+ 	tests := []struct {
+ 		Cert      *x509.Certificate
+diff --git a/jose/parse.go b/jose/parse.go
+index 12fd960..e5a3294 100644
+--- a/jose/parse.go
++++ b/jose/parse.go
+@@ -290,8 +290,9 @@ func guessKeyType(ctx *context, data []byte) keyType {
+ 	switch ctx.alg {
+ 	// jwk or file with oct data
+ 	case "HS256", "HS384", "HS512":
+-		// Encrypted JWK ?
+-		if _, err := ParseEncrypted(string(data)); err == nil {
++		// Encrypted JWK ? A JWE with algorithms not supported by go-jose fails
++		// to parse, but it must not be used as an oct key.
++		if _, err := ParseEncrypted(string(data)); err == nil || looksLikeJWE(data) {
+ 			return jwkKeyType
+ 		}
+ 		// JSON JWK ?
+diff --git a/jose/parse_test.go b/jose/parse_test.go
+index 1172206..3c2a399 100644
+--- a/jose/parse_test.go
++++ b/jose/parse_test.go
+@@ -174,7 +174,7 @@ func TestReadKey(t *testing.T) {
+ func TestReadKey_https(t *testing.T) {
+ 	ok, err := os.ReadFile("testdata/okp.pub.json")
+ 	require.NoError(t, err)
+-	key, err := base64.RawURLEncoding.DecodeString("L4WYxHsMVaspyhWuSp84v2meEYMEUdYnrn-w-jqP6iw")
++	key, err := base64.RawURLEncoding.DecodeString("jGyDy5ljOMFNQizEwCK6AuOIJgggSlGYISmlqlmDK14")
+ 	require.NoError(t, err)
+ 
+ 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+@@ -211,7 +211,7 @@ func TestReadKey_https(t *testing.T) {
+ 	}{
+ 		{"ok", args{srvClient, srv.URL + "/ok", nil}, &JSONWebKey{
+ 			Key:                         ed25519.PublicKey(key),
+-			KeyID:                       "qiCJG7r2L80rmWRrZMPfpanQHmZRcncOG7A7MBWn9qM",
++			KeyID:                       "p9IlLmkPhg1zy_1yOaJu6fNhXUsc1yU-WDD6j8GXSiI",
+ 			Algorithm:                   "EdDSA",
+ 			Use:                         "sig",
+ 			Certificates:                []*x509.Certificate{},
+diff --git a/jose/testdata/okp.enc.priv.json b/jose/testdata/okp.enc.priv.json
+index b21c8cc..6c08b83 100644
+--- a/jose/testdata/okp.enc.priv.json
++++ b/jose/testdata/okp.enc.priv.json
+@@ -1,7 +1 @@
+-{
+-  "protected": "eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJlbmMiOiJBMjU2R0NNIiwicDJjIjoxMDAwMDAsInAycyI6ImxUMTJjQ29FUEdYWXV2V0JqNHFZZ1EifQ",
+-  "encrypted_key": "_029j7ZniKPgkRbVzwjgPPUtCdQacFMLB-k9p-INRksow1a1-wHGTA",
+-  "iv": "WyrGXSosdyfBNWMW",
+-  "ciphertext": "5DNleiF85yWEDZFXQj-XSZ6JlepRei3k8V15oMecxXB_XnT7CL5ufZ9e884P3RGinA0gl_x3ViYFdFJthqJ79aHw7VtRVfe3Ar3USUcttPHxZmtrXd2yGWn1Osw3jyADeuXXaSED2EWNHiXUsjC3IGoGMWbMtKW7KuckZudkanSzYFRvuCPdLrDrvnugoMZX-he-NM1181OiOvZjtA-3TPKVLk7tuSnTOcqQAvpKoAy18NS6orslnVfFMz6tyYq3RvD8lbc-RN3o6op4Cphz",
+-  "tag": "rCmSF2Ts2Q61KubS_Bmceg"
+-}
+\ No newline at end of file
++{"protected":"eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJjdHkiOiJqd2sranNvbiIsImVuYyI6IkEyNTZHQ00iLCJwMmMiOjYwMDAwMCwicDJzIjoiZ3NRZUZpRnVoQWhUWmFnYlQ4YzJQUSJ9","encrypted_key":"hAUW2MTqpzyosRPL8aO3g-BiqYu7KpqWDFuoA80lfr7W4S-yboYPfw","iv":"ZGrRKPgNZhcJXFLG","ciphertext":"-zX4KTzkRlZ49NH_rZKcnX4zYwH2gLxL8-RT-o8ZULF3Bx3OAuH2Lr_EjXEl8EBrwFiSczo_gThV95biMjCcgmQpFk7wA-1tu90r7HohPOQY4CrMxrU_jvi-sNeVDdUoNRO8BUmULCdA90ZZH14l4H0jYPX-3tw3lqRbDKUi58tlphr5DTuPNrNuL5s1lOdOakSuH4Waa19tUULuKJbLyrYI1SoeCGlT1LTqCAOAscNu-LEZDDiyJpE1teFuEGgHhrsF8eNDvYcbU6b_RX5A","tag":"v0f-oqZ5lHy1pzPT8W_EEQ"}
+diff --git a/jose/testdata/okp.mismatched.priv.json b/jose/testdata/okp.mismatched.priv.json
+new file mode 100644
+index 0000000..de03abe
+--- /dev/null
++++ b/jose/testdata/okp.mismatched.priv.json
+@@ -0,0 +1,9 @@
++{
++	"use": "sig",
++	"kty": "OKP",
++	"kid": "qiCJG7r2L80rmWRrZMPfpanQHmZRcncOG7A7MBWn9qM",
++	"crv": "Ed25519",
++	"alg": "EdDSA",
++	"x": "L4WYxHsMVaspyhWuSp84v2meEYMEUdYnrn-w-jqP6iw",
++	"d": "kqyKV4yXV8viKLPp4HazFzvBkZi0wMKZ3iLXwtWqgvA"
++}
+\ No newline at end of file
+diff --git a/jose/testdata/okp.priv.json b/jose/testdata/okp.priv.json
+index de03abe..1db8d9e 100644
+--- a/jose/testdata/okp.priv.json
++++ b/jose/testdata/okp.priv.json
+@@ -1,9 +1,9 @@
+ {
+-	"use": "sig",
+-	"kty": "OKP",
+-	"kid": "qiCJG7r2L80rmWRrZMPfpanQHmZRcncOG7A7MBWn9qM",
+-	"crv": "Ed25519",
+-	"alg": "EdDSA",
+-	"x": "L4WYxHsMVaspyhWuSp84v2meEYMEUdYnrn-w-jqP6iw",
+-	"d": "kqyKV4yXV8viKLPp4HazFzvBkZi0wMKZ3iLXwtWqgvA"
+-}
+\ No newline at end of file
++  "alg": "EdDSA",
++  "crv": "Ed25519",
++  "d": "kqyKV4yXV8viKLPp4HazFzvBkZi0wMKZ3iLXwtWqgvA",
++  "kid": "p9IlLmkPhg1zy_1yOaJu6fNhXUsc1yU-WDD6j8GXSiI",
++  "kty": "OKP",
++  "use": "sig",
++  "x": "jGyDy5ljOMFNQizEwCK6AuOIJgggSlGYISmlqlmDK14"
++}
+diff --git a/jose/testdata/okp.pub.json b/jose/testdata/okp.pub.json
+index 47f0dbe..373e21d 100644
+--- a/jose/testdata/okp.pub.json
++++ b/jose/testdata/okp.pub.json
+@@ -1,8 +1,8 @@
+ {
+-  "use": "sig",
+-  "kty": "OKP",
+-  "kid": "qiCJG7r2L80rmWRrZMPfpanQHmZRcncOG7A7MBWn9qM",
+-  "crv": "Ed25519",
+   "alg": "EdDSA",
+-  "x": "L4WYxHsMVaspyhWuSp84v2meEYMEUdYnrn-w-jqP6iw"
+-}
+\ No newline at end of file
++  "crv": "Ed25519",
++  "kid": "p9IlLmkPhg1zy_1yOaJu6fNhXUsc1yU-WDD6j8GXSiI",
++  "kty": "OKP",
++  "use": "sig",
++  "x": "jGyDy5ljOMFNQizEwCK6AuOIJgggSlGYISmlqlmDK14"
++}
+diff --git a/jose/types.go b/jose/types.go
+index 9e453e2..7ec18fd 100644
+--- a/jose/types.go
++++ b/jose/types.go
+@@ -1,16 +1,19 @@
+-// Package jose is a wrapper for github.com/go-jose/go-jose/v3 and implements
++// Package jose is a wrapper for github.com/go-jose/go-jose/v4 and implements
+ // utilities to parse and generate JWT, JWK and JWKSets.
+ package jose
+ 
+ import (
+ 	"crypto"
++	"encoding/json"
+ 	"errors"
++	"fmt"
+ 	"strings"
+ 	"time"
++	"unicode"
+ 
+-	jose "github.com/go-jose/go-jose/v3"
+-	"github.com/go-jose/go-jose/v3/cryptosigner"
+-	"github.com/go-jose/go-jose/v3/jwt"
++	"github.com/go-jose/go-jose/v4"
++	"github.com/go-jose/go-jose/v4/cryptosigner"
++	"github.com/go-jose/go-jose/v4/jwt"
+ 
+ 	"go.step.sm/crypto/x25519"
+ )
+@@ -73,12 +76,36 @@ type Signature = jose.Signature
+ // ErrCryptoFailure indicates an error in a cryptographic primitive.
+ var ErrCryptoFailure = jose.ErrCryptoFailure
+ 
++// ErrInvalidKeySize indicates that the given key is not the correct size for
++// the selected algorithm, e.g. an HMAC key shorter than the hash output. It is
++// only returned when signing, go-jose wraps it in a generic error when
++// verifying an HMAC signature. Use ValidateJWK to detect short HMAC keys
++// before verifying.
++var ErrInvalidKeySize = jose.ErrInvalidKeySize
++
+ // Claims represents public claim values (as specified in RFC 7519).
+ type Claims = jwt.Claims
+ 
+ // Builder is a utility for making JSON Web Tokens. Calls can be chained, and
+-// errors are accumulated until the final call to CompactSerialize/FullSerialize.
+-type Builder = jwt.Builder
++// errors are accumulated until the final call to Serialize.
++type Builder interface {
++	Claims(i interface{}) Builder
++	Token() (*JSONWebToken, error)
++	Serialize() (string, error)
++	// CompactSerialize preserves the legacy Smallstep JWT API while using
++	// go-jose/v4's compact JWT serialization and error handling underneath.
++	CompactSerialize() (string, error)
++}
++
++type compatibleBuilder struct{ inner jwt.Builder }
++
++func (b compatibleBuilder) Claims(i interface{}) Builder {
++	return compatibleBuilder{inner: b.inner.Claims(i)}
++}
++
++func (b compatibleBuilder) Token() (*JSONWebToken, error)     { return b.inner.Token() }
++func (b compatibleBuilder) Serialize() (string, error)        { return b.inner.Serialize() }
++func (b compatibleBuilder) CompactSerialize() (string, error) { return b.inner.Serialize() }
+ 
+ // NumericDate represents date and time as the number of seconds since the
+ // epoch, including leap seconds. Non-integer values can be represented
+@@ -222,9 +249,37 @@ const (
+ 	DefaultOctSize = 32
+ )
+ 
++// supportedKeyAlgorithms is the list of key management algorithms accepted
++// when parsing a JWE.
++var supportedKeyAlgorithms = []KeyAlgorithm{
++	RSA1_5, RSA_OAEP, RSA_OAEP_256,
++	A128KW, A192KW, A256KW,
++	DIRECT,
++	ECDH_ES, ECDH_ES_A128KW, ECDH_ES_A192KW, ECDH_ES_A256KW,
++	A128GCMKW, A192GCMKW, A256GCMKW,
++	PBES2_HS256_A128KW, PBES2_HS384_A192KW, PBES2_HS512_A256KW,
++}
++
++// supportedContentEncryption is the list of content encryption algorithms
++// accepted when parsing a JWE.
++var supportedContentEncryption = []ContentEncryption{
++	A128CBC_HS256, A192CBC_HS384, A256CBC_HS512,
++	A128GCM, A192GCM, A256GCM,
++}
++
++// supportedSignatureAlgorithms is the list of signature algorithms accepted
++// when parsing a JWS or a JWT.
++var supportedSignatureAlgorithms = []SignatureAlgorithm{
++	HS256, HS384, HS512,
++	RS256, RS384, RS512,
++	ES256, ES384, ES512,
++	PS256, PS384, PS512,
++	EdDSA, XEdDSA,
++}
++
+ // ParseEncrypted parses an encrypted message in compact or full serialization format.
+ func ParseEncrypted(input string) (*JSONWebEncryption, error) {
+-	return jose.ParseEncrypted(input)
++	return jose.ParseEncrypted(input, supportedKeyAlgorithms, supportedContentEncryption)
+ }
+ 
+ // NewEncrypter creates an appropriate encrypter based on the key type.
+@@ -253,6 +308,22 @@ func NewSigner(sig SigningKey, opts *SignerOptions) (Signer, error) {
+ 	if sig.Algorithm == "" {
+ 		sig.Algorithm = guessSignatureAlgorithm(sig.Key)
+ 	}
++	if key, ok := sig.Key.(X25519Signer); ok {
++		if len(key) != x25519.PrivateKeySize || sig.Algorithm != XEdDSA {
++			return nil, errors.New("invalid X25519 signing key or algorithm")
++		}
++		if opts != nil {
++			if opts.EmbedJWK {
++				return nil, errors.New("X25519 JWK embedding is unsupported")
++			}
++			if _, exists := opts.ExtraHeaders[HeaderKey("jwk")]; exists {
++				return nil, errors.New("X25519 JWK header is unsupported")
++			}
++		}
++		// v4 supports opaque signing without JWK metadata. Do not represent a
++		// Montgomery public key as an Edwards key, or relax generic key checks.
++		sig.Key = x25519JOSESigner{X25519Signer: key}
++	}
+ 	return jose.NewSigner(sig, opts)
+ }
+ 
+@@ -270,19 +341,83 @@ func Verify(token *JSONWebToken, publicKey any, dest ...any) error {
+ 	return token.Claims(publicKey, dest...)
+ }
+ 
+-// ParseSigned parses token from JWS form.
++// ParseSigned parses token from JWS form. It supports the compact
++// serialization format, and the JSON serialization format with a single
++// signature and without unprotected headers.
+ func ParseSigned(s string) (*JSONWebToken, error) {
+-	return jwt.ParseSigned(s)
++	// go-jose v4 jwt.ParseSigned no longer strips whitespace, keep the v3
++	// behavior so tokens with surrounding spaces or tabs are still accepted.
++	s = stripWhitespace(s)
++
++	// go-jose v4 jwt.ParseSigned only supports the compact serialization
++	// format, keep the v3 behavior and convert JSON tokens to compact.
++	if strings.HasPrefix(s, "{") {
++		var err error
++		if s, err = jsonToCompact(s); err != nil {
++			return nil, err
++		}
++	}
++
++	return jwt.ParseSigned(s, supportedSignatureAlgorithms)
++}
++
++// jsonToCompact converts a JWS in the flattened or general JSON serialization
++// format to the compact serialization format. It reuses the original base64url
++// segments, re-encoding the protected header might change the signed bytes.
++func jsonToCompact(s string) (string, error) {
++	type rawSignature struct {
++		Protected string          `json:"protected"`
++		Header    json.RawMessage `json:"header"`
++		Signature string          `json:"signature"`
++	}
++	var v struct {
++		Payload    *string        `json:"payload"`
++		Signatures []rawSignature `json:"signatures"`
++		rawSignature
++	}
++	if err := json.Unmarshal([]byte(s), &v); err != nil {
++		return "", fmt.Errorf("error parsing JWS: %w", err)
++	}
++
++	sig := v.rawSignature
++	switch {
++	case len(v.Signatures) == 1:
++		sig = v.Signatures[0]
++	case len(v.Signatures) > 1:
++		return "", errors.New("too many signatures in payload; expecting only one")
++	}
++	if v.Payload == nil {
++		return "", errors.New("missing payload in JWS message")
++	}
++	if sig.Protected == "" || (len(sig.Header) > 0 && string(sig.Header) != "null") {
++		return "", errors.New("JWT requires a protected header and no unprotected header")
++	}
++
++	return sig.Protected + "." + *v.Payload + "." + sig.Signature, nil
++}
++
++// stripWhitespace removes all the whitespace characters from the given
++// string.
++func stripWhitespace(s string) string {
++	if strings.IndexFunc(s, unicode.IsSpace) < 0 {
++		return s
++	}
++	return strings.Map(func(r rune) rune {
++		if unicode.IsSpace(r) {
++			return -1
++		}
++		return r
++	}, s)
+ }
+ 
+ // Signed creates builder for signed tokens.
+ func Signed(sig Signer) Builder {
+-	return jwt.Signed(sig)
++	return compatibleBuilder{inner: jwt.Signed(sig)}
+ }
+ 
+ // ParseJWS parses a signed message in compact or full serialization format.
+ func ParseJWS(s string) (*JSONWebSignature, error) {
+-	return jose.ParseSigned(s)
++	return jose.ParseSigned(s, supportedSignatureAlgorithms)
+ }
+ 
+ // Determine whether a JSONWebKey is symmetric
+diff --git a/jose/types_test.go b/jose/types_test.go
+index 2b2b6cc..63c56b6 100644
+--- a/jose/types_test.go
++++ b/jose/types_test.go
+@@ -5,13 +5,19 @@ import (
+ 	"crypto/ecdsa"
+ 	"crypto/ed25519"
+ 	"crypto/elliptic"
++	"crypto/hmac"
+ 	"crypto/rand"
+ 	"crypto/rsa"
++	"crypto/sha256"
++	"encoding/base64"
++	"fmt"
+ 	"reflect"
+ 	"testing"
+ 	"time"
+ 
+ 	"github.com/pkg/errors"
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
+ 
+ 	"go.step.sm/crypto/x25519"
+ )
+@@ -133,7 +139,7 @@ func TestSignVerify(t *testing.T) {
+ 		args    args
+ 		wantErr bool
+ 	}{
+-		{"byte", args{SigningKey{Key: []byte("the-key")}, nil}, false},
++		{"byte", args{SigningKey{Key: []byte("the-32-byte-long-key-for-hs256!!")}, nil}, false},
+ 		{"P256", args{SigningKey{Key: p256}, nil}, false},
+ 		{"P384", args{SigningKey{Key: p384}, nil}, false},
+ 		{"P521", args{SigningKey{Key: p521}, nil}, false},
+@@ -158,30 +164,86 @@ func TestSignVerify(t *testing.T) {
+ 					t.Errorf("Signer.Sign() error = %v", err)
+ 					return
+ 				}
+-				jwt, err := ParseSigned(jws.FullSerialize())
++				compact, err := jws.CompactSerialize()
+ 				if err != nil {
+-					t.Errorf("ParseSigned() error = %v", err)
++					t.Errorf("CompactSerialize() error = %v", err)
+ 					return
+ 				}
++				for _, tok := range []string{compact, jws.FullSerialize(), " \t" + compact + " \r\n"} {
++					jwt, err := ParseSigned(tok)
++					if err != nil {
++						t.Errorf("ParseSigned() error = %v", err)
++						return
++					}
+ 
+-				var claims Claims
+-				switch k := tt.args.sig.Key.(type) {
+-				case crypto.Signer:
+-					err = Verify(jwt, k.Public(), &claims)
+-				case OpaqueSigner:
+-					err = Verify(jwt, k.Public(), &claims)
+-				default:
+-					err = Verify(jwt, k, &claims)
+-				}
+-				if err != nil {
+-					t.Errorf("JSONWebSignature.Verify() error = %v", err)
+-					return
+-				}
+-				want := Claims{Subject: "sub"}
+-				if !reflect.DeepEqual(claims, want) {
+-					t.Errorf("JSONWebSignature.Verify() claims = %v, want %v", claims, want)
++					var claims Claims
++					switch k := tt.args.sig.Key.(type) {
++					case crypto.Signer:
++						err = Verify(jwt, k.Public(), &claims)
++					case OpaqueSigner:
++						err = Verify(jwt, k.Public(), &claims)
++					default:
++						err = Verify(jwt, k, &claims)
++					}
++					if err != nil {
++						t.Errorf("JSONWebSignature.Verify() error = %v", err)
++						return
++					}
++					want := Claims{Subject: "sub"}
++					if !reflect.DeepEqual(claims, want) {
++						t.Errorf("JSONWebSignature.Verify() claims = %v, want %v", claims, want)
++					}
+ 				}
+ 			}
+ 		})
+ 	}
+ }
++
++func TestParseSigned_JSON(t *testing.T) {
++	key := []byte("the-32-byte-long-key-for-hs256!!")
++	b64 := base64.RawURLEncoding.EncodeToString
++
++	// The protected header uses a key order and spacing that go-jose would
++	// not produce when re-encoding it, so the signature only verifies if the
++	// original bytes are preserved.
++	protected := b64([]byte(`{ "typ": "JWT",  "alg": "HS256" }`))
++	payload := b64([]byte(`{"sub":"sub"}`))
++	mac := hmac.New(sha256.New, key)
++	mac.Write([]byte(protected + "." + payload))
++	signature := b64(mac.Sum(nil))
++
++	flattened := fmt.Sprintf(`{"payload":%q,"protected":%q,"signature":%q}`, payload, protected, signature)
++	general := fmt.Sprintf(`{"payload":%q,"signatures":[{"protected":%q,"signature":%q}]}`, payload, protected, signature)
++	indented := fmt.Sprintf("{\n  \"payload\": %q,\n  \"protected\": %q,\n  \"signature\": %q\n}\n", payload, protected, signature)
++
++	tests := []struct {
++		name      string
++		token     string
++		assertion assert.ErrorAssertionFunc
++	}{
++		{"ok compact", protected + "." + payload + "." + signature, assert.NoError},
++		{"ok flattened", flattened, assert.NoError},
++		{"ok general", general, assert.NoError},
++		{"ok indented", indented, assert.NoError},
++		{"fail two signatures", fmt.Sprintf(`{"payload":%q,"signatures":[{"protected":%q,"signature":%q},{"protected":%q,"signature":%q}]}`,
++			payload, protected, signature, protected, signature), assert.Error},
++		{"fail unprotected header", fmt.Sprintf(`{"payload":%q,"protected":%q,"header":{"kid":"foo"},"signature":%q}`,
++			payload, protected, signature), assert.Error},
++		{"fail missing protected", fmt.Sprintf(`{"payload":%q,"header":{"alg":"HS256"},"signature":%q}`, payload, signature), assert.Error},
++		{"ok null header", fmt.Sprintf(`{"payload":%q,"protected":%q,"header":null,"signature":%q}`, payload, protected, signature), assert.NoError},
++		{"fail missing payload", fmt.Sprintf(`{"protected":%q,"signature":%q}`, protected, signature), assert.Error},
++		{"fail invalid json", `{"payload":`, assert.Error},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			tok, err := ParseSigned(tt.token)
++			tt.assertion(t, err)
++			if err != nil {
++				return
++			}
++			var claims Claims
++			require.NoError(t, Verify(tok, key, &claims))
++			assert.Equal(t, Claims{Subject: "sub"}, claims)
++		})
++	}
++}
+diff --git a/jose/validate.go b/jose/validate.go
+index aef660b..3f59426 100644
+--- a/jose/validate.go
++++ b/jose/validate.go
+@@ -125,7 +125,7 @@ func validateSigJWK(jwk *JSONWebKey) error {
+ 	case []byte:
+ 		switch jwk.Algorithm {
+ 		case HS256, HS384, HS512:
+-			return nil
++			return validateOctKeySize(jwk.Algorithm, k)
+ 		}
+ 		errctx = "kty 'oct'"
+ 	case *rsa.PrivateKey, *rsa.PublicKey:
+@@ -179,11 +179,11 @@ func validateEncJWK(jwk *JSONWebKey) error {
+ 	alg := KeyAlgorithm(jwk.Algorithm)
+ 	var kty string
+ 
+-	switch jwk.Key.(type) {
++	switch k := jwk.Key.(type) {
+ 	case []byte:
+ 		switch alg {
+ 		case DIRECT, A128GCMKW, A192GCMKW, A256GCMKW, A128KW, A192KW, A256KW:
+-			return nil
++			return validateOctKeySize(jwk.Algorithm, k)
+ 		}
+ 		kty = "oct"
+ 	case *rsa.PrivateKey, *rsa.PublicKey:
+@@ -207,9 +207,9 @@ func validateEncJWK(jwk *JSONWebKey) error {
+ 
+ // validateGeneric validates just the supported key types.
+ func validateGeneric(jwk *JSONWebKey) error {
+-	switch jwk.Key.(type) {
++	switch k := jwk.Key.(type) {
+ 	case []byte:
+-		return nil
++		return validateOctKeySize(jwk.Algorithm, k)
+ 	case *rsa.PrivateKey, *rsa.PublicKey:
+ 		return nil
+ 	case *ecdsa.PrivateKey, *ecdsa.PublicKey:
+@@ -220,3 +220,19 @@ func validateGeneric(jwk *JSONWebKey) error {
+ 
+ 	return errors.Errorf("unsupported key type '%T'", jwk.Key)
+ }
++
++// validateOctKeySize validates the size of the given oct key for the given
++// algorithm. HMAC keys must be at least as long as the hash output, as RFC
++// 7518 §3.2 requires, and go-jose rejects shorter keys when signing or
++// verifying. AES key wrap keys must have the exact size of the algorithm, as
++// go-jose selects the AES variant from the key size. Other algorithms are
++// ignored.
++func validateOctKeySize(alg string, key []byte) error {
++	if n := hmacKeySize(alg); len(key) < n {
++		return errors.Errorf("alg '%s' requires a key of at least %d bytes", alg, n)
++	}
++	if n := aesKeySize(alg); n > 0 && len(key) != n {
++		return errors.Errorf("alg '%s' requires a key of %d bytes", alg, n)
++	}
++	return nil
++}
+diff --git a/jose/validate_test.go b/jose/validate_test.go
+index 30a5c9a..df12cc1 100644
+--- a/jose/validate_test.go
++++ b/jose/validate_test.go
+@@ -300,9 +300,10 @@ func TestValidateJWK_sig(t *testing.T) {
+ 		{"ok PS512", args{&JSONWebKey{Use: "sig", Algorithm: PS512, Key: rsaKey.Public()}}, false},
+ 		{"ok EdDSA", args{&JSONWebKey{Use: "sig", Algorithm: EdDSA, Key: edKey}}, false},
+ 		{"ok EdDSA pub", args{&JSONWebKey{Use: "sig", Algorithm: EdDSA, Key: edKey.Public()}}, false},
+-		{"ok HS256", args{&JSONWebKey{Use: "sig", Algorithm: HS256, Key: []byte("raw-key")}}, false},
+-		{"ok HS384", args{&JSONWebKey{Use: "sig", Algorithm: HS384, Key: []byte("raw-key")}}, false},
+-		{"ok HS512", args{&JSONWebKey{Use: "sig", Algorithm: HS512, Key: []byte("raw-key")}}, false},
++		{"ok HS256", args{&JSONWebKey{Use: "sig", Algorithm: HS256, Key: make([]byte, 32)}}, false},
++		{"ok HS384", args{&JSONWebKey{Use: "sig", Algorithm: HS384, Key: make([]byte, 48)}}, false},
++		{"ok HS512", args{&JSONWebKey{Use: "sig", Algorithm: HS512, Key: make([]byte, 64)}}, false},
++		{"ok HS256 long", args{&JSONWebKey{Use: "sig", Algorithm: HS256, Key: make([]byte, 64)}}, false},
+ 		{"ok OpaqueSigner", args{&JSONWebKey{Use: "sig", Algorithm: ES256, Key: NewOpaqueSigner(p256Key)}}, false},
+ 		{"fail alg empty", args{&JSONWebKey{Use: "sig", Key: p256Key}}, true},
+ 		{"fail ECDSA", args{&JSONWebKey{Use: "sig", Algorithm: ES384, Key: p256Key}}, true},
+@@ -310,6 +311,9 @@ func TestValidateJWK_sig(t *testing.T) {
+ 		{"fail RSA", args{&JSONWebKey{Use: "sig", Algorithm: ES256, Key: rsaKey}}, true},
+ 		{"fail Ed25519", args{&JSONWebKey{Use: "sig", Algorithm: ES256, Key: edKey}}, true},
+ 		{"fail bytes", args{&JSONWebKey{Use: "sig", Algorithm: ES256, Key: []byte("raw-key")}}, true},
++		{"fail HS256 short", args{&JSONWebKey{Use: "sig", Algorithm: HS256, Key: make([]byte, 31)}}, true},
++		{"fail HS384 short", args{&JSONWebKey{Use: "sig", Algorithm: HS384, Key: make([]byte, 47)}}, true},
++		{"fail HS512 short", args{&JSONWebKey{Use: "sig", Algorithm: HS512, Key: make([]byte, 63)}}, true},
+ 		{"fail OpaqueSigner", args{&JSONWebKey{Use: "sig", Algorithm: RS256, Key: p256Key}}, true},
+ 		{"fail unknown", args{&JSONWebKey{Use: "sig", Algorithm: HS256, Key: "raw-key"}}, true},
+ 	}
+@@ -321,3 +325,36 @@ func TestValidateJWK_sig(t *testing.T) {
+ 		})
+ 	}
+ }
++
++func TestValidateJWK_generic(t *testing.T) {
++	type args struct {
++		jwk *JSONWebKey
++	}
++	tests := []struct {
++		name    string
++		args    args
++		wantErr bool
++	}{
++		{"ok oct", args{&JSONWebKey{Key: []byte("raw-key")}}, false},
++		{"ok oct A128KW", args{&JSONWebKey{Algorithm: string(A128KW), Key: make([]byte, 16)}}, false},
++		{"ok HS256", args{&JSONWebKey{Algorithm: HS256, Key: make([]byte, 32)}}, false},
++		{"ok HS512", args{&JSONWebKey{Algorithm: HS512, Key: make([]byte, 64)}}, false},
++		{"fail HS256 short", args{&JSONWebKey{Algorithm: HS256, Key: make([]byte, 31)}}, true},
++		{"fail HS512 short", args{&JSONWebKey{Algorithm: HS512, Key: make([]byte, 32)}}, true},
++		{"fail A128KW size", args{&JSONWebKey{Algorithm: string(A128KW), Key: make([]byte, 32)}}, true},
++		{"fail unknown", args{&JSONWebKey{Key: "raw-key"}}, true},
++		{"ok enc A128KW", args{&JSONWebKey{Use: "enc", Algorithm: string(A128KW), Key: make([]byte, 16)}}, false},
++		{"ok enc A192GCMKW", args{&JSONWebKey{Use: "enc", Algorithm: string(A192GCMKW), Key: make([]byte, 24)}}, false},
++		{"ok enc A256KW", args{&JSONWebKey{Use: "enc", Algorithm: string(A256KW), Key: make([]byte, 32)}}, false},
++		{"ok enc dir", args{&JSONWebKey{Use: "enc", Algorithm: string(DIRECT), Key: make([]byte, 64)}}, false},
++		{"fail enc A128KW size", args{&JSONWebKey{Use: "enc", Algorithm: string(A128KW), Key: make([]byte, 32)}}, true},
++		{"fail enc A256GCMKW size", args{&JSONWebKey{Use: "enc", Algorithm: string(A256GCMKW), Key: make([]byte, 64)}}, true},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			if err := ValidateJWK(tt.args.jwk); (err != nil) != tt.wantErr {
++				t.Errorf("ValidateJWK() error = %v, wantErr %v", err, tt.wantErr)
++			}
++		})
++	}
++}
+diff --git a/jose/x25519.go b/jose/x25519.go
+index b63d47a..637b989 100644
+--- a/jose/x25519.go
++++ b/jose/x25519.go
+@@ -26,6 +26,12 @@ func x25519Thumbprint(key x25519.PublicKey, hash crypto.Hash) ([]byte, error) {
+ // as the signing algorithm.
+ type X25519Signer x25519.PrivateKey
+ 
++// Only the internal JOSE adapter omits unsupported automatic JWK metadata.
++// The public X25519Signer.Public API and XEdDSA signing remain unchanged.
++type x25519JOSESigner struct{ X25519Signer }
++
++func (x25519JOSESigner) Public() *JSONWebKey { return nil }
++
+ // Public returns the public key of the current signing key.
+ func (s X25519Signer) Public() *JSONWebKey {
+ 	return &JSONWebKey{
+diff --git a/kms/azurekms/key_vault_test.go b/kms/azurekms/key_vault_test.go
+index b3f52aa..75f9dde 100644
+--- a/kms/azurekms/key_vault_test.go
++++ b/kms/azurekms/key_vault_test.go
+@@ -14,9 +14,9 @@ import (
+ 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/cloud"
+ 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+ 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
+-	"github.com/go-jose/go-jose/v3"
+ 	"go.uber.org/mock/gomock"
+ 
++	"go.step.sm/crypto/jose"
+ 	"go.step.sm/crypto/keyutil"
+ 	"go.step.sm/crypto/kms/apiv1"
+ 	"go.step.sm/crypto/kms/azurekms/internal/mock"
