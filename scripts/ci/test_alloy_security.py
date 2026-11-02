@@ -416,13 +416,13 @@ class SecurityGateTest(unittest.TestCase):
         (self.directory / "source-and-binary-sha256.txt").write_text(gate.sha(binary) + "  ./build/alloy\n")
         (self.directory / "moby-base-sha.txt").write_text(gate.BASE)
         (self.directory / "build-info.txt").write_text(
-            "alloy: go1.26.9\n\tdep github.com/docker/docker v28.5.2+incompatible\n"
+            "alloy: go1.26.10\n\tdep github.com/docker/docker v28.5.2+incompatible\n"
             "\t=> /src/docker (devel)\n\tbuild GOOS=linux\n\tbuild GOARCH=amd64\n\tbuild CGO_ENABLED=1\n")
         patcher = mock.patch.object(gate, "binary_metadata", return_value=(self.directory / "build-info.txt").read_text())
         patcher.start()
         self.addCleanup(patcher.stop)
         env = {"GOOS": "linux", "GOARCH": "amd64", "CGO_ENABLED": "1",
-               "GOEXPERIMENT": "", "GOVERSION": "go1.26.9"}
+               "GOEXPERIMENT": "", "GOVERSION": "go1.26.10"}
         (self.directory / "go-env.json").write_text(json.dumps(env))
         module = {"Path": gate.MOBY, "Version": gate.VERSION, "Replace": {"Dir": "/src/docker"}}
         self.packages = [

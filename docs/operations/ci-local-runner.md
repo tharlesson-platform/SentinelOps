@@ -192,9 +192,10 @@ alterar o gate, e submeter mudanças de aplicabilidade à revisão independente.
 ## Correção de segurança da toolchain
 
 Os jobs anteriores usavam Go 1.26.6 e falharam com 11 vulnerabilidades
-alcançáveis da biblioteca padrão. Go 1.26.9 é a versão corrigida da mesma
-série; `go.mod`, CI, harness e builds auxiliares passam a usá-la. O build
-da aplicação permanece na série 1.27, atualizado para 1.27.2. As imagens
+alcançáveis da biblioteca padrão. A atualização inicial foi Go 1.26.9;
+em 02/11/2026, o scan identificou GO-2026-6809 em `crypto/x509` nessa versão.
+`go.mod`, CI, harness e builds auxiliares passam a Go 1.26.10. O build
+da aplicação permanece na série 1.27, atualizado para 1.27.3. As imagens
 continuam fixadas em digests verificados no registry oficial.
 
 Após corrigir o compilador, o scan local revelou mais quatro achados
@@ -205,3 +206,10 @@ Antes do merge, executar os gates no SHA atual e revisar os diffs. Builds
 locais não comprovam aprovação de CI nem prontidão para produção. Não
 reverter para as toolchains vulneráveis como rollback; um rollback da
 aplicação deve preservar o compilador corrigido.
+
+O advisory oficial é <https://pkg.go.dev/vuln/GO-2026-6809>. O teste remoto
+125441197343 passou em `go vet` e `go test -race`, mas o `govulncheck` reprovou
+o compilador anterior. Com Go 1.26.10, o scan local Linux ARM64 retornou zero
+vulnerabilidades alcançáveis e zero nos pacotes importados; três achados em
+módulos não alcançados continuam explícitos. Isso não substitui os builds,
+testes Moby/Alloy, scans de imagens ou gates remotos do novo commit.

@@ -11,7 +11,7 @@ RUN --mount=type=cache,target=/root/.npm,sharing=locked npm ci --ignore-scripts 
     && npm run build
 
 # This stage exports patched sources and go.mod, never target binaries.
-FROM --platform=$BUILDPLATFORM golang:1.26.9-bookworm@sha256:d9c68c2c51161e12fd77e4c6320687c9cd86e1af1e3ad6e6cd63ff970641453c AS moby-backport
+FROM --platform=$BUILDPLATFORM golang:1.26.10-bookworm@sha256:23ce71337b726608afb1bc00986e630a05034a87a87ea1fc2cd1ae5cf33387eb AS moby-backport
 ARG MOBY_LEGACY_REF=89c5e8fd66634b6128fc4c0e6f1236e2540e46e0
 ENV PATH=/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin
 RUN git clone --filter=blob:none --no-checkout https://github.com/moby/moby.git /src/docker \
@@ -33,7 +33,7 @@ RUN echo "c6fc52fa701f5c8e5a9770a3f2ec7bad3bfedf799a7b5cfe5fe184a8037c4df6  /tmp
     && (go test -modfile=vendor.mod -mod=vendor -count=1 -timeout=2m -json ./pkg/authorization > /src/docker/.sentinel-authz-tests.json || { cat /src/docker/.sentinel-authz-tests.json; exit 1; }) \
     && cat /src/docker/.sentinel-authz-tests.json
 
-FROM golang:1.26.9-bookworm@sha256:d9c68c2c51161e12fd77e4c6320687c9cd86e1af1e3ad6e6cd63ff970641453c AS patched-go
+FROM golang:1.26.10-bookworm@sha256:23ce71337b726608afb1bc00986e630a05034a87a87ea1fc2cd1ae5cf33387eb AS patched-go
 
 FROM grafana/alloy-build-image@sha256:4371598809230ffd7611367ba0dcb92bbc8b74bda88471293e5d478b48a0d186 AS build
 ARG ALLOY_SOURCE_REF=6012ec4ac6a541ade720777ecec2f2b02b496def
@@ -92,7 +92,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     && ./build/alloy --version \
     && mkdir -p ./build/security \
     && go version -m ./build/alloy > ./build/security/build-info.txt \
-    && grep -F 'go1.26.9' ./build/security/build-info.txt \
+    && grep -F 'go1.26.10' ./build/security/build-info.txt \
     && build_target_arch="$(awk '$1 == "build" && $2 ~ /^GOARCH=/ { sub(/^GOARCH=/, "", $2); print $2 }' ./build/security/build-info.txt)" \
     && test -n "$build_target_arch" \
     && test "$build_target_arch" = "$(go env GOARCH)" \

@@ -217,7 +217,7 @@ def stream(path):
 
 def binary_metadata(binary):
     # Reader is native, pinned and offline; the Linux target is never executed.
-    image = "golang:1.26.9-bookworm@sha256:d9c68c2c51161e12fd77e4c6320687c9cd86e1af1e3ad6e6cd63ff970641453c"
+    image = "golang:1.26.10-bookworm@sha256:23ce71337b726608afb1bc00986e630a05034a87a87ea1fc2cd1ae5cf33387eb"
     return subprocess.run([
         "docker", "run", "--rm", "--network", "none", "--read-only",
         "--mount", "type=bind,src=" + str(binary.resolve()) + ",target=/artifact/alloy,readonly",
@@ -245,12 +245,12 @@ def inspect(directory, binary, image, patches):
     require(normalized_metadata(info) == normalized_metadata(actual), "embedded binary metadata mismatch")
     for setting in ("GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=1"):
         require(re.search(r"^\s*build\s+" + setting + r"$", info, re.M), "binary platform mismatch")
-    require("go1.26.9" in info, "unexpected Go toolchain")
+    require("go1.26.10" in info, "unexpected Go toolchain")
     require(re.search(r"dep\s+github.com/docker/docker\s+v28\.5\.2\+incompatible\s*\n\s*=>\s+/src/docker\s+\(devel\)", info), "binary Moby provenance mismatch")
     env = json.loads((directory / "go-env.json").read_text())
     require(all(env.get(k) == v for k, v in {
         "GOOS": "linux", "GOARCH": "amd64", "CGO_ENABLED": "1",
-        "GOEXPERIMENT": "", "GOVERSION": "go1.26.9",
+        "GOEXPERIMENT": "", "GOVERSION": "go1.26.10",
     }.items()), "inventory platform mismatch")
     packages = stream(directory / "packages.json")
     names = {p.get("ImportPath") for p in packages}
