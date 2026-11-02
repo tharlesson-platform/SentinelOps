@@ -213,3 +213,10 @@ o compilador anterior. Com Go 1.26.10, o scan local Linux ARM64 retornou zero
 vulnerabilidades alcançáveis e zero nos pacotes importados; três achados em
 módulos não alcançados continuam explícitos. Isso não substitui os builds,
 testes Moby/Alloy, scans de imagens ou gates remotos do novo commit.
+
+Na execução 41495046469, o compilador corrigido passou em `govulncheck` e nos
+demais testes, mas o Trivy de filesystem identificou CVE-2026-116587 em
+`github.com/go-jose/go-jose/v4` 4.1.4. A dependência indireta passa a 4.1.6,
+mesma atualização proposta na PR #78, com checksums verificados pelo Go.
+O scanner continua obrigatório; não usar a ausência de chamadas diretas como
+motivo para dispensar o finding de dependência ou simular sucesso.
