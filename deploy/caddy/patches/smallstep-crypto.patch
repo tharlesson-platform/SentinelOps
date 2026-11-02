@@ -11,72 +11,55 @@ index cc6b164..b4fca6e 100644
  	github.com/go-piv/piv-go/v2 v2.6.0
  	github.com/google/go-tpm v0.9.8
  	github.com/google/go-tpm-tools v0.4.11
-diff --git a/go.sum b/go.sum
-index 5b89e96..461f787 100644
---- a/go.sum
-+++ b/go.sum
-@@ -449,8 +449,8 @@ github.com/go-gl/glfw v0.0.0-20190409004039-e6da0acd62b1/go.mod h1:vR7hzQXu2zJy9
- github.com/go-gl/glfw/v3.3/glfw v0.0.0-20191125211704-12ad95a8df72/go.mod h1:tQ2UAYgL5IevRw8kRxooKSPJfGvJ9fJQFa0TUsXzTg8=
- github.com/go-gl/glfw/v3.3/glfw v0.0.0-20200222043503-6f7a984d4dc4/go.mod h1:tQ2UAYgL5IevRw8kRxooKSPJfGvJ9fJQFa0TUsXzTg8=
- github.com/go-ini/ini v1.25.4/go.mod h1:ByCAeIL28uOIIG0E3PJtZPDL8WnHpFKFOtgjp+3Ies8=
--github.com/go-jose/go-jose/v3 v3.0.5 h1:BLLJWbC4nMZOfuPVxoZIxeYsn6Nl2r1fITaJ78UQlVQ=
--github.com/go-jose/go-jose/v3 v3.0.5/go.mod h1:5b+7YgP7ZICgJDBdfjZaIt+H/9L9T/YQrVfLAMboGkQ=
-+github.com/go-jose/go-jose/v4 v4.1.6 h1:sNRkftxFJxwsILiQukqp5z83QBSmntVwmgRY7AqBDO4=
-+github.com/go-jose/go-jose/v4 v4.1.6/go.mod h1:x4oUasVrzR7071A4TnHLGSPpNOm2a21K9Kf04k1rs08=
- github.com/go-kit/kit v0.8.0/go.mod h1:xBxKIO96dXMWWy0MnWVtmwkA9/13aqxPnvrjFYMA2as=
- github.com/go-kit/kit v0.9.0/go.mod h1:xBxKIO96dXMWWy0MnWVtmwkA9/13aqxPnvrjFYMA2as=
- github.com/go-kit/kit v0.10.0/go.mod h1:xUsJbQ/Fp4kEt7AFgCuvyX4a71u8h9jB8tj/ORgOZ7o=
-@@ -603,7 +603,6 @@ github.com/google/go-cmp v0.5.4/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/
- github.com/google/go-cmp v0.5.5/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
- github.com/google/go-cmp v0.5.6/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
- github.com/google/go-cmp v0.5.8/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
--github.com/google/go-cmp v0.5.9/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
- github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
- github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
- github.com/google/go-configfs-tsm v0.3.3 h1:8mrlZLYrFFxyc8PFpT1piBUFDEYBVsBjAkFCwqQ2f9Y=
-@@ -1365,7 +1364,6 @@ golang.org/x/crypto v0.0.0-20191117063200-497ca9f6d64f/go.mod h1:LzIPMQfyMNhhGPh
- golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9/go.mod h1:LzIPMQfyMNhhGPhUkYOs5KpL4U8rLKemX1yGLhDgUto=
- golang.org/x/crypto v0.0.0-20201002170205-7f63de1d35b0/go.mod h1:LzIPMQfyMNhhGPhUkYOs5KpL4U8rLKemX1yGLhDgUto=
- golang.org/x/crypto v0.0.0-20210921155107-089bfa567519/go.mod h1:GvvjBRRGRdwPK5ydBHafDWAxML/pGHZbMvKqRZ5+Abc=
--golang.org/x/crypto v0.19.0/go.mod h1:Iy9bg/ha4yyC70EfRS8jz+B6ybOBKMaSxLj6P6oBDfU=
- golang.org/x/crypto v0.58.0 h1:COkYLr4k7nDI4r6QtMML2AfzeIswWHAJthLS6K/M/54=
- golang.org/x/crypto v0.58.0/go.mod h1:Xh+kl5A+M0gMiWDytH2Hhr5Z7WbNCpv/eB/EFgfSk+w=
- golang.org/x/exp v0.0.0-20190121172915-509febef88a4/go.mod h1:CJ0aWSM057203Lf6IL+f9T1iT9GByDxfZKAQTCR3kQA=
-@@ -1471,7 +1469,6 @@ golang.org/x/net v0.0.0-20210525063256-abc453219eb5/go.mod h1:9nx3DQGgdP8bBQD5qx
- golang.org/x/net v0.0.0-20211015210444-4f30a5c0130f/go.mod h1:9nx3DQGgdP8bBQD5qxJ1jj9UTztislL4KSBs9R2vV5Y=
- golang.org/x/net v0.0.0-20220722155237-a158d28d115b/go.mod h1:XRhObCWvk6IyKnWLug+ECip1KBveYUHfp+8e9klMJ9c=
- golang.org/x/net v0.6.0/go.mod h1:2Tu9+aMcznHK/AK1HMvgo6xiTLG5rD5rZLDS+rp2Bjs=
--golang.org/x/net v0.10.0/go.mod h1:0qNGK6F8kojg2nk9dLZ2mShWaEBan6FAoqfSigmmuDg=
- golang.org/x/net v0.61.0 h1:RR+6j/BTBCrggOLugxa+66R8FvoN6MHlzDlZIbN9YFw=
- golang.org/x/net v0.61.0/go.mod h1:WgDCOTH8iwtB66T4/GfI94AHo/hhdb7Hah9NDseQfiI=
- golang.org/x/oauth2 v0.0.0-20180821212333-d2e6202438be/go.mod h1:N/0e6XlmueqKjAGxoOufVs8QHGRruUQn6yWY3a++T0U=
-@@ -1591,8 +1588,6 @@ golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a/go.mod h1:oPkhp1MJrh7nUepCBc
- golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
- golang.org/x/sys v0.1.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
- golang.org/x/sys v0.5.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
--golang.org/x/sys v0.8.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
--golang.org/x/sys v0.17.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
- golang.org/x/sys v0.49.0 h1:XbzkgYJHdqh/8m2Uu0W/dQv8nktxx4BFHp1M0gROTXA=
- golang.org/x/sys v0.49.0/go.mod h1:hNLxWAXmnKAxqDtdwIYC4bM9oQPEecfsnNMuSxOs3og=
- golang.org/x/telemetry v0.0.0-20260924152758-ed294f943157 h1:DftxASHKl6JolFPqoN+2WrFO53JvkHwRXvFqf8gsivA=
-@@ -1600,8 +1595,6 @@ golang.org/x/telemetry v0.0.0-20260924152758-ed294f943157/go.mod h1:i+ivNqjDnTF3
- golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1/go.mod h1:bj7SfCRtBDWHUb9snDiAeCFNEtKQo2Wmx5Cou7ajbmo=
- golang.org/x/term v0.0.0-20210927222741-03fcf44c2211/go.mod h1:jbD1KX2456YbFQfuXm/mYQcufACuNUgVhRMnK/tPxf8=
- golang.org/x/term v0.5.0/go.mod h1:jMB1sMXY+tzblOD4FWmEbocvup2/aLOaQEp7JmGp78k=
--golang.org/x/term v0.8.0/go.mod h1:xPskH00ivmX89bAKVGSKKtLOWNx2+17Eiy94tnKShWo=
--golang.org/x/term v0.17.0/go.mod h1:lLRBjIVuehSbZlaOtGMbcMncT+aqLLLmKrsjNrUguwk=
- golang.org/x/term v0.47.0 h1:cpyOwQkr2Nzxe2p6KnrTG7Ei2wtzjsuSjhpXXepZ/BM=
- golang.org/x/term v0.47.0/go.mod h1:efAfAuG6RKABvg1ArGebRkvX6LXul14SM67o2e4mUCY=
- golang.org/x/text v0.0.0-20170915032832-14c0d48ead0c/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
-@@ -1614,8 +1607,6 @@ golang.org/x/text v0.3.5/go.mod h1:5Zoc/QRtKVWzQhOtBMvqHzDpF6irO9z98xDceosuGiQ=
- golang.org/x/text v0.3.6/go.mod h1:5Zoc/QRtKVWzQhOtBMvqHzDpF6irO9z98xDceosuGiQ=
- golang.org/x/text v0.3.7/go.mod h1:u+2+/6zg+i71rQMx5EYifcz6MCKuco9NR6JIITiCfzQ=
- golang.org/x/text v0.7.0/go.mod h1:mrYo+phRRbMaCq/xk9113O4dZlRixOauAjOtrjsXDZ8=
--golang.org/x/text v0.9.0/go.mod h1:e1OnstbJyHTd6l/uOt8jFFHp6TRDWZR/bV3emEE/zU8=
--golang.org/x/text v0.14.0/go.mod h1:18ZOQIKpY8NJVqYksKHtTdi31H5itFRjB5/qKTNYzSU=
- golang.org/x/text v0.43.0 h1:1QivrlhwAsnMOcqgOdl9my7s9OyZl8O5/UGUTJVXoWc=
- golang.org/x/text v0.43.0/go.mod h1:hbSIYA/amXcRXTFSZqh8tWHEoqRvvbKPJ2uz/KU+a+s=
- golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2/go.mod h1:tRJNPiyCQ0inRvYxbN9jk5I+vvW/OXSQhTDSoE431IQ=
+diff --git a/internal/compatfixtures/main.go b/internal/compatfixtures/main.go
+new file mode 100644
+index 0000000..24bcc72
+--- /dev/null
++++ b/internal/compatfixtures/main.go
+@@ -0,0 +1,43 @@
++// Command compatfixtures rebuilds public upstream test data after the JOSE v4
++// Ed25519 consistency fix. It is used only while preparing the build test tree.
++package main
++
++import (
++	"bytes"
++	"encoding/json"
++	"os"
++
++	"go.step.sm/crypto/jose"
++)
++
++func main() {
++	const plain = "jose/testdata/okp.priv.json"
++	const encrypted = "jose/testdata/okp.enc.priv.json"
++	key, err := jose.ReadKey(plain)
++	if err != nil {
++		panic(err)
++	}
++	// This is the upstream public fixture passphrase, never an operational secret.
++	fixture, err := jose.EncryptJWK(key, []byte("password"))
++	if err != nil {
++		panic(err)
++	}
++	if err := os.WriteFile(encrypted, []byte(fixture.FullSerialize()+"\n"), 0600); err != nil {
++		panic(err)
++	}
++	restored, err := jose.ReadKey(encrypted, jose.WithPassword([]byte("password")))
++	if err != nil {
++		panic(err)
++	}
++	expected, err := json.Marshal(key)
++	if err != nil {
++		panic(err)
++	}
++	actual, err := json.Marshal(restored)
++	if err != nil {
++		panic(err)
++	}
++	if !bytes.Equal(expected, actual) {
++		panic("generated fixture failed cryptographic round trip")
++	}
++}
 diff --git a/jose/compatibility_test.go b/jose/compatibility_test.go
 new file mode 100644
 index 0000000..9c2e957
@@ -1003,20 +986,6 @@ index 1172206..3c2a399 100644
  			Algorithm:                   "EdDSA",
  			Use:                         "sig",
  			Certificates:                []*x509.Certificate{},
-diff --git a/jose/testdata/okp.enc.priv.json b/jose/testdata/okp.enc.priv.json
-index b21c8cc..6c08b83 100644
---- a/jose/testdata/okp.enc.priv.json
-+++ b/jose/testdata/okp.enc.priv.json
-@@ -1,7 +1 @@
--{
--  "protected": "eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJlbmMiOiJBMjU2R0NNIiwicDJjIjoxMDAwMDAsInAycyI6ImxUMTJjQ29FUEdYWXV2V0JqNHFZZ1EifQ",
--  "encrypted_key": "_029j7ZniKPgkRbVzwjgPPUtCdQacFMLB-k9p-INRksow1a1-wHGTA",
--  "iv": "WyrGXSosdyfBNWMW",
--  "ciphertext": "5DNleiF85yWEDZFXQj-XSZ6JlepRei3k8V15oMecxXB_XnT7CL5ufZ9e884P3RGinA0gl_x3ViYFdFJthqJ79aHw7VtRVfe3Ar3USUcttPHxZmtrXd2yGWn1Osw3jyADeuXXaSED2EWNHiXUsjC3IGoGMWbMtKW7KuckZudkanSzYFRvuCPdLrDrvnugoMZX-he-NM1181OiOvZjtA-3TPKVLk7tuSnTOcqQAvpKoAy18NS6orslnVfFMz6tyYq3RvD8lbc-RN3o6op4Cphz",
--  "tag": "rCmSF2Ts2Q61KubS_Bmceg"
--}
-\ No newline at end of file
-+{"protected":"eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJjdHkiOiJqd2sranNvbiIsImVuYyI6IkEyNTZHQ00iLCJwMmMiOjYwMDAwMCwicDJzIjoiZ3NRZUZpRnVoQWhUWmFnYlQ4YzJQUSJ9","encrypted_key":"hAUW2MTqpzyosRPL8aO3g-BiqYu7KpqWDFuoA80lfr7W4S-yboYPfw","iv":"ZGrRKPgNZhcJXFLG","ciphertext":"-zX4KTzkRlZ49NH_rZKcnX4zYwH2gLxL8-RT-o8ZULF3Bx3OAuH2Lr_EjXEl8EBrwFiSczo_gThV95biMjCcgmQpFk7wA-1tu90r7HohPOQY4CrMxrU_jvi-sNeVDdUoNRO8BUmULCdA90ZZH14l4H0jYPX-3tw3lqRbDKUi58tlphr5DTuPNrNuL5s1lOdOakSuH4Waa19tUULuKJbLyrYI1SoeCGlT1LTqCAOAscNu-LEZDDiyJpE1teFuEGgHhrsF8eNDvYcbU6b_RX5A","tag":"v0f-oqZ5lHy1pzPT8W_EEQ"}
 diff --git a/jose/testdata/okp.mismatched.priv.json b/jose/testdata/okp.mismatched.priv.json
 new file mode 100644
 index 0000000..de03abe

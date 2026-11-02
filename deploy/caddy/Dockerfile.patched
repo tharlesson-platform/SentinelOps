@@ -14,8 +14,8 @@ COPY deploy/caddy/patches/smallstep-crypto.patch /tmp/smallstep-crypto.patch
 COPY deploy/caddy/patches/smallstep-certificates.patch /tmp/smallstep-certificates.patch
 
 RUN test -s /etc/ssl/certs/ca-certificates.crt && command -v git
-RUN echo '651f6b95514aee2b3e6b44dd44658eaf8d31b98355fdd0de501ccf3c938ea75c  /tmp/smallstep-crypto.patch' | sha256sum -c - \
-    && echo '77735dc48e203427c4523e3fd28b3539431c63c4c72f5090f65adf30fd9b73ef  /tmp/smallstep-certificates.patch' | sha256sum -c - \
+RUN echo '16516c075a50efb8e10adef4fa6f44cca2c89d3f16f4eaff353d4f2580a39595  /tmp/smallstep-crypto.patch' | sha256sum -c - \
+    && echo 'b667803644f8d9ab31462078166277da0f2a6ab52834b83133a61bf9f69aecbd  /tmp/smallstep-certificates.patch' | sha256sum -c - \
     && git init /src/crypto \
     && git -C /src/crypto remote add origin https://github.com/smallstep/crypto.git \
     && git -C /src/crypto fetch --depth=1 origin "$CRYPTO_SOURCE_REF" \
@@ -41,6 +41,7 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     && go mod edit -replace=github.com/smallstep/certificates=/src/certificates \
     && go get golang.org/x/crypto@v0.58.0 golang.org/x/net@v0.61.0 golang.org/x/text@v0.43.0 google.golang.org/grpc@v1.84.0 github.com/go-jose/go-jose/v4@v4.1.6 github.com/klauspost/compress@v1.18.7 \
     && go mod tidy \
+    && (cd /src/crypto && CGO_ENABLED=0 go run -mod=mod ./internal/compatfixtures) \
     && CGO_ENABLED=0 go test -mod=mod -p 2 -timeout 180s go.step.sm/crypto/jose github.com/smallstep/certificates/authority/provisioner github.com/smallstep/certificates/cas/stepcas github.com/smallstep/certificates/acme github.com/go-jose/go-jose/v4/... \
     && CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build -p 2 -trimpath -ldflags='-s -w -buildid=' -o /out/caddy ./cmd/caddy
 

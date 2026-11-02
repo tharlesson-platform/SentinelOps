@@ -9,8 +9,8 @@ real go-jose/v4.1.6, preservando PKI, provisioners e TLS/mTLS do Caddy.
 
 | Fonte | Base imutável | Patch SHA-256 |
 |---|---|---|
-| smallstep/crypto v0.91.1 | `516f3a2010a5c63c4e71357a3f813e0b9e84d090` | `651f6b95514aee2b3e6b44dd44658eaf8d31b98355fdd0de501ccf3c938ea75c` |
-| smallstep/certificates v0.30.2 | `6e8ec61405239cf3f37b2bbf260a587b7d2e4e31` | `77735dc48e203427c4523e3fd28b3539431c63c4c72f5090f65adf30fd9b73ef` |
+| smallstep/crypto v0.91.1 | `516f3a2010a5c63c4e71357a3f813e0b9e84d090` | `16516c075a50efb8e10adef4fa6f44cca2c89d3f16f4eaff353d4f2580a39595` |
+| smallstep/certificates v0.30.2 | `6e8ec61405239cf3f37b2bbf260a587b7d2e4e31` | `b667803644f8d9ab31462078166277da0f2a6ab52834b83133a61bf9f69aecbd` |
 
 A migração inicial de crypto deriva da
 [PR upstream #1157](https://github.com/smallstep/crypto/pull/1157), head
@@ -38,6 +38,14 @@ O Dockerfile verifica commits e hashes antes de aplicar os patches.
 - Um fixture Ed25519 upstream tinha `x` inconsistente com `d`. O original
   permanece como negativo. O par positivo usa a mesma seed privada, chave
   pública derivada e thumbprint RFC coerentes. São vetores públicos de teste.
+
+Os patches contêm fontes e manifestos; não duplicam `go.sum` gerado nem o
+JWE serializado do fixture. O Go obtém e verifica checksums usando os
+manifestos fixados e sumdb. O comando de build `internal/compatfixtures`
+cifra o JWK público de teste corrigido com JOSE real e a senha pública
+upstream, verificando seu round trip antes das suítes. O fixture inválido
+original continua byte a byte como teste negativo. Nenhuma regra ou
+allowlist do scan de segredos é alterada.
 
 O estágio de build executa as suítes JOSE, provisioners, stepcas e ACME,
 incluindo a suíte upstream go-jose/v4. O compilador roda na plataforma
