@@ -253,3 +253,22 @@ dispensa atualização de DB nem o scan real. Zero findings é evidência datada
 
 Fontes: [locais oficiais dos bancos](https://trivy.dev/docs/dev/configuration/db/)
 e [controle HTTP/2 da biblioteca Go](https://go.dev/src/net/http/doc.go).
+
+## Dependências Go: findings sem severidade atribuída
+
+O scan completo de 05/11/2026 identificou três findings classificados como
+UNKNOWN, que não apareciam no recorte HIGH/CRITICAL: GO-2026-5932 em x/crypto
+e CVE-2026-78661/CVE-2026-97045 em x/net. O módulo principal passa a
+`golang.org/x/crypto v0.58.1-0.20261009181718-2f1f834330b2` (commit oficial
+corrigido) e `golang.org/x/net v0.62.0`, com checksums Go verificados.
+Não se altera severidade nem se adiciona ignore. Os overlays dos sensores
+continuam sujeitos aos testes e scans dos seus próprios binários.
+
+A validação local com Go1.26.10 inclui `go mod verify`, `go vet ./...`,
+`go test ./...`, `govulncheck` e Trivy em todas as severidades, incluindo
+dependências de desenvolvimento. Isso não substitui os testes de integração
+PostgreSQL nem a matriz completa de imagens no SHA novo da PR.
+
+Fontes: [GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932),
+[GO-2026-6860](https://pkg.go.dev/vuln/GO-2026-6860) e
+[GO-2026-6866](https://pkg.go.dev/vuln/GO-2026-6866).
