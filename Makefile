@@ -4,8 +4,8 @@ COMPOSE := docker compose --env-file $(ROOT)/.env -f $(ROOT)/deploy/compose/dock
 COMPOSE_HA := $(COMPOSE) -f $(ROOT)/deploy/compose/docker-compose.ha.yml
 IMAGE_LOCK := $(ROOT)/artifacts/runtime/docker-compose.images.lock.yml
 COMPOSE_RUNTIME := $(COMPOSE_HA) -f $(IMAGE_LOCK)
-GO_IMAGE := golang:1.26.6-alpine3.23@sha256:e57c41c1d5864341031181b0db34b9a537bb5773eb6428e4e5bdaea0f9135406
-GO_TEST_IMAGE := golang:1.26.6-bookworm@sha256:116d58cbd88c1297624acc6e967a060012422bacf9930927e23fb719189c6f36
+GO_IMAGE := golang:1.26.10-alpine3.23@sha256:34414731924cf2263160f0021f5cf6e1807382d85248f7cb419d4187b96d5e43
+GO_TEST_IMAGE := golang:1.26.10-bookworm@sha256:23ce71337b726608afb1bc00986e630a05034a87a87ea1fc2cd1ae5cf33387eb
 NODE_IMAGE := node:26.7.0-alpine3.23@sha256:ce3cc39fe3b8b2602d3b1c4d63d301e46b48c550ecb627869853ddcdda418b63
 
 .PHONY: bootstrap prepare-images up prove-ha prove-ha-manifests prove-dashboards prove-apm validate-release down reset test test-synthetics check dashboard-filters no-nonprod-telemetry logs doctor credentials generate lint build install-server install-collector bootstrap-apm collector-bundle harness-doctor harness-validate-specs harness-check harness-integration harness-integration-compose harness-e2e harness-eval-ai harness-release harness-production

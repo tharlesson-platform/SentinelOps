@@ -1,4 +1,6 @@
-FROM node:26.7.0-alpine3.23@sha256:ce3cc39fe3b8b2602d3b1c4d63d301e46b48c550ecb627869853ddcdda418b63 AS build
+# The frontend emits static assets. Build them natively; keep the final
+# nginx image on BuildKit's requested target platform (including amd64).
+FROM --platform=$BUILDPLATFORM node:26.7.0-alpine3.23@sha256:ce3cc39fe3b8b2602d3b1c4d63d301e46b48c550ecb627869853ddcdda418b63 AS build
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci --ignore-scripts --no-audit --no-fund
@@ -22,6 +24,7 @@ RUN apk upgrade --no-cache \
         nghttp2-libs \
         zlib \
     && chown -R nginx:nginx /var/cache/nginx /var/run /usr/share/nginx/html \
-    && sed -i 's/user  nginx;/user nginx;/' /etc/nginx/nginx.conf
+    && sed -i 's/user  nginx;/user nginx;/' /etc/nginx/nginx.conf \
+    && sed -i 's@^pid[[:space:]].*;@pid /tmp/nginx.pid;@' /etc/nginx/nginx.conf
 USER nginx
 EXPOSE 3000
