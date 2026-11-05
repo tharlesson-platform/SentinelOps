@@ -235,3 +235,21 @@ go-jose/v4 4.1.4; seus overlays passam a exigir a mesma correção 4.1.6 antes
 de `go mod tidy`. Caddy ainda declara go-jose/v3 3.0.5: o advisory não informa
 patch dessa série. Não declarar a imagem segura sem scan do binário produzido
 e, se necessário, remediação adicional dessa cadeia. Nenhum ignore foi adicionado.
+
+## Transporte dos bancos Trivy — 05/11/2026
+
+Os scans de filesystem e da matriz de imagens usam Trivy0.76.1 fixado, com os
+bancos oficiais no ECR como primeira origem e GHCR como alternativa. A rota
+anterior apresentou timeout/PROTOCOL_ERROR durante downloads nos mesmos runners
+isolados de Finance; o teste pelo proxy público local transferiu integralmente
+a Java DB do ECR e conferiu seu SHA256 contra a base oficial já aceita. A DB de
+vulnerabilidades do ECR também foi validada, com UpdatedAt mais recente.
+
+HTTP/1.1 fica restrito aos dois steps de scanner por GODEBUG=http2client=0,
+sem desabilitar TLS. O prazo de20min cobre download e análise. Não se alteram
+severidades, exit-code, política de findings, segurança, etapas de build,
+provas Alloy/Caddy/Beyla ou condições de publicação/deploy. Cache antigo não
+dispensa atualização de DB nem o scan real. Zero findings é evidência datada.
+
+Fontes: [locais oficiais dos bancos](https://trivy.dev/docs/dev/configuration/db/)
+e [controle HTTP/2 da biblioteca Go](https://go.dev/src/net/http/doc.go).

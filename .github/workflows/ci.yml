@@ -174,7 +174,18 @@ jobs:
       - name: Scan repository history for secrets
         run: bash scripts/ci/gitleaks-history.sh
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with: { scan-type: fs, scan-ref: ., severity: 'CRITICAL,HIGH', exit-code: '1', ignore-unfixed: true }
+        env:
+          TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db:2,ghcr.io/aquasecurity/trivy-db:2
+          TRIVY_JAVA_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-java-db:1,ghcr.io/aquasecurity/trivy-java-db:1
+          GODEBUG: http2client=0
+        with:
+          version: v0.76.1
+          timeout: 20m
+          scan-type: fs
+          scan-ref: .
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          ignore-unfixed: true
 
   images:
     runs-on: ["sentinelops-run-${{ github.run_id }}"]
@@ -226,7 +237,13 @@ jobs:
           WEB_IMAGE: sentinelops-web:${{ github.sha }}
         run: bash scripts/ci/web-image-smoke.sh "$WEB_IMAGE"
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db:2,ghcr.io/aquasecurity/trivy-db:2
+          TRIVY_JAVA_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-java-db:1,ghcr.io/aquasecurity/trivy-java-db:1
+          GODEBUG: http2client=0
         with:
+          version: v0.76.1
+          timeout: 20m
           image-ref: sentinelops-${{ matrix.name }}:${{ github.sha }}
           severity: 'CRITICAL,HIGH'
           exit-code: '1'
