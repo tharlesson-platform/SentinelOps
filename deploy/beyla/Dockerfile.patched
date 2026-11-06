@@ -8,7 +8,7 @@ RUN test "$(git config --file .gitmodules submodule.obi-src.url)" = https://gith
     && test "$(git -C .obi-src rev-parse HEAD)" = d4a4eaae78ceb3053343c15d1d2e651bc362927e
 # Regenerate vendored dependencies before applying our OBI patches: vendoring
 # afterwards would silently replace the patched discovery implementation.
-RUN go get github.com/klauspost/compress@v1.18.7 golang.org/x/crypto@v0.57.0 golang.org/x/mod@v0.41.0 golang.org/x/net@v0.60.0 golang.org/x/text@v0.42.0 google.golang.org/grpc@v1.83.2 \
+RUN go get github.com/klauspost/compress@v1.18.7 golang.org/x/crypto@v0.58.1-0.20261009181718-2f1f834330b2 golang.org/x/mod@v0.41.0 golang.org/x/net@v0.62.0 golang.org/x/text@v0.43.0 google.golang.org/grpc@v1.83.2 \
     && go get github.com/cilium/ebpf@v0.22.0 go.opentelemetry.io/otel/sdk@v1.45.0 go.opentelemetry.io/otel/exporters/otlp/otlptrace@v1.45.0 go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc@v1.45.0 go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp@v1.45.0 \
     && go mod tidy \
     && go mod vendor
@@ -25,6 +25,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -mod=vendor -trimpath -
 RUN mkdir -p /out/security \
     && CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go list -mod=vendor -deps -json ./cmd/beyla/main.go > /out/security/packages.json \
     && go version -m /out/beyla > /out/security/build-info.txt \
+    && awk '$1 == "dep" && ($2 == "golang.org/x/crypto" || $2 == "golang.org/x/net") { want = ($2 == "golang.org/x/crypto" ? "v0.58.1-0.20261009181718-2f1f834330b2" : "v0.62.0"); if ($3 != want) exit 1; found[$2] = 1 } END { if (!found["golang.org/x/crypto"] || !found["golang.org/x/net"]) exit 1 }' /out/security/build-info.txt \
     && awk '$1 == "dep" && $2 == "github.com/klauspost/compress" { print; if ($3 != "v1.18.7") exit 1; found = 1 } END { if (!found) exit 1 }' /out/security/build-info.txt \
     && git -C .obi-src rev-parse HEAD > /out/security/obi-base-sha.txt \
     && sha256sum /out/beyla > /out/security/binary-sha256.txt

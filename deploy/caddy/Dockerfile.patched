@@ -39,11 +39,13 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     go mod edit -replace=go.step.sm/crypto=/src/crypto \
     && go mod edit -replace=github.com/smallstep/certificates=/src/certificates \
-    && go get golang.org/x/crypto@v0.58.0 golang.org/x/net@v0.61.0 golang.org/x/text@v0.43.0 google.golang.org/grpc@v1.84.0 github.com/go-jose/go-jose/v4@v4.1.6 github.com/klauspost/compress@v1.18.7 \
+    && go get golang.org/x/crypto@v0.58.1-0.20261009181718-2f1f834330b2 golang.org/x/net@v0.62.0 golang.org/x/text@v0.43.0 google.golang.org/grpc@v1.84.0 github.com/go-jose/go-jose/v4@v4.1.6 github.com/klauspost/compress@v1.18.7 \
     && go mod tidy \
     && (cd /src/crypto && CGO_ENABLED=0 go run -mod=mod ./internal/compatfixtures) \
     && CGO_ENABLED=0 go test -mod=mod -p 2 -timeout 180s go.step.sm/crypto/jose github.com/smallstep/certificates/authority/provisioner github.com/smallstep/certificates/cas/stepcas github.com/smallstep/certificates/acme github.com/go-jose/go-jose/v4/... \
-    && CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build -p 2 -trimpath -ldflags='-s -w -buildid=' -o /out/caddy ./cmd/caddy
+    && CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build -p 2 -trimpath -ldflags='-s -w -buildid=' -o /out/caddy ./cmd/caddy \
+    && go version -m /out/caddy > /out/build-info.txt \
+    && awk '$1 == "dep" && ($2 == "golang.org/x/crypto" || $2 == "golang.org/x/net") { want = ($2 == "golang.org/x/crypto" ? "v0.58.1-0.20261009181718-2f1f834330b2" : "v0.62.0"); if ($3 != want) exit 1; found[$2] = 1 } END { if (!found["golang.org/x/crypto"] || !found["golang.org/x/net"]) exit 1 }' /out/build-info.txt
 
 FROM alpine:3.23.5@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
 
@@ -59,6 +61,7 @@ RUN apk upgrade --no-cache \
     && adduser -S -D -H -u 10001 -G caddy caddy
 
 COPY --from=build --chown=caddy:caddy /out/caddy /usr/bin/caddy
+COPY --from=build --chown=caddy:caddy /out/build-info.txt /usr/share/sentinelops/caddy-security/build-info.txt
 
 USER 10001:10001
 CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]

@@ -272,3 +272,15 @@ PostgreSQL nem a matriz completa de imagens no SHA novo da PR.
 Fontes: [GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932),
 [GO-2026-6860](https://pkg.go.dev/vuln/GO-2026-6860) e
 [GO-2026-6866](https://pkg.go.dev/vuln/GO-2026-6866).
+
+## Correções Go também nos sensores externos — 06/11/2026
+
+Os overlays Alloy, Caddy e Beyla também precisam dos fixes de crypto/net;
+o módulo principal do SentinelOps não governa os módulos upstream desses builds.
+Os três builds agora exigem o commit oficial corrigido de x/crypto e x/net0.62.0,
+inclusive no módulo collector do Alloy. A versão efetiva dos dois módulos é
+verificada no `go version -m` de cada binário produzido, não apenas no comando
+`go get`. As provas anteriores de autorização Moby, certificados, descoberta
+Beyla e compatibilidade permanecem obrigatórias. Não se alteram severidades,
+ignores, plataforma, proteção de branch, TLS ou publicação/deploy. Os builds e
+scans no commit novo continuam necessários antes do merge.
