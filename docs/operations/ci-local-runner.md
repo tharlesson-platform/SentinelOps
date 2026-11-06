@@ -235,3 +235,52 @@ go-jose/v4 4.1.4; seus overlays passam a exigir a mesma correção 4.1.6 antes
 de `go mod tidy`. Caddy ainda declara go-jose/v3 3.0.5: o advisory não informa
 patch dessa série. Não declarar a imagem segura sem scan do binário produzido
 e, se necessário, remediação adicional dessa cadeia. Nenhum ignore foi adicionado.
+
+## Transporte dos bancos Trivy — 05/11/2026
+
+Os scans de filesystem e da matriz de imagens usam Trivy0.76.1 fixado, com os
+bancos oficiais no ECR como primeira origem e GHCR como alternativa. A rota
+anterior apresentou timeout/PROTOCOL_ERROR durante downloads nos mesmos runners
+isolados de Finance; o teste pelo proxy público local transferiu integralmente
+a Java DB do ECR e conferiu seu SHA256 contra a base oficial já aceita. A DB de
+vulnerabilidades do ECR também foi validada, com UpdatedAt mais recente.
+
+HTTP/1.1 fica restrito aos dois steps de scanner por GODEBUG=http2client=0,
+sem desabilitar TLS. O prazo de20min cobre download e análise. Não se alteram
+severidades, exit-code, política de findings, segurança, etapas de build,
+provas Alloy/Caddy/Beyla ou condições de publicação/deploy. Cache antigo não
+dispensa atualização de DB nem o scan real. Zero findings é evidência datada.
+
+Fontes: [locais oficiais dos bancos](https://trivy.dev/docs/dev/configuration/db/)
+e [controle HTTP/2 da biblioteca Go](https://go.dev/src/net/http/doc.go).
+
+## Dependências Go: findings sem severidade atribuída
+
+O scan completo de 05/11/2026 identificou três findings classificados como
+UNKNOWN, que não apareciam no recorte HIGH/CRITICAL: GO-2026-5932 em x/crypto
+e CVE-2026-78661/CVE-2026-97045 em x/net. O módulo principal passa a
+`golang.org/x/crypto v0.58.1-0.20261009181718-2f1f834330b2` (commit oficial
+corrigido) e `golang.org/x/net v0.62.0`, com checksums Go verificados.
+Não se altera severidade nem se adiciona ignore. Os overlays dos sensores
+continuam sujeitos aos testes e scans dos seus próprios binários.
+
+A validação local com Go1.26.10 inclui `go mod verify`, `go vet ./...`,
+`go test ./...`, `govulncheck` e Trivy em todas as severidades, incluindo
+dependências de desenvolvimento. Isso não substitui os testes de integração
+PostgreSQL nem a matriz completa de imagens no SHA novo da PR.
+
+Fontes: [GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932),
+[GO-2026-6860](https://pkg.go.dev/vuln/GO-2026-6860) e
+[GO-2026-6866](https://pkg.go.dev/vuln/GO-2026-6866).
+
+## Correções Go também nos sensores externos — 06/11/2026
+
+Os overlays Alloy, Caddy e Beyla também precisam dos fixes de crypto/net;
+o módulo principal do SentinelOps não governa os módulos upstream desses builds.
+Os três builds agora exigem o commit oficial corrigido de x/crypto e x/net0.62.0,
+inclusive no módulo collector do Alloy. A versão efetiva dos dois módulos é
+verificada no `go version -m` de cada binário produzido, não apenas no comando
+`go get`. As provas anteriores de autorização Moby, certificados, descoberta
+Beyla e compatibilidade permanecem obrigatórias. Não se alteram severidades,
+ignores, plataforma, proteção de branch, TLS ou publicação/deploy. Os builds e
+scans no commit novo continuam necessários antes do merge.
